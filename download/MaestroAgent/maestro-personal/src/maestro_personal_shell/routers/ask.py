@@ -531,6 +531,79 @@ async def ask(request: Request, req: AskRequest, as_of: str | None = None, token
             # P85: grounding failures never block the request — proceed to _ask_impl
             logger.warning("ask: ground_query failed (%s) — proceeding to _ask_impl", _ground_err)
 
+    # Phase 3.3 fix: fast entity lookup BEFORE _ask_impl (which is slow).
+    # For entity-specific queries, try a fast signal+ledger lookup first.
+    # Only fall through to _ask_impl if the fast path finds nothing.
+    if _skip_abstention_gate:
+        try:
+            from maestro_personal_shell.api import load_signals_from_db
+            from maestro_personal_shell.commitment_ledger import get_ledger_entries, init_ledger_table
+            _db_fast = default_sqlite_path()
+            init_ledger_table(_db_fast)
+            _fast_sigs = load_signals_from_db(user_email=token, limit=500)
+            # Extract entity from query using known entities
+            _fast_known = set()
+            for sig in _fast_sigs:
+                ent = sig.get('entity', '') if isinstance(sig, dict) else ''
+                if ent:
+                    _fast_known.add(ent)
+            _fast_queried = set()
+            for ent in _fast_known:
+                ent_lower = ent.lower()
+                for part in ent_lower.replace(',', ' ').split():
+                    if len(part) >= 3 and part in _query_lower_early:
+                        _fast_queried.add(ent)
+                        break
+            if _fast_queried:
+                # Try ledger first
+                _fast_evidence = []
+                _fast_lines = []
+                for ent in _fast_queried:
+                    _entries = get_ledger_entries(token, _db_fast, entity=ent)
+                    _current = [e for e in _entries if e.get('state') not in ('tombstoned', 'superseded')]
+                    if _current:
+                        for e in _current[:5]:
+                            _action = e.get('action', '') or e.get('evidence_quote', '') or 'Unknown'
+                            _fast_lines.append(f'• [{ent}] {_action[:80]}')
+                            _fast_evidence.append({
+                                'text': e.get('evidence_quote', '') or _action,
+                                'entity': ent,
+                                'timestamp': e.get('updated_at', ''),
+                                'signal_id': e.get('signal_id', ''),
+                                'source_type': 'ledger',
+                            })
+                # If ledger empty, try signals
+                if not _fast_evidence:
+                    for ent in _fast_queried:
+                        for sig in _fast_sigs:
+                            sig_ent = sig.get('entity', '') if isinstance(sig, dict) else ''
+                            if sig_ent and ent.lower() in sig_ent.lower():
+                                _fast_lines.append(f'• [{sig_ent}] {sig.get("text","")[:80]}')
+                                _fast_evidence.append({
+                                    'text': sig.get('text', ''),
+                                    'entity': sig_ent,
+                                    'timestamp': sig.get('timestamp', ''),
+                                    'signal_id': sig.get('signal_id', ''),
+                                    'source_type': 'signal',
+                                })
+                if _fast_evidence:
+                    _fast_answer = 'Based on your commitment ledger:\n' + '\n'.join(_fast_lines[:5])
+                    return AskResponse(
+                        answer=_fast_answer, query=req.query,
+                        source_sentence=_fast_evidence[0].get('text', ''),
+                        source_entity=_fast_evidence[0].get('entity', ''),
+                        source_timestamp=_fast_evidence[0].get('timestamp', ''),
+                        situation_state='', evidence_refs=_fast_evidence[:5],
+                        confidence=0.8, counterevidence=[], unknowns=[],
+                        as_of=str(as_of or ''), decision_boundary='', perspectives=[],
+                        reasoning_chain=[f'Query: {req.query[:80]}', f'Fast entity lookup: found {len(_fast_evidence)} entries'],
+                        calibration_note='Answered from ledger/signals (fast path, no LLM).',
+                        consequence_paths=[], llm_active=False, llm_provider='none',
+                        intelligence_source='fast_entity_lookup',
+                    )
+        except Exception as _fast_err:
+            logger.warning('Phase 3.3 fast entity lookup failed: %s', _fast_err)
+
     # ---- Cache miss → call _ask_impl (the slow path with LLM) ----
     response = await _ask_impl(request, req, as_of, token)
 
