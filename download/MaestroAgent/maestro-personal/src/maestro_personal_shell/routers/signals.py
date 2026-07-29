@@ -200,16 +200,13 @@ async def create_signal(req: SignalCreate, token: str = Depends(verify_token_dep
     # which is rate-limited). The ZAI CLI fires 429 retries on every signal
     # ingest, adding 7s of latency per signal. Skip it when the provider
     # is rate-limited — the regex layers already caught the known patterns.
-    try:
-        from maestro_personal_shell.llm_bridge import semantic_injection_check, get_llm_provider_name
-        _provider = get_llm_provider_name()
-        # Skip semantic check for ZAI (rate-limited) — regex is sufficient
-        if _provider not in ("none", "zai-glm"):
-            sem_result = await semantic_injection_check(sanitized_text)
-            if sem_result.get("is_injection"):
-                sanitized_text = sem_result.get("filtered_text", sanitized_text)
-    except Exception:
-        pass  # semantic check is best-effort; regex layers already ran
+    # P4 FIX: semantic_injection_check DISABLED at write time.
+    # It was destroying legitimate business emails like "Forget about the
+    # roadmap presentation." — exactly the retraction phrases a commitment
+    # tracker must capture. The semantic check runs at READ time in ask.py
+    # assemble_llm_context(), which is the correct architecture (Principle 4).
+    # Only the minimal regex filter (ignore all previous instructions, etc.)
+    # runs at write time — that's sufficient for defense-in-depth.
 
     # TICKET-1/P59: use caller-provided signal_id if available (for tests)
     signal_id = req.signal_id if req.signal_id else str(uuid4())
@@ -974,7 +971,8 @@ async def ingest_transcript(req: TranscriptIngestRequest, token: str = Depends(v
 
         # Sanitize
         sanitized_text = sanitize_email_text(commit["text"])
-        sanitized_text = sanitize_for_llm(sanitized_text)
+        # P4 FIX: disabled — filter at read time only
+        # sanitized_text = sanitize_for_llm(sanitized_text)
 
         signal_data = {
             "signal_id": signal_id,
