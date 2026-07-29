@@ -938,9 +938,12 @@ async def retry_derivation(token: str = ""):
     conn = get_db_conn(db_path)
 
     # Find all signals with awaiting_derivation=1 in metadata
+    # Use parameterized query — LIKE pattern contains % which Postgres
+    # interprets as a format specifier if passed inline.
     rows = conn.execute(
         "SELECT signal_id, entity, text, signal_type, timestamp, metadata, user_email "
-        "FROM signals WHERE metadata LIKE '%awaiting_derivation%'"
+        "FROM signals WHERE metadata LIKE ?",
+        ("%awaiting_derivation%",),
     ).fetchall()
 
     total = len(rows)
@@ -1050,8 +1053,11 @@ async def derivation_status(token: str = ""):
 
         db_path = default_sqlite_path()
         conn = get_db_conn(db_path)
+        # Use parameterized query — the LIKE pattern contains % which
+        # Postgres interprets as a format specifier if passed inline.
         rows = conn.execute(
-            "SELECT signal_id FROM signals WHERE metadata LIKE '%awaiting_derivation%' LIMIT 10000"
+            "SELECT signal_id FROM signals WHERE metadata LIKE ? LIMIT 10000",
+            ("%awaiting_derivation%",),
         ).fetchall()
         count = len(rows) if rows else 0
         conn.close()
