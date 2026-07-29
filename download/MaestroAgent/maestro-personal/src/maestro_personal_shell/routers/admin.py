@@ -1221,16 +1221,55 @@ async def drain_outbox(token: str = ""):
                 )
 
             # Append to canonical ledger
+            # Map signal_type to valid event_type (CHECK constraint:
+            # commitment, request, question, quotation, cancellation,
+            # completion, tentative, joke)
+            _VALID_EVENT_TYPES = {
+                "commitment", "request", "question", "quotation",
+                "cancellation", "completion", "tentative", "joke",
+            }
+            _event_type = (signal_type or "commitment").lower()
+            if _event_type not in _VALID_EVENT_TYPES:
+                # Map common signal types to valid event types
+                if "commit" in _event_type:
+                    _event_type = "commitment"
+                elif "cancel" in _event_type:
+                    _event_type = "cancellation"
+                elif "complete" in _event_type:
+                    _event_type = "completion"
+                elif "question" in _event_type or "?" in text:
+                    _event_type = "question"
+                else:
+                    _event_type = "commitment"  # default
+
+            # Map owner to valid actor (CHECK: user, entity_name, system)
+            _actor = (_ingest_owner or "user").lower()
+            if _actor not in ("user", "entity_name", "system"):
+                _actor = "user"
+
+            # Map state to valid canonical state
+            _VALID_STATES = {"active", "cancelled", "completed", "superseded"}
+            _canon_state = _ingest_state.lower() if _ingest_state else "active"
+            if _canon_state not in _VALID_STATES:
+                if "cancel" in _canon_state:
+                    _canon_state = "cancelled"
+                elif "complete" in _canon_state:
+                    _canon_state = "completed"
+                elif "supers" in _canon_state:
+                    _canon_state = "superseded"
+                else:
+                    _canon_state = "active"
+
             event = CommitmentEvent(
                 event_id=str(_uuid_drain.uuid4()),
                 commitment_id=f"commitment-{signal_id[:8]}",
-                event_type=signal_type or "signal_ingested",
-                actor=_ingest_owner or "user",
+                event_type=_event_type,
+                actor=_actor,
                 entity=entity,
                 text=text[:500],
                 source_signal_id=signal_id,
                 confidence=meta.get("confidence", 0.5),
-                state=_ingest_state,
+                state=_canon_state,
                 user_email=user_email,
                 timestamp=timestamp,
                 metadata=meta,
