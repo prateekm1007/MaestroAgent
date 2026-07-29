@@ -602,15 +602,25 @@ async def get_commitments(as_of: str | None = None, token: str = Depends(verify_
                         has_broken_signal = True
                         break
 
+        # BUG 2 fix: compute is_at_risk from the parsed deadline
+        _deadline_str = (c.get("metadata", {}) or {}).get("deadline", "")
+        _is_overdue = False
+        if _deadline_str:
+            try:
+                from maestro_personal_shell.deadline_parser import is_overdue as _dl_is_overdue
+                _is_overdue = _dl_is_overdue(_deadline_str)
+            except Exception:
+                pass
+
         result.append(CommitmentResponse(
             entity=c["entity"],
             text=c["text"],
             claim_type=str(c.get("claim_type", "commitment")),
             signal_id=sig_id,
             is_commitment=c.get("is_commitment", True),
-            is_at_risk=(sig_id in stale_map) or has_broken_signal,
+            is_at_risk=(sig_id in stale_map) or has_broken_signal or _is_overdue,
             days_stale=days_stale,
-            deadline=(c.get("metadata", {}) or {}).get("deadline", ""),
+            deadline=_deadline_str,
             calibration_note=cal_note,
             outcome_history=outcome,
             confidence=_compute_commitment_confidence(c, cal_note, days_stale),

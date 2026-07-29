@@ -307,9 +307,29 @@ async def create_signal(req: SignalCreate, token: str = Depends(verify_token_dep
         # metadata["deadline"], so we set BOTH "deadline" (the read key)
         # and "deadline_text" (the canonical classifier-output key) for
         # coherence with the ledger schema.
-        _parsed_deadline = classification.get("deadline_text", "")
-        metadata["deadline_text"] = _parsed_deadline
-        metadata["deadline"] = _parsed_deadline
+        #
+        # BUG 2 fix (auditor #11): parse the raw deadline text to ISO 8601
+        # at write time. Previously stored raw text ("Friday EOD") instead
+        # of ISO timestamp ("2026-07-31T17:00:00+00:00").
+        _raw_deadline = classification.get("deadline_text", "")
+        metadata["deadline_text"] = _raw_deadline
+
+        # Parse to ISO if we have a deadline phrase
+        if _raw_deadline:
+            try:
+                from maestro_personal_shell.deadline_parser import parse_deadline
+                _parsed_dt = parse_deadline(_raw_deadline)
+                if _parsed_dt:
+                    metadata["deadline"] = _parsed_dt.isoformat()
+                else:
+                    # Try parsing the full text (deadline phrase may be embedded)
+                    _parsed_dt = parse_deadline(sanitized_text)
+                    metadata["deadline"] = _parsed_dt.isoformat() if _parsed_dt else _raw_deadline
+            except Exception as _dl_parse_err:
+                logger.debug("Deadline ISO parsing failed (non-fatal): %s", _dl_parse_err)
+                metadata["deadline"] = _raw_deadline  # fallback to raw text
+        else:
+            metadata["deadline"] = ""
 
         classified_type = classification.get("commitment_type", "not_a_commitment")
         NON_COMMITMENT_TYPES = {

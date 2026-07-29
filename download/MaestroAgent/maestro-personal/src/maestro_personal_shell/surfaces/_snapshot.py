@@ -52,6 +52,23 @@ def reconcile_snapshot(shell: Any, user_email: str = "") -> dict[str, Any]:
     commit_surface = CommitmentsSurface(shell=shell)
     active = commit_surface.get_active_commitments()
 
+    # BUG 1 fix (auditor #11): apply the SAME filters as /api/commitments
+    # so the count matches. Previously _snapshot used raw get_active_commitments()
+    # (430 items) while /api/commitments applied 3 additional filters (324 items).
+    # The delta was 106 — the #1 blocker across 6 audits.
+    try:
+        from maestro_personal_shell.routers.commitments import (
+            _filter_completed_commitments,
+            _filter_dismissed_commitments,
+            _filter_non_commitments_by_classification,
+        )
+        active = _filter_completed_commitments(active, shell.oem_state.signals)
+        active = _filter_dismissed_commitments(active, shell.oem_state.signals)
+        active = _filter_non_commitments_by_classification(active, shell.oem_state.signals)
+    except Exception as _filter_err:
+        # P85: non-fatal — if filters fail, use the unfiltered count
+        pass
+
     # Read stale map with the SAME threshold as /api/commitments (days=2)
     # — no divergence.
     stale = shell.detect_stale_commitments(days_threshold=2)
