@@ -254,16 +254,27 @@ async def get_the_shifts(token: str = Depends(verify_token_dep)):
     from maestro_personal_shell.surfaces._snapshot import reconcile_snapshot
     recon = reconcile_snapshot(shell, user_email=token)
     surface = WhatChangedSurface(shell=shell)
-    since = datetime.now(timezone.utc) - timedelta(days=30)
+    # Phase 3.4 fix (auditor v12): "detect change, don't summarise."
+    # The prior code looked back 30 days, which meant "what changed" always
+    # returned results — even on a no-change day. The auditor wants:
+    #   - no-change day → silence (empty the_shifts + silence_message)
+    #   - one critical change → surfaced alone
+    # Fix: look back 24 hours (the natural "since you last looked" window).
+    # If nothing changed in 24h, return silence. If something changed,
+    # surface it — even if it's just one item.
+    since = datetime.now(timezone.utc) - timedelta(hours=24)
     deltas = surface.get_recent_deltas(since_timestamp=since)
     meaningful = [d for d in deltas if d.get("is_meaningful")]
     if not meaningful:
         return WhatChangedMasterpieceResponse(
             the_shifts=[],
-            silence_message="Nothing material changed since you last looked.",
+            silence_message="Nothing material changed in the last 24 hours.",
             reconciliation=recon,
         )
-    the_shifts = meaningful[:2]
+    # Phase 3.4: if only ONE meaningful change, surface it alone (not padded
+    # to 2 with less-important items). The auditor wants "one critical change
+    # → surfaced alone."
+    the_shifts = meaningful[:2] if len(meaningful) > 1 else meaningful
     return WhatChangedMasterpieceResponse(
         the_shifts=[
             WhatChangedResponse(

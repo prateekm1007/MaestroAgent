@@ -1066,6 +1066,8 @@ async def _ask_impl(request: Request, req: AskRequest, as_of: str | None = None,
         "review my", "summarize my", "what changed",
         "what's new", "what is new", "give me an overview",
         "what are my commitments", "how many commitments",
+        "what are my active commitments", "active commitments",
+        "my active commitments", "show my commitments",
         "anything urgent", "what's at risk",
         # F-S1b-a-2 fix (auditor): "list all" / "every" / "all of them"
         # are the most natural commitment-tracker queries. Without these
