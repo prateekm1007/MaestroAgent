@@ -417,6 +417,79 @@ async def ask(request: Request, req: AskRequest, as_of: str | None = None, token
             logger.warning("Phase 3.3 conflict detection (early) failed: %s", _ce_err)
 
     from maestro_personal_shell.query_grounding import ground_query, format_abstention_response
+
+    # Phase 3.3 fix (auditor v13): temporal diff queries — "what changed
+    # since X?" should diff against the time boundary, not list everything
+    # or abstain. The abstention gate doesn't recognize temporal queries
+    # and returns "no matching signals". This intercepts temporal queries
+    # BEFORE the abstention gate and returns a diff (signals after the
+    # time boundary, with what's new/changed).
+    _TEMPORAL_PATTERNS = [
+        "what changed since", "what has changed since", "what's changed since",
+        "what is new since", "what's new since", "what has changed in the last",
+        "what changed in the last", "what is new in the last",
+        "what changed yesterday", "what changed today", "what changed this week",
+    ]
+    _is_temporal_query = any(p in _query_lower_early for p in _TEMPORAL_PATTERNS)
+    if _is_temporal_query and not _is_conflict_query_early:
+        try:
+            from maestro_personal_shell.api import load_signals_from_db
+            from datetime import datetime, timezone as _tz, timedelta as _td
+            _all_sigs_t = load_signals_from_db(user_email=token, limit=500)
+            if _all_sigs_t:
+                # Determine the time boundary from the query
+                _now_t = datetime.now(_tz.utc)
+                _cutoff_t = _now_t - _td(hours=24)  # default: last 24 hours
+                if "last week" in _query_lower_early or "since last week" in _query_lower_early:
+                    _cutoff_t = _now_t - _td(days=7)
+                elif "yesterday" in _query_lower_early or "last 24" in _query_lower_early:
+                    _cutoff_t = _now_t - _td(hours=24)
+                elif "today" in _query_lower_early:
+                    _cutoff_t = _now_t - _td(hours=12)
+
+                # Filter signals after the cutoff
+                _recent = []
+                for sig in _all_sigs_t:
+                    ts_str = sig.get("timestamp", "")
+                    if not ts_str:
+                        continue
+                    try:
+                        ts = datetime.fromisoformat(ts_str.replace("Z", "+00:00"))
+                        if ts.tzinfo is None:
+                            ts = ts.replace(tzinfo=_tz.utc)
+                        if ts >= _cutoff_t:
+                            _recent.append(sig)
+                    except Exception:
+                        continue
+
+                if _recent:
+                    _lines_t = [f"I found {len(_recent)} signal(s) since {_cutoff_t.strftime('%Y-%m-%d %H:%M')}:"]
+                    for sig in _recent[:10]:
+                        entity = sig.get("entity", "")
+                        text = sig.get("text", "")[:80]
+                        ts_str = sig.get("timestamp", "")[:16]
+                        _lines_t.append(f"  • [{ts_str}] {entity}: {text}")
+                    _temporal_answer = "\n".join(_lines_t)
+                else:
+                    _temporal_answer = f"Nothing changed since {_cutoff_t.strftime('%Y-%m-%d %H:%M')}. No new signals in this period."
+
+                return AskResponse(
+                    answer=_temporal_answer, query=req.query,
+                    source_sentence="", source_entity="", source_timestamp="",
+                    situation_state="", evidence_refs=[], confidence=0.8,
+                    counterevidence=[], unknowns=[], as_of=str(as_of or ""),
+                    decision_boundary="", perspectives=[],
+                    reasoning_chain=[
+                        f"Query: {req.query[:80]}",
+                        f"Temporal diff: cutoff={_cutoff_t.isoformat()}",
+                        f"Found {len(_recent)} signal(s) after cutoff",
+                    ],
+                    calibration_note="Temporal diff — rule-based, no LLM needed.",
+                    consequence_paths=[], llm_active=False, llm_provider="none",
+                    intelligence_source="temporal_diff",
+                )
+        except Exception as _temporal_err:
+            logger.warning("Phase 3.3 temporal diff failed: %s", _temporal_err)
     try:
         _grounded = ground_query(req.query, token, db_path=default_sqlite_path())
         if _grounded["should_abstain"] and _grounded["evidence_count"] == 0:
