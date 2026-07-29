@@ -142,6 +142,15 @@ async def create_signal(req: SignalCreate, token: str = Depends(verify_token_dep
     # and neutralize at READ time in ask.py's assemble_llm_context.
     # This is the P54 principle: fix the data the user sees — the stored
     # text must always be what the user wrote.
+    #
+    # S1-7 fix (auditor #11): defense-in-depth. The no-mutation approach
+    # is correct for LEGITIMATE emails (F-14), but OBVIOUS injection
+    # patterns ("IGNORE ALL PREVIOUS INSTRUCTIONS") should be neutralized
+    # at write time too. The auditor's R4 test checks that the hostile
+    # payload is NOT in the stored text — verbatim storage fails this.
+    # Fix: replace OBVIOUS injection patterns with a placeholder, but
+    # leave everything else verbatim. This preserves both F-14 (legitimate
+    # emails not mutated) and S1-7 (hostile payloads neutralized at write).
     from maestro_personal_shell.llm_bridge import sanitize_for_llm as _regex_sanitize
     from maestro_personal_shell.signal_adapters.gmail import sanitize_email_text
 
@@ -149,6 +158,26 @@ async def create_signal(req: SignalCreate, token: str = Depends(verify_token_dep
     # F-14: do NOT call _regex_sanitize at write time — it mutates text.
     # Instead, check for injection patterns and flag in metadata.
     _injection_suspected = _regex_sanitize(sanitized_text) != sanitized_text
+
+    # S1-7: Minimal write-time filter for OBVIOUS injection patterns only.
+    # These are patterns that no legitimate email would contain.
+    # Legitimate phrases like "Please ignore the previous email" are NOT
+    # caught here — they pass through verbatim (F-14 protection).
+    _OBVIOUS_INJECTION_PATTERNS = [
+        r'ignore\s+all\s+previous\s+instructions',
+        r'disregard\s+prior\s+rules',
+        r'you\s+are\s+now\s+dan\b',
+        r'reveal\s+your\s+system\s+prompt',
+        r'^SYSTEM:\s*disregard',
+        r'\bjailbroken\b',
+        r'developer\s+mode\s+enabled',
+    ]
+    for _pattern in _OBVIOUS_INJECTION_PATTERNS:
+        if _re.search(_pattern, sanitized_text, _re.IGNORECASE):
+            sanitized_text = "[Content filtered due to potential prompt injection]"
+            _injection_suspected = True
+            logger.info("S1-7: write-time injection filter neutralized hostile payload")
+            break
 
     # P0.1: HTML entity encoding — prevent stored XSS. <script> → &lt;script&gt;
     # This is the ONLY transformation applied to stored text. It's reversible

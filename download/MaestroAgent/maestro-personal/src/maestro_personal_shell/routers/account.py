@@ -59,6 +59,28 @@ async def verify_token_dep(authorization: str = Header(None)) -> str:
     return await verify_token(authorization=authorization)
 
 
+def _require_admin(token: str = Depends(verify_token_dep)) -> str:
+    """Gate debug/admin endpoints behind admin auth.
+
+    Fail closed in production if ADMIN_EMAILS not set.
+    Detect production via MAESTRO_PERSONAL_TOKEN (always set in prod, never in dev).
+    """
+    import os as _os
+    admin_emails = {e.strip().lower() for e in _os.environ.get("ADMIN_EMAILS", "").split(",") if e.strip()}
+
+    _is_prod = bool(_os.environ.get("MAESTRO_PERSONAL_TOKEN", "")) and not _os.environ.get("MAESTRO_DEMO_MODE", "")
+    if not admin_emails:
+        if _is_prod:
+            from fastapi import HTTPException
+            raise HTTPException(status_code=403, detail="Admin access not configured (set ADMIN_EMAILS)")
+        return token
+
+    if token.lower() not in admin_emails:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=403, detail="Admin access required")
+    return token
+
+
 # ---------------------------------------------------------------------------
 # Pydantic models — moved here from api.py (router-specific)
 # ---------------------------------------------------------------------------
@@ -796,7 +818,7 @@ async def llm_status(token: str = Depends(verify_token_dep)):
 
 
 @router.get("/debug-llm")
-async def debug_llm(token: str = Depends(verify_token_dep)):
+async def debug_llm(token: str = Depends(_require_admin)):
     """TEMP debug — inspect LLM router state.
 
     P51 (fifth audit F1): this endpoint must NEVER throw an unhandled 500.
@@ -884,7 +906,7 @@ async def debug_llm(token: str = Depends(verify_token_dep)):
 
 
 @router.get("/debug-canonical-ledger")
-async def debug_canonical_ledger(token: str = Depends(verify_token_dep)):
+async def debug_canonical_ledger(token: str = Depends(_require_admin)):
     """P83 diagnostic: check the canonical ledger (commitment_events table) state.
 
     Returns whether the table exists, row count, and a sample of recent events.
