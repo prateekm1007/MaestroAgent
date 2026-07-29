@@ -374,17 +374,39 @@ async def get_prepare(as_of: str | None = None, token: str = Depends(verify_toke
         # /api/prepare returns prep_points: [] and copilot_talking_points: []
         # because the copilot bridge isn't wired. Generate fallback points
         # from the commitment + contradiction data we already have.
+        #
+        # Phase 3.1 fix (roadmap): use the prepare_engine to generate
+        # rich, data-driven prep points from signals + commitments.
+        # This is the biggest single audit gap (8 points, 12 audits empty).
         if not copilot_talking_points:
-            fallback_points = []
-            if the_forgotten:
-                fallback_points.append({"point": f"Forgotten: {the_forgotten}", "source": "rule-based"})
-            if the_open_question:
-                fallback_points.append({"point": f"Open question: {the_open_question}", "source": "rule-based"})
-            if the_contradiction:
-                fallback_points.append({"point": f"Contradiction: {the_contradiction}", "source": "rule-based"})
-            # Add the situation state as a talking point
-            fallback_points.append({"point": f"Current state: {meeting_context}", "source": "rule-based"})
-            copilot_talking_points = fallback_points[:5]
+            # Try the prepare_engine first (rich, data-driven)
+            try:
+                from maestro_personal_shell.prepare_engine import generate_prep
+                prep_data = generate_prep(token, entity)
+                if prep_data.get("prep_points"):
+                    copilot_talking_points = [
+                        {"point": pp, "source": "prepare_engine"}
+                        for pp in prep_data["prep_points"][:5]
+                    ]
+                    # Also populate blocking_unknowns and can_decide
+                    if not copilot_blocking_unknowns and prep_data.get("blocking_unknowns"):
+                        copilot_blocking_unknowns = prep_data["blocking_unknowns"][:3]
+                    if not copilot_can_decide and prep_data.get("decisions_available"):
+                        copilot_can_decide = prep_data["decisions_available"][:3]
+            except Exception as e:
+                logger.debug("prepare_engine failed (non-fatal): %s", e)
+
+            # Fallback to rule-based if prepare_engine didn't produce results
+            if not copilot_talking_points:
+                fallback_points = []
+                if the_forgotten:
+                    fallback_points.append({"point": f"Forgotten: {the_forgotten}", "source": "rule-based"})
+                if the_open_question:
+                    fallback_points.append({"point": f"Open question: {the_open_question}", "source": "rule-based"})
+                if the_contradiction:
+                    fallback_points.append({"point": f"Contradiction: {the_contradiction}", "source": "rule-based"})
+                fallback_points.append({"point": f"Current state: {meeting_context}", "source": "rule-based"})
+                copilot_talking_points = fallback_points[:5]
 
         if not copilot_timeline:
             # Generate a simple timeline from the situation's signals
