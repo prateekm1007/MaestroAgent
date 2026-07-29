@@ -112,11 +112,12 @@ class SignalCreate(BaseModel):
 
 
 class SignalResponse(BaseModel):
-    signal_id: str
+    signal_id: str | None = None  # Phase 3.2: None when rejected (machine_sender, etc.)
     entity: str
     text: str
     signal_type: str
     timestamp: str
+    rejected: str | None = None  # Phase 3.2: rejection reason
     # P1-Audit-F4: surface audit-log write failures to the caller
     audit_log_error: str | None = None
     # P3 auditor fix (2026-07-24): return classification metadata so the
