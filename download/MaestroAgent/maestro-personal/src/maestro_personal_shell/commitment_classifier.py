@@ -463,9 +463,14 @@ async def classify_commitment(
     if not is_llm_available():
         return _rule_based_classify(text, entity, sender_email=sender_email)
 
-    safe_text = sanitize_for_llm(text, max_length=500)
-    safe_entity = sanitize_for_llm(entity, max_length=100)
-    safe_context = sanitize_for_llm(context, max_length=500)
+    # P4 FIX: Do NOT sanitize text at classification time. The text is stored
+    # verbatim by the signals router. Sanitization happens at READ time (in
+    # ask.py assemble_llm_context). Running sanitize_for_llm here destroys
+    # legitimate business emails like "Forget about the roadmap presentation."
+    # which are exactly the retraction phrases a commitment tracker must capture.
+    safe_text = text[:500]  # truncate only, do NOT filter
+    safe_entity = entity[:100]  # truncate only, do NOT filter
+    safe_context = (context or "")[:500]  # truncate only, do NOT filter
 
     system_prompt = f"""You are Maestro's Commitment Classifier. Classify the given text into a commitment type and lifecycle state.
 
