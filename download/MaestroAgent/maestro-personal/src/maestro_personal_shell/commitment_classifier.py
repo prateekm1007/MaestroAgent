@@ -555,11 +555,12 @@ Classify this text. Output ONLY valid JSON."""
     # negation/not_a_commitment are NOT commitments (they're suggestions,
     # questions, hedges, hopes, refusals, or irrelevant).
     is_commitment = parsed.get("is_commitment", ctype in (
-        "explicit", "implicit", "conditional", "third_party_report",
-        "completed", "cancelled", "disputed", "superseded", "broken",
+        "explicit", "implicit", "conditional",
+        "completed", "disputed", "superseded", "broken",
     ))
     if ctype in ("proposal", "request", "tentative", "aspiration",
-                 "negation", "not_a_commitment"):
+                 "negation", "not_a_commitment",
+                 "cancelled", "third_party_report"):
         is_commitment = False
 
     # F4/Riley fix: force broken → at_risk state (never completed_claimed)
