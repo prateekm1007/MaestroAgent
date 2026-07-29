@@ -1766,3 +1766,64 @@ SCORES IMPROVED THIS SESSION:
   Performance: 8 → 8 (build_time stability)
   Commitment Intelligence: 3 → 6+ (count agreement, honest writes)
 CTO-authored (P47 honest attribution).
+
+---
+Task ID: 49 (CTO — Phase 3.3 Ask fix: no contradictory negatives for entity substrings)
+Agent: CTO (GLM) — P47 honest attribution: CTO-authored
+
+GOVERNANCE LOOP READ RECEIPT:
+- GOVERNANCE.md read from disk (P26: re-application, not recall)
+- ENTROPY_RECOVERY.md read from disk (P1-P31)
+- CLAUDE.md read from disk (P54: fix the data the user sees)
+
+FIX APPLIED (commits 12cf45e9, a93bb618):
+
+Phase 3.3 — Ask: close the reasoning gap (auditor v12):
+
+Root cause (verified by execution against production):
+  Q: "What did I promise Maria?"
+  A (before): "Based on your commitment ledger:
+               • [Maria Garcia] I will send the Q3 budget proposal...
+               • No record of any promise to Maria."  ← contradiction
+
+  The compound entity extraction regex extracts both "Maria" AND
+  "Maria Garcia" from the query. The ledger finds "Maria Garcia" and
+  returns the record. But the negative-appending logic saw "Maria" as
+  "unaddressed" (not in the found entities set) and appended the
+  contradictory "No record of any promise to Maria" right after the
+  record that contradicts it.
+
+Fix:
+  Before appending "No record of any promise to X", check if X is a
+  substring of any entity that WAS found (or vice versa). If "Maria"
+  is a substring of "Maria Garcia" (which was found), don't append
+  the negative. Applied to both the RC2 fast path (line ~960) and
+  the final answer path (line ~4405).
+
+Pinned regression test:
+  test_phase33_ask_no_contradictory_negative_for_substring
+  Posts "Maria Garcia" signal, asks "What did I promise Maria?",
+  verifies the answer contains the record and does NOT contain the
+  contradictory "No record" line.
+
+PRODUCTION VERIFICATION (commit c60f6d8f):
+  Q: "What did I promise Maria?"
+  A: "Based on your commitment ledger:
+       • [Maria Garcia] I will send the Q3 budget proposal to Maria
+         Garcia by Friday EOD."
+  Contains Maria Garcia record: YES
+  Contains contradictory "No record": NO
+  ✅ PASS — Phase 3.3 fix is live
+
+PINNED REGRESSION SUITE:
+  19 tests, all passing (18 existing + 1 new Phase 3.3 test)
+
+COMMITS (clean fast-forward after merge, no force-push):
+  12cf45e9 — fix(Phase 3.3): Ask — don't append 'No record' for entity substrings
+  c60f6d8f — Merge branch 'main' (resolved conflict with remote)
+  a93bb618 — test(Phase 3.3): pinned test for no contradictory negatives
+
+SCORES IMPROVED:
+  AI Quality: 6 → 7 (entity extraction no longer contradicts itself)
+  Evidence: 5 → 7 (answers are clean — no false negatives after records)
+CTO-authored (P47 honest attribution).
