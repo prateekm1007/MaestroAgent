@@ -834,6 +834,14 @@ async def _ask_impl(request: Request, req: AskRequest, as_of: str | None = None,
     if _is_entity_query:
         # Extract entity name(s) from the query using the known entities
         _all_signals = shell.oem_state.signals if hasattr(shell, 'oem_state') else []
+        # Phase 3.3 fix: also load from DB if shell has no signals (cache miss)
+        if not _all_signals:
+            try:
+                from maestro_personal_shell.api import load_signals_from_db
+                _db_sigs = load_signals_from_db(user_email=token, limit=500)
+                _all_signals = _db_sigs if _db_sigs else []
+            except Exception:
+                pass
         _known_entities = set()
         for sig in _all_signals:
             sig_ent = getattr(sig, 'entity', '') or (sig.get('entity', '') if isinstance(sig, dict) else '')
