@@ -109,10 +109,13 @@ def _signal_source(sig_or_ref: dict) -> str:
 
 
 # P0-3: In-memory session store for multi-turn conversations.
-# Keyed by session_id, stores up to 5 turns of Q+A history.
+# Keyed by (user_email, session_id) tuple, stores up to 5 turns of Q+A history.
+# Phase 1.2 fix (auditor v13): was keyed by session_id alone — two users with
+# the same session_id would share conversation history (cross-entity bleed).
+# Now: composite key (user_email, session_id) ensures isolation.
 # TTL: 30 minutes (cleared on server restart — acceptable for single-user beta).
 # Format: list of {"q": query, "a": answer_snippet, "entity": entity}
-_ask_sessions: dict[str, list[dict[str, str]]] = {}
+_ask_sessions: dict[tuple[str, str], list[dict[str, str]]] = {}
 _SESSION_TTL_SECONDS = 1800
 _MAX_SESSION_TURNS = 5
 
@@ -633,7 +636,7 @@ async def _ask_impl(request: Request, req: AskRequest, as_of: str | None = None,
     )
     _is_pronoun_followup = _has_pronoun_phrase_check or _has_pronoun_token_check
     if req.session_id:
-        session_turns = _ask_sessions.get(req.session_id, [])
+        session_turns = _ask_sessions.get((token, req.session_id), [])
         if session_turns:
             # Get the most recent turn's entity for follow-up augmentation
             last_turn = session_turns[-1]
@@ -4095,7 +4098,7 @@ async def _ask_impl(request: Request, req: AskRequest, as_of: str | None = None,
     # evidence may have been resampled).
     if req.session_id:
         import time as _time_mod_save
-        turns = _ask_sessions.get(req.session_id, [])
+        turns = _ask_sessions.get((token, req.session_id), [])
         turns.append({
             "q": req.query,
             "a": str(verified_answer)[:200],
@@ -4105,7 +4108,7 @@ async def _ask_impl(request: Request, req: AskRequest, as_of: str | None = None,
         # Keep only the last N turns
         if len(turns) > _MAX_SESSION_TURNS:
             turns = turns[-_MAX_SESSION_TURNS:]
-        _ask_sessions[req.session_id] = turns
+        _ask_sessions[(token, req.session_id)] = turns
 
     # Phase 0 fix (Round 67): when the answer IS an abstention ("I don't have
     # enough information"), confidence MUST be 0.0. The auditor found the
@@ -4850,7 +4853,7 @@ async def ask_stream(req: AskRequest, token: str = Depends(verify_token_dep)):
         # question resolves to Maria in the stream too.
         _stream_prior_entity = ""
         if req.session_id:
-            _stream_turns = _ask_sessions.get(req.session_id, [])
+            _stream_turns = _ask_sessions.get((token, req.session_id), [])
             if _stream_turns:
                 _stream_prior_entity = _stream_turns[-1].get("entity", "")
                 # Augment pronoun follow-ups with the prior entity
@@ -4909,7 +4912,7 @@ async def ask_stream(req: AskRequest, token: str = Depends(verify_token_dep)):
             # F-07: still save the session turn (with the augmented entity)
             if req.session_id:
                 import time as _time_nomatch
-                turns = _ask_sessions.get(req.session_id, [])
+                turns = _ask_sessions.get((token, req.session_id), [])
                 turns.append({
                     "q": req.query,
                     "a": rule_based_answer[:200],
@@ -4918,7 +4921,7 @@ async def ask_stream(req: AskRequest, token: str = Depends(verify_token_dep)):
                 })
                 if len(turns) > _MAX_SESSION_TURNS:
                     turns = turns[-_MAX_SESSION_TURNS:]
-                _ask_sessions[req.session_id] = turns
+                _ask_sessions[(token, req.session_id)] = turns
             yield f"data: {json.dumps({'chunk': rule_based_answer, 'llm_active': False})}\n\n"
             yield "data: [DONE]\n\n"
             return
@@ -4992,7 +4995,7 @@ Answer the user's question based ONLY on the evidence above."""
                 _stream_entity = str(getattr(matching_situation, "entity", "") or "")
             if not _stream_entity:
                 _stream_entity = _stream_prior_entity or ""
-            turns = _ask_sessions.get(req.session_id, [])
+            turns = _ask_sessions.get((token, req.session_id), [])
             turns.append({
                 "q": req.query,
                 "a": full_answer[:200],
@@ -5001,7 +5004,7 @@ Answer the user's question based ONLY on the evidence above."""
             })
             if len(turns) > _MAX_SESSION_TURNS:
                 turns = turns[-_MAX_SESSION_TURNS:]
-            _ask_sessions[req.session_id] = turns
+            _ask_sessions[(token, req.session_id)] = turns
 
         yield "data: [DONE]\n\n"
 
