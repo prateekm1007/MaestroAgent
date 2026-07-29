@@ -1050,10 +1050,27 @@ async def derivation_status(token: str = ""):
     db_path = default_sqlite_path()
     try:
         conn = get_db_conn(db_path)
+        # Set row_factory to None for COUNT queries — DictRow/Row wrappers
+        # can cause indexing issues. COUNT returns a plain scalar.
+        try:
+            conn.row_factory = None
+        except Exception:
+            pass
         row = conn.execute(
             "SELECT COUNT(*) FROM signals WHERE metadata LIKE '%awaiting_derivation%'"
         ).fetchone()
-        count = row[0] if row else 0
+        # Handle both sqlite3.Row and tuple
+        if row is None:
+            count = 0
+        elif isinstance(row, (int, float)):
+            count = int(row)
+        elif hasattr(row, "__getitem__"):
+            try:
+                count = int(row[0])
+            except (IndexError, KeyError, TypeError):
+                count = int(list(row)[0]) if row else 0
+        else:
+            count = int(row)
         conn.close()
     except Exception as e:
         return {
