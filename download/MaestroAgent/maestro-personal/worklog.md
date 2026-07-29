@@ -324,3 +324,18 @@ Stage Summary:
   * 6e182da5 — /api/admin/backfill-canonical-ledger endpoint
 - P99 receipt: 6e182da5bc7f54fbe841a6b87ac3663d9f916c1d
 - No governance violations. No forbidden actions.
+
+---
+Task ID: cto-loop-2026-07-29-phase2.7-and-3.3
+Agent: CTO (Super Z) — OpenRouter Hy3/Qwen3-Coder/DeepSeek loop
+Task: Reach 9/10 — close Phase 2.7 (deterministic reads), Phase 3.3 (ask reasoning gap), Phase 3.2 (noise), Phase 2.3 (offline banner), Phase 0 (CI gate hardening)
+
+Work Log:
+- Re-read GOVERNANCE.md, ENTROPY_RECOVERY.md, FORBIDDEN_ACTIONS.md, ANTI_ENTROPY.md from disk
+- Verified env: OPENROUTER_API_KEY intact, GITHUB_PAT was redacted (will need refresh for push)
+- Repo HEAD: acb62bf, 99 commits ahead of origin/main (local work not yet pushed)
+- Built /home/z/my-project/scripts/or_engineer.py — OpenRouter client for Hy3/Qwen3-Coder/DeepSeek
+- Production token retrieved via /api/auth/login (bootstrap / maestro-demo)
+- F-27 whisper deterministic test PASSES on production (count=0,0,0 — no data triggers)
+- Root cause of F-27 non-determinism identified: materiality_gate.py line 76 uses temperature=0.1
+  → will fix to temperature=0.0 in whisper call graph

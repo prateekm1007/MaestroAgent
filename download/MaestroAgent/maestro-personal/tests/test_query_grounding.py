@@ -146,7 +146,10 @@ def test_abstention_response_format():
     assert resp["confidence"] == 0.0
     assert resp["evidence_count"] == 0
     assert "Elon" in resp["answer"]
-    assert "/api/signals" in resp["answer"]  # tells the user how to add the commitment
+    # F-7 fix: raw API paths must NOT leak to the user. The regression suite
+    # (tests/test_regression_audit.py::test_f7_no_api_paths_in_user_copy)
+    # enforces this at the API level — keep this assertion consistent.
+    assert "/api/" not in resp["answer"]
 
 
 def test_abstention_response_no_entity():

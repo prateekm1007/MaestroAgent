@@ -45,16 +45,25 @@ jobs:
       - name: Install dependencies
         run: |
           pip install pytest requests
-      - name: Run regression suite (P22: production-path tests)
+      - name: Run unit-level regression tests (ALWAYS RUN — no secrets required)
+        working-directory: download/MaestroAgent/maestro-personal
+        run: |
+          # F-28 (multi-word entity) and F-29 (temporal/conflict intents) are
+          # unit tests that don't need a live endpoint. They run on every push
+          # to catch regressions in the intent detector before they ship.
+          PYTHONPATH=src pytest tests/test_regression_audit.py::test_f28_multi_word_entity_extraction \
+            tests/test_regression_audit.py::test_f29_temporal_and_conflict_intents \
+            -v --tb=short
+      - name: Run production-path regression tests (requires staging secrets)
         working-directory: download/MaestroAgent/maestro-personal
         run: |
           if [ -z "$MAESTRO_URL" ] || [ -z "$MAESTRO_TOKEN" ]; then
-            echo "⚠ STAGING_URL or STAGING_TOKEN secret not set — regression gate SKIPPED."
-            echo "Set these secrets to enable the deploy-blocking gate."
-            echo "Until then, deploys are NOT regression-gated."
+            echo "⚠ STAGING_URL or STAGING_TOKEN secret not set — production-path tests SKIPPED."
+            echo "Set these secrets to enable the full deploy-blocking gate."
+            echo "Unit-level regression tests (F-28, F-29) already ran above."
             exit 0
           fi
-          pytest tests/test_regression_audit.py -v --tb=short
+          pytest tests/test_regression_audit.py -v --tb=short --ignore-glob='**/test_f28*' --ignore-glob='**/test_f29*'
       - name: Regression gate result
         if: always()
         run: |
