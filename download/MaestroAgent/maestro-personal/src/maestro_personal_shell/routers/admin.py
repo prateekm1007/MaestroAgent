@@ -866,3 +866,34 @@ async def fix_sequences(token: str = ""):
     conn.commit()
     conn.close()
     return {"status": "complete", "fixes": results}
+
+
+@router.post("/api/admin/purge-orphaned-ledger")
+async def purge_orphaned_ledger(token: str = ""):
+    """F-13 fix (auditor v12): delete ledger rows whose signal_id does not
+    exist in the signals table.
+
+    The v12 auditor found 32 orphaned ledger rows (tripled from v11's 10).
+    These are ledger entries that reference deleted/non-existent signals.
+    This endpoint purges them so /api/commitments/ledger and /api/commitments
+    stop showing phantom rows.
+
+    P54: fix the data the user sees — the purge removes orphaned rows from
+    the corpus, not just the code path.
+    """
+    import os
+    from fastapi import HTTPException
+    from maestro_personal_shell.db_util import default_sqlite_path
+    from maestro_personal_shell.commitment_ledger import purge_orphaned_ledger_rows
+
+    admin_token = os.environ.get("MAESTRO_PERSONAL_TOKEN", "")
+    if not admin_token or token != admin_token:
+        raise HTTPException(status_code=403, detail="Invalid admin token")
+
+    db_path = default_sqlite_path()
+    deleted = purge_orphaned_ledger_rows(db_path)
+    return {
+        "status": "complete",
+        "orphaned_rows_deleted": deleted,
+        "governance": "F-13: orphaned ledger rows purged (signal_ids absent from signals table)",
+    }

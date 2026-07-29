@@ -42,6 +42,11 @@ LEDGER_INDEXES = [
     "CREATE INDEX IF NOT EXISTS idx_ledger_user_state ON commitments_ledger(user_email, state)",
     "CREATE INDEX IF NOT EXISTS idx_ledger_entity ON commitments_ledger(entity)",
     "CREATE INDEX IF NOT EXISTS idx_ledger_signal ON commitments_ledger(signal_id)",
+    # F-13 fix (auditor v12): UNIQUE INDEX on signal_id to make duplicate
+    # inserts impossible at the DB level, even if application code has a
+    # race condition. The schema already has UNIQUE(signal_id) but this
+    # explicit index is clearer and works across SQLite + Postgres.
+    "CREATE UNIQUE INDEX IF NOT EXISTS ux_ledger_signal_id ON commitments_ledger(signal_id)",
 ]
 
 
@@ -743,3 +748,74 @@ def backfill_ledger_from_signals(
     finally:
         conn.close()
     return count
+
+
+def purge_orphaned_ledger_rows(db_path: str, user_email: str | None = None) -> int:
+    """Delete ledger rows whose signal_id does not exist in the signals table.
+
+    F-13 fix (auditor v12, 2026-07-29):
+    The v12 auditor found 32 orphaned ledger rows (tripled from v11's 10).
+    These are ledger entries that reference signals which were deleted or
+    never existed. The root cause is that the ledger has no foreign key
+    constraint to the signals table (SQLite/Postgres cross-engine FK
+    support is inconsistent), so deleting a signal leaves its ledger
+    row behind.
+
+    P54 (fix the data the user sees): the purge removes orphaned rows from
+    the corpus the user actually reads, not just the code path.
+
+    Args:
+        db_path: path to the database file
+        user_email: if provided, only purge orphans for this user
+
+    Returns:
+        The number of orphaned rows deleted.
+    """
+    init_ledger_table(db_path)
+    conn = get_db_conn(db_path)
+    try:
+        # Find ledger rows whose signal_id is NOT in the signals table.
+        # LEFT JOIN ... WHERE signals.signal_id IS NULL is the standard
+        # orphan-detection pattern, works on both SQLite and PostgreSQL.
+        if user_email:
+            orphans = conn.execute(
+                """SELECT cl.ledger_id, cl.signal_id, cl.entity
+                   FROM commitments_ledger cl
+                   LEFT JOIN signals s ON cl.signal_id = s.signal_id
+                   WHERE s.signal_id IS NULL AND cl.user_email = ?""",
+                (user_email,),
+            ).fetchall()
+        else:
+            orphans = conn.execute(
+                """SELECT cl.ledger_id, cl.signal_id, cl.entity
+                   FROM commitments_ledger cl
+                   LEFT JOIN signals s ON cl.signal_id = s.signal_id
+                   WHERE s.signal_id IS NULL""",
+            ).fetchall()
+
+        if not orphans:
+            logger.info("F-13 purge: no orphaned ledger rows found")
+            return 0
+
+        # Delete the orphans
+        orphan_ids = [row[0] if isinstance(row, (tuple, list)) else row["ledger_id"] for row in orphans]
+        placeholders = ",".join("?" * len(orphan_ids))
+        conn.execute(
+            f"DELETE FROM commitments_ledger WHERE ledger_id IN ({placeholders})",
+            orphan_ids,
+        )
+        conn.commit()
+        logger.info(
+            "F-13 purge: deleted %d orphaned ledger rows (signal_ids absent from signals table)",
+            len(orphan_ids),
+        )
+        return len(orphan_ids)
+    except Exception as e:
+        logger.error("F-13 purge failed: %s", e)
+        try:
+            conn.rollback()
+        except Exception:
+            pass
+        return 0
+    finally:
+        conn.close()

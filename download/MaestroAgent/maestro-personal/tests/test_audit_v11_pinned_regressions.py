@@ -740,3 +740,111 @@ def test_f26_guard_dev_env_allows():
         os.environ.pop("MAESTRO_ENV", None)
     else:
         os.environ["MAESTRO_ENV"] = old_env
+
+
+# ---------------------------------------------------------------------------
+# F-13 — Orphaned ledger row purge (auditor v12: 32 orphans tripled from v11)
+# ---------------------------------------------------------------------------
+
+
+def test_f13_orphaned_ledger_rows_purged():
+    """F-13: purge_orphaned_ledger_rows must remove ledger entries whose
+    signal_id does not exist in the signals table.
+
+    The v12 auditor found 32 orphaned ledger rows — ledger entries
+    referencing signals that were deleted or never existed. The purge
+    function detects orphans via LEFT JOIN ... IS NULL and removes them.
+
+    P54: fix the data the user sees — the purge removes phantom rows
+    from the corpus, not just the code path.
+    """
+    import tempfile
+    from maestro_personal_shell.api import init_db, save_signal_to_db
+    from maestro_personal_shell.commitment_ledger import (
+        init_ledger_table, upsert_ledger_entry, get_ledger_entries,
+        purge_orphaned_ledger_rows,
+    )
+
+    db_path = tempfile.mktemp(suffix="_f13_test.db")
+    old_db = os.environ.get("MAESTRO_PERSONAL_DB")
+    os.environ["MAESTRO_PERSONAL_DB"] = db_path
+    try:
+        init_db()
+        init_ledger_table(db_path)
+        user_email = "f13-test@maestro.local"
+
+        # Step 1: Create a signal + ledger entry (normal case)
+        sig = {
+            "signal_id": "f13-sig-001",
+            "entity": "Test Entity",
+            "text": "I will send the report by Friday.",
+            "signal_type": "commitment_made",
+            "timestamp": "2026-07-29T12:00:00+00:00",
+            "metadata": {"source": "test"},
+        }
+        save_signal_to_db(sig, user_email=user_email)
+        upsert_ledger_entry(
+            classification={
+                "is_commitment": True,
+                "commitment_type": "explicit",
+                "state": "active",
+                "owner": "user",
+                "action": sig["text"],
+                "confidence": 0.85,
+                "evidence_quote": sig["text"],
+            },
+            signal=sig,
+            user_email=user_email,
+            db_path=db_path,
+        )
+
+        # Step 2: Create an orphan — a ledger entry with a signal_id that
+        # does NOT exist in the signals table.
+        orphan_sig = {
+            "signal_id": "f13-orphan-001",
+            "entity": "Orphan Entity",
+            "text": "This signal was never saved to the signals table.",
+            "user_email": user_email,
+        }
+        upsert_ledger_entry(
+            classification={
+                "is_commitment": True,
+                "commitment_type": "explicit",
+                "state": "active",
+                "owner": "user",
+                "action": orphan_sig["text"],
+                "confidence": 0.85,
+                "evidence_quote": orphan_sig["text"],
+            },
+            signal=orphan_sig,
+            user_email=user_email,
+            db_path=db_path,
+        )
+
+        # Verify both entries exist before purge
+        entries_before = get_ledger_entries(user_email, db_path)
+        assert len(entries_before) == 2, (
+            f"Setup failed: expected 2 ledger entries, got {len(entries_before)}"
+        )
+
+        # Step 3: Purge orphans
+        deleted = purge_orphaned_ledger_rows(db_path, user_email=user_email)
+        assert deleted == 1, (
+            f"F-13: expected 1 orphan purged, got {deleted}"
+        )
+
+        # Step 4: Verify only the non-orphan remains
+        entries_after = get_ledger_entries(user_email, db_path)
+        assert len(entries_after) == 1, (
+            f"F-13: expected 1 entry after purge, got {len(entries_after)}"
+        )
+        assert entries_after[0]["signal_id"] == "f13-sig-001", (
+            f"F-13: wrong entry survived purge. Got: {entries_after[0]['signal_id']}"
+        )
+    finally:
+        if os.path.exists(db_path):
+            os.unlink(db_path)
+        if old_db is None:
+            os.environ.pop("MAESTRO_PERSONAL_DB", None)
+        else:
+            os.environ["MAESTRO_PERSONAL_DB"] = old_db
