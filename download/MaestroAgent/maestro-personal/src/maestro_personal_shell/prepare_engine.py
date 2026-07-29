@@ -128,9 +128,27 @@ def _generate_prep_impl(user_email: str, entity: str, db_path: str | None) -> di
     elif any(w in text_lower for w in ["confirmed", "thanks", "delivered", "completed", "approved"]):
         sentiment = "positive"
 
+    # Sentiment trajectory: compare first half vs second half of signals
+    # Phase 3.1 fix (auditor v13): not just current sentiment — show trend
+    sentiment_trajectory = "stable"
+    if len(signals) >= 4:
+        half = len(signals) // 2
+        # signals are ordered DESC (newest first), so reverse for chronological
+        chrono = list(reversed(signals))
+        early_text = " ".join(s.get("text", "") for s in chrono[:half]).lower()
+        late_text = " ".join(s.get("text", "") for s in chrono[half:]).lower()
+        early_neg = sum(1 for w in ["threatening", "churn", "unhappy", "angry", "frustrated"] if w in early_text)
+        late_neg = sum(1 for w in ["threatening", "churn", "unhappy", "angry", "frustrated"] if w in late_text)
+        early_pos = sum(1 for w in ["confirmed", "thanks", "delivered", "completed", "approved"] if w in early_text)
+        late_pos = sum(1 for w in ["confirmed", "thanks", "delivered", "completed", "approved"] if w in late_text)
+        if late_neg > early_neg or late_pos < early_pos:
+            sentiment_trajectory = "declining"
+        elif late_pos > early_pos or late_neg < early_neg:
+            sentiment_trajectory = "improving"
+
     # WHO section: relationship summary, last interactions, sentiment
-    # Phase 3.1 fix (auditor v13): add the "Who" section the auditor requires
-    prep_points.append(f"WHO: {relationship_summary} · Sentiment: {sentiment}")
+    # Phase 3.1 fix (auditor v13): add the "Who" section with trajectory
+    prep_points.append(f"WHO: {relationship_summary} · Sentiment: {sentiment} ({sentiment_trajectory})")
     if signals:
         prep_points.append(f"  Last {min(3, len(signals))} interaction(s):")
         for s in signals[:3]:
@@ -224,29 +242,72 @@ def _generate_prep_impl(user_email: str, entity: str, db_path: str | None) -> di
             age = f" ({bq['age_days']}d old)" if bq["age_days"] > 0 else ""
             prep_points.append(f"  • {bq['question'][:60]}{age}")
 
-    # Decisions available: commitments that can be closed
+    # Decisions available: commitments that can be closed in this meeting
+    # Phase 3.1 fix (auditor v13): don't just echo "Confirm: {action}".
+    # Instead, classify what KIND of decision is available.
     decisions_available = []
     for c in commitments:
-        if c.get("state") == "active" and c.get("owner") == "user":
-            decisions_available.append({
-                "text": f"Confirm: {c.get('action', '')[:60]}",
-                "signal_id": c.get("signal_id", ""),
-            })
+        if c.get("state") != "active":
+            continue
+        action = c.get("action", "")[:80]
+        owner = c.get("owner", "unknown")
+        deadline = c.get("deadline_datetime", "")
+        age_days = _age_days(c.get("deadline_datetime", ""))
+
+        # Classify the decision type
+        if owner == "user":
+            if age_days > 14:
+                decision_text = f"Close or cancel stale commitment: \"{action}\" (>{age_days}d old, no follow-up)"
+                decision_type = "stale_close"
+            elif deadline and _is_deadline_approaching(deadline):
+                decision_text = f"Decide: deliver \"{action}\" before deadline ({_format_deadline(deadline)}) or request extension"
+                decision_type = "deadline_decide"
+            else:
+                decision_text = f"Confirm delivery: \"{action}\" — close the loop if done"
+                decision_type = "deliver_confirm"
+        else:
+            decision_text = f"Follow up on their promise: \"{action}\" — ask for status"
+            decision_type = "their_followup"
+
+        decisions_available.append({
+            "text": decision_text,
+            "type": decision_type,
+            "signal_id": c.get("signal_id", ""),
+        })
+
+    # Also add blocking unknowns as decisions
+    for bq in blocking_unknowns[:2]:
+        decisions_available.append({
+            "text": f"Answer open question: \"{bq['question'][:60]}\"",
+            "type": "answer_needed",
+            "signal_id": "",
+        })
 
     if decisions_available:
-        prep_points.append(f"{len(decisions_available)} decision(s) available to close")
+        prep_points.append(f"DECISIONS AVAILABLE ({len(decisions_available)}):")
+        for d in decisions_available[:4]:
+            prep_points.append(f"  • {d['text']}")
 
-    # Why it matters
+    # Why it matters — one specific, actionable line
+    # Phase 3.1 fix (auditor v13): not generic — cite the MOST urgent thing
     why = ""
-    overdue_count = sum(1 for mc in my_commitments if mc["age_days"] > 0)
-    if overdue_count > 0:
-        why = f"{overdue_count} overdue commitment(s) to {entity} need resolution"
+    overdue = [mc for mc in my_commitments if mc["age_days"] > 0]
+    if overdue:
+        most_overdue = max(overdue, key=lambda x: x["age_days"])
+        why = f"You're {most_overdue['age_days']}d overdue on \"{most_overdue['text'][:50]}\" — resolve this today"
+    elif blocking_unknowns:
+        why = f"{len(blocking_unknowns)} unanswered question(s) — get clarity in this meeting"
     elif forgotten:
-        why = f"No contact with {entity} in {forgotten[0]['age_days']} days"
+        why = f"No contact in {forgotten[0]['age_days']}d — re-engage before this relationship goes cold"
     elif my_commitments:
-        why = f"{len(my_commitments)} open commitment(s) to {entity}"
+        next_due = min(my_commitments, key=lambda x: x.get("age_days", 0))
+        why = f"{len(my_commitments)} open commitment(s) — next: \"{next_due['text'][:50]}\""
+    elif their_commitments:
+        why = f"{entity} owes you {len(their_commitments)} commitment(s) — check status"
+    elif signal_count == 0:
+        why = f"New relationship with {entity} — establish expectations"
     else:
-        why = f"Review relationship with {entity}"
+        why = f"Review {signal_count} interaction(s) with {entity}"
 
     # If nothing to prep, say so honestly
     if not prep_points:
@@ -262,6 +323,7 @@ def _generate_prep_impl(user_email: str, entity: str, db_path: str | None) -> di
                 for s in signals[:3]
             ],
             "sentiment": sentiment,
+            "sentiment_trajectory": sentiment_trajectory,
         },
         "open_loops": {
             "my_commitments": my_commitments[:5],
@@ -284,3 +346,41 @@ def _age_days(timestamp_str: str) -> int:
         return (datetime.now(timezone.utc) - dt).days
     except Exception:
         return 0
+
+
+def _is_deadline_approaching(deadline_str: str) -> bool:
+    """Check if a deadline is within 48 hours from now."""
+    if not deadline_str:
+        return False
+    try:
+        dl = datetime.fromisoformat(deadline_str.replace("Z", "+00:00"))
+        now = datetime.now(timezone.utc)
+        if dl.tzinfo is None:
+            dl = dl.replace(tzinfo=timezone.utc)
+        delta = dl - now
+        return timedelta(0) <= delta <= timedelta(hours=48)
+    except Exception:
+        return False
+
+
+def _format_deadline(deadline_str: str) -> str:
+    """Format a deadline for human-readable display."""
+    if not deadline_str:
+        return "unknown"
+    try:
+        dl = datetime.fromisoformat(deadline_str.replace("Z", "+00:00"))
+        now = datetime.now(timezone.utc)
+        if dl.tzinfo is None:
+            dl = dl.replace(tzinfo=timezone.utc)
+        delta = dl - now
+        if delta.total_seconds() < 0:
+            hours = abs(int(delta.total_seconds() / 3600))
+            if hours < 24:
+                return f"{hours}h overdue"
+            return f"{hours // 24}d overdue"
+        hours = int(delta.total_seconds() / 3600)
+        if hours < 24:
+            return f"in {hours}h"
+        return f"in {hours // 24}d"
+    except Exception:
+        return deadline_str[:10]

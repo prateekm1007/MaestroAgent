@@ -224,22 +224,51 @@ def _filter_noise_from_material_changes(changes: list, signals: list) -> list:
 
 @router.get("/what-changed", response_model=list[WhatChangedResponse])
 async def get_what_changed(as_of: str | None = None, token: str = Depends(verify_token_dep)):
-    """Get recent meaningful deltas."""
+    """Get recent meaningful deltas.
+
+    Phase 3.4 fix (auditor v13): "detect change, don't summarise."
+    - No-change day → silence (return empty list, not a feed of mundane updates)
+    - One critical change → surfaced alone (not buried in a list of 3)
+    - State transitions (resolved, cancelled, broken) rank higher than new signals
+    """
     from maestro_personal_shell.api import build_shell
     shell = build_shell(user_email=token, as_of=as_of)
     from maestro_personal_shell.surfaces.what_changed import WhatChangedSurface
     surface = WhatChangedSurface(shell=shell)
-    since = datetime.now(timezone.utc) - timedelta(days=30)
+    # Phase 3.4: use 24h window (not 30d) — "what changed" means RECENTLY
+    since = datetime.now(timezone.utc) - timedelta(hours=24)
     deltas = surface.get_recent_deltas(since_timestamp=since)
-    # Change 12: Strict 3-card limit — sort by materiality, take top 3
-    deltas.sort(key=lambda d: 1 if d.get("is_meaningful") else 0, reverse=True)
-    deltas = deltas[:3]
+
+    # Phase 3.4: rank by materiality — state transitions first, then new commitments
+    _RANK = {
+        "resolved": 5,        # commitment completed = highest signal
+        "cancelled": 4,       # commitment cancelled = high signal
+        "broken": 4,          # commitment broken = high signal
+        "commitment_made": 3, # new commitment = medium
+        "personal.promise": 3,
+        "personal.commitment": 3,
+        "question": 2,        # question asked = low-medium
+        "reported_statement": 1, # statement = low
+    }
+    def _rank_key(d):
+        t = str(d.get("type", "")).lower()
+        return (_RANK.get(t, 0), 1 if d.get("is_meaningful") else 0)
+    deltas.sort(key=_rank_key, reverse=True)
+
+    # Phase 3.4: only return deltas with rank >= 3 (state transitions + new commitments)
+    # If nothing ranked >= 3, return EMPTY (silence) — not a feed of mundane updates
+    critical_deltas = [d for d in deltas if _rank_key(d)[0] >= 3]
+
+    # If there are critical deltas, return only those (top 3 max)
+    # If no critical deltas, return empty (silence — no-change day)
+    result_deltas = critical_deltas[:3] if critical_deltas else []
+
     return [
         WhatChangedResponse(
             entity=d["entity"], text=d["text"], type=d["type"],
             is_meaningful=d["is_meaningful"],
         )
-        for d in deltas
+        for d in result_deltas
     ]
 
 
