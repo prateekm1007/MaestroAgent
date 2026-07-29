@@ -233,6 +233,7 @@ async def create_signal(req: SignalCreate, token: str = Depends(verify_token_dep
     # respected for fields the classifier doesn't override.
     metadata: dict[str, Any] = dict(req.metadata) if req.metadata else {}
     _caller_commitment_state = metadata.get("commitment_state", "")
+    _caller_commitment_type = metadata.get("commitment_type", "")  # S1-6/P65: save BEFORE classifier overwrites
     _caller_is_commitment = metadata.get("is_commitment", None)
     classification = None
     signal_type_override = "needs_review"  # default: NOT a commitment
@@ -269,6 +270,31 @@ async def create_signal(req: SignalCreate, token: str = Depends(verify_token_dep
             metadata["commitment_state"] = _caller_commitment_state
         else:
             metadata["commitment_state"] = _classifier_state
+
+        # S1-6/P65 fix (auditor v11 correction, 2026-07-29): if the caller
+        # explicitly passed a RESOLUTION commitment_type (cancelled/completed/
+        # broken) but the classifier returned a non-commitment type, PRESERVE
+        # the caller's type. The LLM sometimes misclassifies completion
+        # signals ("Alex PR review completed" → not_a_commitment/owner=other)
+        # because it reads "Alex" as a third party. Without this preservation,
+        # the F-09 gate and upsert_ledger_entry gate both short-circuit the
+        # signal, and the TICKET-1 transition never fires. The caller's
+        # explicit type is the ground truth for resolution signals.
+        # _caller_commitment_type was saved BEFORE the classifier overwrote
+        # metadata["commitment_type"] at line 262 above.
+        _RESOLUTION_TYPES_CALLER = {"cancelled", "completed", "broken", "superseded", "disputed"}
+        if (_caller_commitment_type in _RESOLUTION_TYPES_CALLER
+                and metadata["commitment_type"] in ("not_a_commitment", "third_party_report")
+                and _caller_commitment_state in ("cancelled", "completed_claimed", "completed_verified", "broken")):
+            metadata["commitment_type"] = _caller_commitment_type
+            metadata["is_commitment"] = False  # S1-6: resolution signals are not active obligations
+            logger.info(
+                "S1-6/P65: caller resolution type preserved (caller=%s, "
+                "classifier=%s) — LLM misclassified resolution signal",
+                _caller_commitment_type,
+                classification.get("commitment_type", "?"),
+            )
+
         metadata["commitment_confidence"] = classification.get("confidence", 0.5)
         metadata["commitment_owner"] = classification.get("owner", metadata.get("commitment_owner", "unknown"))
         metadata["classification_reasoning"] = classification.get("reasoning", "")
@@ -427,22 +453,58 @@ async def create_signal(req: SignalCreate, token: str = Depends(verify_token_dep
         # not just the Ask read path. If the classifier says third_party_report
         # or owner=other, the ledger entry is created with state="candidate"
         # (not "active") so it never surfaces as the user's active commitment.
+        #
+        # S1-6/P65 fix (auditor v11 correction, 2026-07-29): RESOLUTION
+        # signals (cancelled/completed/broken) MUST be exempt from this
+        # gate. A resolution signal is a STATE TRANSITION on an existing
+        # commitment, not a new commitment — its owner doesn't matter.
+        # The LLM sometimes misclassifies the owner of completion signals
+        # ("Alex PR review completed" → owner=other because "Alex" looks
+        # like a third party). Without this exemption, the F-09 gate
+        # overrides the state to "candidate", which prevents the TICKET-1
+        # transition logic in upsert_ledger_entry from running — so the
+        # completion signal never closes the prior active commitment.
+        # This is the same P65 "one field means two things to two readers"
+        # shape as the upsert_ledger_entry gate fix.
         _ingest_commitment_type = metadata.get("commitment_type", "not_a_commitment")
         _ingest_owner = metadata.get("commitment_owner", "unknown")
         _ingest_is_commitment = metadata.get("is_commitment", False)
         _ingest_state = metadata.get("commitment_state", "candidate")
 
+        # Resolution types that MUST pass through to upsert_ledger_entry
+        # regardless of owner, because they transition existing commitments.
+        _RESOLUTION_TYPES_FOR_F09 = {
+            "cancelled", "completed", "broken", "superseded", "disputed",
+        }
+
         # F-09: third_party_report and owner=other → don't create an active
         # ledger entry. The signal is stored (it's evidence), but it's NOT
-        # the user's commitment.
-        if _ingest_commitment_type == "third_party_report" or _ingest_owner == "other":
-            _ingest_is_commitment = False  # not the user's commitment
-            _ingest_state = "candidate"    # never active
+        # the user's commitment. BUT: resolution signals (cancelled/
+        # completed/broken) are exempt — they transition existing entries.
+        if _ingest_commitment_type == "third_party_report":
+            _ingest_is_commitment = False
+            _ingest_state = "candidate"
             logger.info(
-                "F-09/P60: third-party/quoted signal ingested as non-active "
+                "F-09/P60: third-party signal ingested as non-active "
                 "(type=%s, owner=%s) — not the user's commitment",
                 _ingest_commitment_type, _ingest_owner,
             )
+        elif _ingest_owner == "other" and _ingest_commitment_type not in _RESOLUTION_TYPES_FOR_F09:
+            _ingest_is_commitment = False
+            _ingest_state = "candidate"
+            logger.info(
+                "F-09/P60: owner=other signal ingested as non-active "
+                "(type=%s, owner=%s) — not the user's commitment",
+                _ingest_commitment_type, _ingest_owner,
+            )
+        else:
+            # Resolution signal or user-owned signal — pass through.
+            if _ingest_commitment_type in _RESOLUTION_TYPES_FOR_F09:
+                logger.info(
+                    "F-09/P60: resolution signal (type=%s, owner=%s) — "
+                    "exempt from third-party gate, passing to upsert",
+                    _ingest_commitment_type, _ingest_owner,
+                )
 
         # Persist the classification (upsert handles state-machine routing).
         ledger_entry = upsert_ledger_entry(

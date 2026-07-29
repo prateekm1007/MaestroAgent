@@ -126,10 +126,43 @@ def upsert_ledger_entry(
     """
     init_ledger_table(db_path)
 
-    # Don't persist non-commitments.
+    # ───────────────────────────────────────────────────────────────────
+    # S1-6/P65 fix (auditor v11 correction, 2026-07-29):
+    # The prior gate was `if classification.get("is_commitment") is False:
+    # return None`. That was correct BEFORE S1-6, when cancelled/completed/
+    # broken signals reported is_commitment=True. After S1-6 correctly
+    # changed cancelled (and third_party_report) to is_commitment=False,
+    # this gate started short-circuiting cancellation signals BEFORE the
+    # TICKET-1 resolution-state transition logic below could run — so a
+    # cancellation signal no longer transitioned its prior active
+    # commitment to cancelled. The P59 lifecycle suite (10 passing at
+    # parent e9fdd16) went to 5 failures at the S1-6 commit.
+    #
+    # Root cause: the writer's contract for `is_commitment` changed
+    # (S1-6 made it mean "does the USER owe an active obligation?",
+    # which is False for cancelled), but this reader was still treating
+    # it as "should this signal create/transition a ledger row?". Two
+    # different questions, one field — same shape as the P69
+    # key-mismatch bug earlier in this arc.
+    #
+    # Fix: gate on commitment_type instead. Resolution signals
+    # (cancelled/completed_claimed/completed_verified/broken) MUST pass
+    # through to the TICKET-1 transition logic regardless of
+    # is_commitment, because they are STATE TRANSITIONS on existing
+    # commitments, not new commitments. Only true non-commitments
+    # (not_a_commitment) and third_party_report (someone else's
+    # obligation — not the user's ledger) are short-circuited here.
+    # ───────────────────────────────────────────────────────────────────
     ctype = classification.get("commitment_type", "not_a_commitment")
-    if classification.get("is_commitment") is False or ctype == "not_a_commitment":
-        return None
+    _RESOLUTION_TYPES = {"cancelled", "completed", "broken", "superseded", "disputed"}
+    if ctype == "not_a_commitment" or ctype == "third_party_report":
+        # third_party_report is filtered here per F-09/P60: someone else's
+        # obligation doesn't belong in the user's ledger. (S1-6 made
+        # third_party_report is_commitment=False, so the old is_commitment
+        # gate would have caught it too — but gating on type is more
+        # explicit and survives future is_commitment semantics changes.)
+        if ctype not in _RESOLUTION_TYPES:
+            return None
 
     signal_id = str(signal.get("signal_id", ""))
     if not signal_id:

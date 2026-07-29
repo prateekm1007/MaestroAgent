@@ -368,3 +368,280 @@ def test_smoke_implicit_commitment_still_classified_correctly():
     assert result["is_commitment"] is True, (
         f"Implicit commitment must have is_commitment=True. Full: {result}"
     )
+
+
+# ---------------------------------------------------------------------------
+# P59 lifecycle — cancellation/completion MUST transition prior active
+# commitments. (auditor v11 correction: the S1-6 fix broke this by making
+# is_commitment=False for cancelled, which caused upsert_ledger_entry's
+# gate to short-circuit before the TICKET-1 transition could fire.)
+# ---------------------------------------------------------------------------
+
+
+def test_p59_cancellation_transitions_prior_active_commitment():
+    """A cancellation signal MUST transition a prior active commitment to
+    cancelled — even though S1-6 correctly sets is_commitment=False for
+    cancelled signals.
+
+    This is the exact regression the auditor caught: S1-6 changed
+    is_commitment from True to False for cancelled (correct per the trust
+    thesis), but upsert_ledger_entry's gate was `if is_commitment is False:
+    return None`, which short-circuited the cancellation BEFORE the
+    TICKET-1 transition logic could run. The P59 lifecycle suite (10
+    passing at parent e9fdd16) dropped to 5 failures.
+
+    This test pins BOTH properties:
+      1. cancelled signals report is_commitment=False (S1-6 — correct)
+      2. cancelled signals STILL transition prior active commitments (P59)
+    """
+    import tempfile
+    from maestro_personal_shell.api import init_db, save_signal_to_db, load_signals_from_db
+    from maestro_personal_shell.commitment_ledger import (
+        init_ledger_table, upsert_ledger_entry, get_ledger_entries,
+    )
+
+    db_path = tempfile.mktemp(suffix="_p59_cancel_test.db")
+    old_db = os.environ.get("MAESTRO_PERSONAL_DB")
+    os.environ["MAESTRO_PERSONAL_DB"] = db_path
+    try:
+        init_db()
+        init_ledger_table(db_path)
+        user_email = "p59-cancel-test@maestro.local"
+
+        # Step 1: Post an active commitment
+        active_signal = {
+            "signal_id": "p59-cancel-active-001",
+            "entity": "Sam Rivera",
+            "text": "I will send the roadmap to Sam Rivera by Friday",
+            "signal_type": "commitment_made",
+            "timestamp": "2026-07-29T12:00:00+00:00",
+            "metadata": {
+                "source": "test",
+                "commitment_type": "explicit",
+                "is_commitment": True,
+                "owner": "user",
+                "commitment_state": "active",
+            },
+        }
+        save_signal_to_db(active_signal, user_email=user_email)
+        upsert_ledger_entry(
+            classification={
+                "is_commitment": True,
+                "commitment_type": "explicit",
+                "state": "active",
+                "owner": "user",
+                "recipient": "",
+                "action": active_signal["text"],
+                "deadline_text": "",
+                "deadline_datetime": "",
+                "confidence": 0.85,
+                "evidence_quote": active_signal["text"],
+            },
+            signal=active_signal,
+            user_email=user_email,
+            db_path=db_path,
+        )
+
+        # Verify active entry exists
+        active_entries = get_ledger_entries(user_email, db_path, state="active")
+        assert any(e["entity"] == "Sam Rivera" for e in active_entries), (
+            f"Setup failed: no active entry for Sam Rivera. Entries: {active_entries}"
+        )
+
+        # Step 2: Post a cancellation signal — S1-6 sets is_commitment=False
+        cancel_classification = _rule_based_classify("Cancelled: Sam Rivera roadmap item")
+        assert cancel_classification["commitment_type"] == "cancelled"
+        assert cancel_classification["is_commitment"] is False  # S1-6: correct
+
+        cancel_signal = {
+            "signal_id": "p59-cancel-sig-001",
+            "entity": "Sam Rivera",
+            "text": "Cancelled: Sam Rivera roadmap item",
+            "signal_type": "commitment_made",
+            "timestamp": "2026-07-29T13:00:00+00:00",
+            "metadata": {
+                "source": "test",
+                "commitment_type": "cancelled",
+                "is_commitment": False,  # S1-6
+                "owner": "user",
+                "commitment_state": "cancelled",
+            },
+        }
+        save_signal_to_db(cancel_signal, user_email=user_email)
+
+        # Step 3: Call upsert_ledger_entry with the cancellation
+        # This MUST NOT short-circuit, even though is_commitment=False
+        result = upsert_ledger_entry(
+            classification={
+                "is_commitment": False,  # S1-6: cancelled is not an active obligation
+                "commitment_type": "cancelled",
+                "state": "cancelled",
+                "owner": "user",
+                "recipient": "",
+                "action": cancel_signal["text"],
+                "deadline_text": "",
+                "deadline_datetime": "",
+                "confidence": 0.7,
+                "evidence_quote": cancel_signal["text"],
+            },
+            signal=cancel_signal,
+            user_email=user_email,
+            db_path=db_path,
+        )
+
+        # Step 4: Verify the prior active entry was transitioned to cancelled
+        # (NOT short-circuited by is_commitment=False)
+        cancelled_entries = get_ledger_entries(user_email, db_path, state="cancelled")
+        sam_cancelled = [e for e in cancelled_entries if e["entity"] == "Sam Rivera"]
+        assert len(sam_cancelled) > 0, (
+            f"P59 VIOLATION: cancellation signal did not transition the "
+            f"prior active commitment. is_commitment=False for cancelled "
+            f"(S1-6) must NOT block the TICKET-1 transition. "
+            f"Cancelled entries: {cancelled_entries}"
+        )
+
+        # The active entry should no longer exist for Sam Rivera
+        active_after = get_ledger_entries(user_email, db_path, state="active")
+        sam_active_after = [e for e in active_after if e["entity"] == "Sam Rivera"]
+        assert len(sam_active_after) == 0, (
+            f"P59 VIOLATION: Sam Rivera still has an active entry after "
+            f"cancellation. Active entries: {sam_active_after}"
+        )
+    finally:
+        if os.path.exists(db_path):
+            os.unlink(db_path)
+        if old_db is None:
+            os.environ.pop("MAESTRO_PERSONAL_DB", None)
+        else:
+            os.environ["MAESTRO_PERSONAL_DB"] = old_db
+
+
+def test_p59_completion_transitions_prior_active_commitment():
+    """A completion signal MUST transition a prior active commitment to
+    completed_claimed — even when the LLM misclassifies the owner as
+    'other' (which happens for "Alex PR review completed" because the
+    LLM reads "Alex" as a third party).
+
+    This test pins the F-09 gate exemption for resolution signals: when
+    the caller explicitly passes commitment_type=completed and
+    commitment_state=completed_claimed, the F-09 gate must NOT override
+    the state to 'candidate' (which would block the TICKET-1 transition).
+    """
+    import tempfile
+    from maestro_personal_shell.api import init_db, save_signal_to_db
+    from maestro_personal_shell.commitment_ledger import (
+        init_ledger_table, upsert_ledger_entry, get_ledger_entries,
+    )
+
+    db_path = tempfile.mktemp(suffix="_p59_complete_test.db")
+    old_db = os.environ.get("MAESTRO_PERSONAL_DB")
+    os.environ["MAESTRO_PERSONAL_DB"] = db_path
+    try:
+        init_db()
+        init_ledger_table(db_path)
+        user_email = "p59-complete-test@maestro.local"
+
+        # Step 1: Post an active commitment
+        active_signal = {
+            "signal_id": "p59-complete-active-001",
+            "entity": "Alex",
+            "text": "I will review the PR for Alex by Thursday",
+            "signal_type": "commitment_made",
+            "timestamp": "2026-07-29T12:00:00+00:00",
+            "metadata": {
+                "source": "test",
+                "commitment_type": "explicit",
+                "is_commitment": True,
+                "owner": "user",
+                "commitment_state": "active",
+            },
+        }
+        save_signal_to_db(active_signal, user_email=user_email)
+        upsert_ledger_entry(
+            classification={
+                "is_commitment": True,
+                "commitment_type": "explicit",
+                "state": "active",
+                "owner": "user",
+                "recipient": "",
+                "action": active_signal["text"],
+                "deadline_text": "",
+                "deadline_datetime": "",
+                "confidence": 0.85,
+                "evidence_quote": active_signal["text"],
+            },
+            signal=active_signal,
+            user_email=user_email,
+            db_path=db_path,
+        )
+
+        # Verify active entry exists
+        active_entries = get_ledger_entries(user_email, db_path, state="active")
+        assert any(e["entity"] == "Alex" for e in active_entries), (
+            f"Setup failed: no active entry for Alex. Entries: {active_entries}"
+        )
+
+        # Step 2: Post a completion signal
+        # The LLM might classify this as not_a_commitment/owner=other,
+        # but the caller explicitly passes commitment_type=completed.
+        # The signals router must preserve the caller's resolution type.
+        completion_signal = {
+            "signal_id": "p59-complete-sig-001",
+            "entity": "Alex",
+            "text": "Alex PR review completed",
+            "signal_type": "commitment_made",
+            "timestamp": "2026-07-29T13:00:00+00:00",
+            "metadata": {
+                "source": "test",
+                "commitment_type": "completed",
+                "is_commitment": False,  # S1-6: resolution signals are not active obligations
+                "owner": "user",
+                "commitment_state": "completed_claimed",
+            },
+        }
+        save_signal_to_db(completion_signal, user_email=user_email)
+
+        # Step 3: Call upsert_ledger_entry with the completion
+        # The caller explicitly passed commitment_type=completed, so
+        # the upsert gate must NOT short-circuit.
+        result = upsert_ledger_entry(
+            classification={
+                "is_commitment": False,  # S1-6
+                "commitment_type": "completed",
+                "state": "completed_claimed",
+                "owner": "user",
+                "recipient": "",
+                "action": completion_signal["text"],
+                "deadline_text": "",
+                "deadline_datetime": "",
+                "confidence": 0.8,
+                "evidence_quote": completion_signal["text"],
+            },
+            signal=completion_signal,
+            user_email=user_email,
+            db_path=db_path,
+        )
+
+        # Step 4: Verify the prior active entry was transitioned
+        completed_entries = get_ledger_entries(user_email, db_path, state="completed_claimed")
+        alex_completed = [e for e in completed_entries if e["entity"] == "Alex"]
+        assert len(alex_completed) > 0, (
+            f"P59 VIOLATION: completion signal did not transition the "
+            f"prior active commitment. The upsert gate must not "
+            f"short-circuit resolution signals. "
+            f"Completed entries: {completed_entries}"
+        )
+
+        active_after = get_ledger_entries(user_email, db_path, state="active")
+        alex_active_after = [e for e in active_after if e["entity"] == "Alex"]
+        assert len(alex_active_after) == 0, (
+            f"P59 VIOLATION: Alex still has an active entry after "
+            f"completion. Active entries: {alex_active_after}"
+        )
+    finally:
+        if os.path.exists(db_path):
+            os.unlink(db_path)
+        if old_db is None:
+            os.environ.pop("MAESTRO_PERSONAL_DB", None)
+        else:
+            os.environ["MAESTRO_PERSONAL_DB"] = old_db
