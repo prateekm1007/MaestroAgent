@@ -561,14 +561,29 @@ async def get_calibration(token: str = Depends(verify_token_dep)):
     report = get_calibration_report(user_email=token)
     counts = get_prediction_count(user_email=token)
 
-    # Phase 2.4: suppress Brier when insufficient data
+    # Phase 2.4: suppress Brier when insufficient data OR when Brier is
+    # worse-than-chance (>0.33 for binary — showing a bad score as authority
+    # is misleading in a trust product)
     resolved = counts.get("resolved", 0) if isinstance(counts, dict) else 0
     total = counts.get("total", 0) if isinstance(counts, dict) else 0
+    brier = report.get("brier_score")
+
     if resolved < 5 or total < 10:
         report["brier_score"] = None
         report["calibration_note"] = (
             f"Insufficient data for calibration ({resolved} resolved / {total} total predictions). "
             f"Need at least 5 resolved predictions to compute a meaningful Brier score."
+        )
+        report["calibration_suppressed"] = True
+    elif brier is not None and brier > 0.33:
+        # Brier > 0.33 means worse than random chance for binary predictions.
+        # Showing this as "calibration authority" is misleading — suppress it.
+        report["brier_score"] = None
+        report["calibration_note"] = (
+            f"Calibration score ({brier:.4f}) is worse than chance. "
+            f"Maestro's predictions need more refinement before this number can be "
+            f"presented as calibration authority. Showing 'Insufficient calibration' "
+            f"instead of a misleading score."
         )
         report["calibration_suppressed"] = True
     else:
