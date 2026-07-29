@@ -568,7 +568,29 @@ async def create_signal(req: SignalCreate, token: str = Depends(verify_token_dep
         "created_at": now.isoformat(),
     }
 
-    save_signal_to_db(signal_data, user_email=token)
+    # Phase 1.4 (auditor v12): honest write status — never return 200 for a
+    # write that did not persist. save_signal_to_db returns bool; if False,
+    # the signal was NOT saved (dedup hit, DB error, etc.). The prior code
+    # ignored the return value, returning HTTP 200 with signal_id even when
+    # the row was never written — a silent drop. This fix raises HTTP 500
+    # on persist failure so the caller knows the write didn't happen.
+    _persisted = save_signal_to_db(signal_data, user_email=token)
+    if not _persisted:
+        logger.error(
+            "Phase 1.4: save_signal_to_db returned False — signal NOT persisted "
+            "(signal_id=%s, entity=%s). Returning 500, not 200-with-null.",
+            signal_id, canonical_entity,
+        )
+        raise HTTPException(
+            status_code=500,
+            detail={
+                "error": "persist_failed",
+                "signal_id": signal_id,
+                "entity": canonical_entity,
+                "reason": "Signal was not persisted to the database. "
+                          "This may be a duplicate (dedup hit) or a DB error.",
+            },
+        )
 
     # Directive 5: Audit log (P1-Audit-F4: surface failures, don't swallow)
     audit_log_error = None

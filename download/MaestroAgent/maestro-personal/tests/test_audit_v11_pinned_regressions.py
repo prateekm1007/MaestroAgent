@@ -905,3 +905,72 @@ def test_f14_all_auditor_phrases_verbatim():
         "F-14: injection detection should flag 'Please ignore the previous email' "
         "but the text itself must NOT be mutated in storage."
     )
+
+
+# ---------------------------------------------------------------------------
+# Phase 1.4 — Honest write status (never 200 for a write that didn't persist)
+# (auditor v12: "Never HTTP 200 for a write that did not persist")
+# ---------------------------------------------------------------------------
+
+
+def test_phase14_honest_write_status_rejects_duplicate():
+    """Phase 1.4: if save_signal_to_db returns False (dedup hit or DB error),
+    the API MUST return 500, not 200-with-null.
+
+    The auditor found that the signals router ignored the return value of
+    save_signal_to_db, returning HTTP 200 with signal_id even when the row
+    was never written — a silent drop. This test verifies that a failed
+    persist returns 500.
+    """
+    import tempfile
+    from maestro_personal_shell.api import init_db, save_signal_to_db
+    from maestro_personal_shell.commitment_ledger import init_ledger_table
+    from fastapi.testclient import TestClient
+    from maestro_personal_shell.api import app
+
+    db_path = tempfile.mktemp(suffix="_phase14_test.db")
+    old_db = os.environ.get("MAESTRO_PERSONAL_DB")
+    os.environ["MAESTRO_PERSONAL_DB"] = db_path
+    try:
+        init_db()
+        init_ledger_table(db_path)
+        with TestClient(app) as client:
+            # Register a user
+            import uuid as _uuid
+            email = f"phase14-{_uuid.uuid4().hex[:8]}@example.com"
+            r = client.post("/api/auth/register", json={
+                "user_email": email, "password": "Phase14!Pass", "name": "P14"
+            })
+            token = r.json()["token"]
+
+            # Post a signal with a fixed signal_id
+            sig_id = f"phase14-test-{_uuid.uuid4().hex[:8]}"
+            sig_body = {
+                "signal_id": sig_id,
+                "entity": "Phase14 Test",
+                "text": "I will test the honest write status.",
+                "signal_type": "commitment_made",
+                "timestamp": "2026-07-29T12:00:00Z",
+                "metadata": {"source": "phase14-test"},
+            }
+            r1 = client.post("/api/signals", json=sig_body,
+                             headers={"Authorization": f"Bearer {token}"})
+            assert r1.status_code == 200, f"First post should succeed: {r1.status_code} {r1.text[:200]}"
+
+            # Post the SAME signal_id again — save_signal_to_db's dedup
+            # check should return False, and the API should return 500
+            r2 = client.post("/api/signals", json=sig_body,
+                             headers={"Authorization": f"Bearer {token}"})
+            # The dedup check returns False for duplicates within 1 hour.
+            # Phase 1.4: the API must NOT return 200 for a failed persist.
+            assert r2.status_code != 200, (
+                f"Phase 1.4: duplicate signal post returned 200 (silent drop). "
+                f"Expected 500 for failed persist. Got: {r2.status_code} {r2.text[:200]}"
+            )
+    finally:
+        if os.path.exists(db_path):
+            os.unlink(db_path)
+        if old_db is None:
+            os.environ.pop("MAESTRO_PERSONAL_DB", None)
+        else:
+            os.environ["MAESTRO_PERSONAL_DB"] = old_db

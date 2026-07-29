@@ -236,7 +236,7 @@ function TodayView({ onDraft, draftBusy }: { onDraft: (entity: string) => void; 
               text: theOne.commitment.text || theOne.commitment.action || '',
               dueDate: theOne.commitment.deadline || new Date().toISOString(),
               state: theOne.commitment.is_at_risk ? 'at_risk' : 'active',
-              confidence: theOne.commitment.confidence || 0.7,
+              confidence: theOne.commitment.confidence ?? 0.5,
               importance: theOne.commitment.is_at_risk ? 'high' : 'medium',
               isBlocking: false,
               owner: 'user',
@@ -434,7 +434,7 @@ function CommitmentsViewReal({ onDraft, draftBusy }: { onDraft: (entity: string)
               commitment={{
                 id: theOne.signal_id || 'c1', entity: theOne.entity || '', text: theOne.text || theOne.action || '',
                 dueDate: theOne.deadline || new Date().toISOString(), state: theOne.is_at_risk ? 'at_risk' : 'active',
-                confidence: theOne.confidence || 0.7, importance: theOne.is_at_risk ? 'high' : 'medium', isBlocking: false,
+                confidence: theOne.confidence ?? 0.5, importance: theOne.is_at_risk ? 'high' : 'medium', isBlocking: false,
                 owner: 'user', source: { type: 'email', snippet: theOne.text || '', timestamp: '', sender: '' }, createdAt: '',
               }}
               apiBase={API_BASE}
@@ -455,7 +455,7 @@ function CommitmentsViewReal({ onDraft, draftBusy }: { onDraft: (entity: string)
                   entity: c.entity || '',
                   text: c.text || c.action || '',
                   state: c.is_at_risk ? 'at_risk' : 'active',
-                  confidence: c.confidence || 0.7,
+                  confidence: c.confidence ?? 0.5,
                   deadline_text: c.deadline,
                   source_signal_id: c.signal_id
                 }}

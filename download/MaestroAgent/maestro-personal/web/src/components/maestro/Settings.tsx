@@ -383,7 +383,13 @@ export function Settings() {
               <SkeletonRow />
             ) : (
               <div className="space-y-3 text-sm">
-                {calibration.brier_score !== null && calibration.brier_score !== undefined ? (
+                {/* Phase 2.4 (auditor v12): suppress Brier score when there are
+                    insufficient hits. A Brier score with 0 hits is meaningless —
+                    it's computed from 0 outcomes and presented as authority.
+                    Only show Brier when hits >= 3 (minimum for any meaningful
+                    calibration claim). P25: never show a number you cannot defend. */}
+                {calibration.brier_score !== null && calibration.brier_score !== undefined
+                  && calibration.counts && calibration.counts.hits >= 3 ? (
                   <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/[0.05] p-3">
                     <div className="text-[11px] uppercase tracking-wider text-emerald-300/80 mb-1">
                       Brier score
@@ -392,7 +398,7 @@ export function Settings() {
                       {calibration.brier_score.toFixed(4)}
                     </div>
                     <div className="text-xs text-muted-foreground mt-1">
-                      lower is better · 0.0 = perfect
+                      lower is better · 0.0 = perfect · {calibration.counts.hits} hits / {calibration.counts.resolved} resolved
                     </div>
                   </div>
                 ) : (
@@ -404,8 +410,11 @@ export function Settings() {
                       Insufficient calibration history
                     </div>
                     <div className="text-xs text-muted-foreground mt-1">
-                      Keep tracking outcomes — Maestro will compute a real Brier
-                      score once you have ≥10 resolved predictions.
+                      {calibration.counts && calibration.counts.hits === 0
+                        ? `No hits yet (${calibration.counts.resolved || 0} resolved). `
+                        : `Only ${calibration.counts?.hits || 0} hits. `}
+                      Maestro will compute a real Brier score once you have ≥3 hits
+                      on ≥10 resolved predictions.
                     </div>
                   </div>
                 )}

@@ -48,6 +48,15 @@ _COMMIT = (
 )
 _BUILT = os.environ.get("MAESTRO_BUILD_TIME", "unknown")
 
+# Fix 8 (auditor v12): capture the process start time ONCE at module load.
+# The prior code called datetime.now() on every /api/health request when
+# BUILD_TIME was stale, causing build_time to advance per request — the
+# auditor observed this as "build_time advances per request." Capturing
+# at module load means build_time is stable for the lifetime of the
+# process, and only changes on redeploy (which starts a new process).
+from datetime import datetime, timezone as _tz
+_PROCESS_START_TIME = datetime.now(_tz.utc).isoformat()
+
 
 def _get_rate_limiting_status() -> str:
     """Check if slowapi rate limiting is active (P64 audit transparency)."""
@@ -87,18 +96,20 @@ async def health():
     except Exception:
         pass  # git not available or not a git repo — fall back to env var
 
-    # TICKET-22: use the container start time if BUILD_TIME is stale
+    # Fix 8 (auditor v12): use the process start time captured at module
+    # load (_PROCESS_START_TIME), NOT datetime.now() per request. The prior
+    # code called datetime.now() on every health check when BUILD_TIME was
+    # stale, causing build_time to advance per request. Now build_time is
+    # stable for the process lifetime and only changes on redeploy.
     _live_built = _BUILT
     try:
-        # Check if BUILD_TIME is from today — if not, use the process start time
-        import datetime as _dt_t22
-        _built_parsed = _dt_t22.datetime.fromisoformat(_BUILT.replace("Z", "+00:00"))
-        _now = _dt_t22.datetime.now(_dt_t22.timezone.utc)
+        _built_parsed = datetime.fromisoformat(_BUILT.replace("Z", "+00:00"))
+        _now = datetime.now(_tz.utc)
         if (_now - _built_parsed).total_seconds() > 86400:  # > 1 day old
-            # Stale — use the process start time
-            _live_built = _dt_t22.datetime.now(_dt_t22.timezone.utc).isoformat()
+            # Stale — use the process start time (captured ONCE at module load)
+            _live_built = _PROCESS_START_TIME
     except Exception:
-        _live_built = _dt_t22.datetime.now(_dt_t22.timezone.utc).isoformat()
+        _live_built = _PROCESS_START_TIME
 
     return JSONResponse(
         content={

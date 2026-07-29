@@ -46,11 +46,20 @@ export function getLayoutMode(score: number): LayoutMode {
 
 /**
  * Get hours until due, formatted for display.
+ * F-3 fix (auditor v12): never show "0 hours overdue" or "NaN" for
+ * future/empty deadlines. If the due date is missing or invalid,
+ * return empty string (no false urgency). If the deadline is in the
+ * future, show "Due in X" — never "X hours overdue".
  */
 export function formatTimeUntil(dueDate: string): string {
+  if (!dueDate || dueDate.trim() === '') return ''
+
   const now = new Date()
   const due = new Date(dueDate)
+  if (isNaN(due.getTime())) return ''  // invalid date — don't show false urgency
+
   const hours = (due.getTime() - now.getTime()) / (1000 * 60 * 60)
+  if (isNaN(hours)) return ''
 
   if (hours < 0) {
     const daysOverdue = Math.abs(hours) / 24
