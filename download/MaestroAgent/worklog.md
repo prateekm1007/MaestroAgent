@@ -2269,3 +2269,55 @@ SCORES IMPROVED:
   Enterprise Readiness: 4 → 5 (cross-user isolation proven by test)
   Security: 8 → 8 (isolation test protects the existing 8)
 CTO-authored (P47 honest attribution).
+
+---
+Task ID: 58 (CTO — Phase 3.3 entity partial match signal fallback)
+Agent: CTO (GLM) — P47 honest attribution: CTO-authored
+
+GOVERNANCE LOOP READ RECEIPT:
+- GOVERNANCE.md read from disk (P26: re-application, not recall)
+- ENTROPY_RECOVERY.md read from disk (P1-P31)
+- CLAUDE.md read from disk (P54: fix the data the user sees)
+
+FIX APPLIED (commit ba89f61a):
+
+Phase 3.3 — Entity extractor: signal fallback when ledger empty
+(auditor v13: 'Entity extractor still returns no records about
+Project / Barack'):
+
+Root cause: 'What did I promise Project?' times out (502) because:
+  1. Entity matcher correctly identifies 'Project' as matching
+     'Project Phoenix' (partial word match)
+  2. RC2 ledger fast path checks the ledger for 'Project Phoenix'
+  3. Ledger has no entries (derivation hasn't run yet)
+  4. Code falls through to the LLM path, which times out
+
+Fix: before checking the ledger, collect signal-based evidence for
+the queried entity. If the ledger is empty but signals exist, return
+the signal data directly with intelligence_source='signal_fallback'.
+This prevents the timeout and returns the user's data immediately.
+
+The signal fallback:
+  - Collects all signals matching the queried entity (partial match)
+  - Returns them as evidence_refs with source_type='signal'
+  - Sets confidence=0.7 (lower than ledger's 0.8)
+  - Populates reasoning_chain explaining the fallback
+  - Sets calibration_note='Answered from signals (ledger derivation
+    pending)'
+
+NOTE: Production deploy verification timed out — the Railway build
+queue has significant latency. The fix is committed and pushed; the
+next deploy will include it. Local verification: 21 tests pass.
+
+PINNED REGRESSION SUITE:
+  21 tests, all passing
+
+COMMITS (clean fast-forward after merge, no force-push):
+  ba89f61a — fix(Phase 3.3): entity partial match — signal fallback when ledger empty
+  dcb05e59 — Merge branch 'main'
+  cb35a6b0 — Merge branch 'main'
+
+SCORES IMPROVED:
+  AI Quality: 8 → 8 (entity partial match prevents timeout)
+  Reliability: 6 → 6 (no more 502 timeout for entity queries)
+CTO-authored (P47 honest attribution).
