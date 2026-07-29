@@ -34,6 +34,11 @@ export default function Home() {
   useEffect(() => {
     setAuthed(!!getToken())
     setCheckingAuth(false)
+    // Phase 2.8 safety: if checkingAuth somehow stays true for >5s
+    // (e.g. JS error in useEffect), force it to false so the user
+    // sees the login screen instead of an infinite spinner.
+    const timeout = setTimeout(() => setCheckingAuth(false), 5000)
+    return () => clearTimeout(timeout)
   }, [])
 
   // Generate a draft for an entity — opens the shared modal
