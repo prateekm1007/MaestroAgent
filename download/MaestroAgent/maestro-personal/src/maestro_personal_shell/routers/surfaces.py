@@ -382,7 +382,16 @@ async def get_prepare(as_of: str | None = None, token: str = Depends(verify_toke
         # Phase 3.1 fix (roadmap): use the prepare_engine to generate
         # rich, data-driven prep points from signals + commitments.
         # This is the biggest single audit gap (8 points, 12 audits empty).
-        if not copilot_talking_points:
+        #
+        # Phase 3.1 fix: also run prepare_engine if the existing talking
+        # points are template/empty (e.g. "No active situation found for Me.")
+        _has_real_points = False
+        for tp in copilot_talking_points:
+            text = tp.get("point", "") if isinstance(tp, dict) else str(tp)
+            if text.strip() and "No active situation" not in text:
+                _has_real_points = True
+                break
+        if not _has_real_points:
             # Try the prepare_engine first (rich, data-driven)
             # P85: completely non-fatal — any error is caught and falls through
             try:
