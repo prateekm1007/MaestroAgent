@@ -1050,10 +1050,12 @@ async def derivation_status(token: str = ""):
     db_path = default_sqlite_path()
     try:
         conn = get_db_conn(db_path)
-        row = conn.execute(
-            "SELECT COUNT(*) FROM signals WHERE metadata LIKE '%awaiting_derivation%'"
-        ).fetchone()
-        count = row[0] if row else 0
+        # Use fetchall() and len() instead of COUNT(*) — more robust across
+        # all DB wrapper types (sqlite3.Row, DictRow, tuple, etc.)
+        rows = conn.execute(
+            "SELECT signal_id FROM signals WHERE metadata LIKE '%awaiting_derivation%' LIMIT 10000"
+        ).fetchall()
+        count = len(rows)
         conn.close()
     except Exception as e:
         return {
