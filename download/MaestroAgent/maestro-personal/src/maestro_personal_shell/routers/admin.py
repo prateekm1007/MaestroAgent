@@ -1579,3 +1579,92 @@ async def get_retention_metrics(token: str = ""):
         "nps_met": nps_score >= 50,
         "note": "NPS requires survey data collection — infrastructure in place, data pending",
     }
+
+
+# ---------------------------------------------------------------------------
+# Phase 0 v15: Purge test/junk entities from production
+# (auditor v15: "51 junk entities, 57% duplicates, 421 rows. Now purge.")
+# ---------------------------------------------------------------------------
+
+@router.get("/api/admin/purge-test-entities")
+async def purge_test_entities(token: str = "", dry_run: bool = False):
+    """Purge signals with test/audit probe entity names.
+
+    Uses the test_entity_guard pattern to find and delete signals whose
+    entity names match test probe patterns (Audit*, Test*, Probe*, etc.).
+
+    Phase 0 v15 (auditor v15): "51 junk entities, 57% duplicates, 421 rows.
+    Harness stopped — now purge and guard."
+    """
+    from fastapi import HTTPException
+    from maestro_personal_shell.db_util import get_db_conn, default_sqlite_path
+    from maestro_personal_shell.test_entity_guard import is_test_entity
+
+    admin_token = os.environ.get("MAESTRO_PERSONAL_TOKEN", "")
+    if not admin_token or token != admin_token:
+        raise HTTPException(status_code=403, detail="Invalid admin token")
+
+    db_path = default_sqlite_path()
+    conn = get_db_conn(db_path)
+    try:
+        conn.row_factory = sqlite3.Row
+    except Exception:
+        pass
+
+    try:
+        # Get all signals
+        all_rows = conn.execute(
+            "SELECT signal_id, entity, text, user_email FROM signals"
+        ).fetchall()
+
+        # Filter to test entities using the guard pattern
+        test_signals = []
+        for row in all_rows:
+            entity = row["entity"] if hasattr(row, "keys") else row[1]
+            if is_test_entity(entity):
+                test_signals.append({
+                    "signal_id": row["signal_id"] if hasattr(row, "keys") else row[0],
+                    "entity": entity,
+                    "text": (row["text"] if hasattr(row, "keys") else row[2])[:60],
+                })
+
+        total_before_row = conn.execute("SELECT COUNT(*) AS cnt FROM signals").fetchone()
+        total_before = total_before_row["cnt"] if hasattr(total_before_row, "keys") else total_before_row[0]
+
+        if not dry_run and test_signals:
+            signal_ids = [s["signal_id"] for s in test_signals]
+            placeholders = ",".join(["%s" if _is_postgres_env() else "?" for _ in signal_ids])
+            conn.execute(
+                f"DELETE FROM signals WHERE signal_id IN ({placeholders})",
+                signal_ids,
+            )
+            try:
+                conn.execute(
+                    f"DELETE FROM commitments_ledger WHERE signal_id IN ({placeholders})",
+                    signal_ids,
+                )
+            except Exception:
+                pass
+            try:
+                conn.execute(
+                    f"DELETE FROM commitment_events WHERE source_signal_id IN ({placeholders})",
+                    signal_ids,
+                )
+            except Exception:
+                pass
+            conn.commit()
+
+        total_after_row = conn.execute("SELECT COUNT(*) AS cnt FROM signals").fetchone()
+        total_after = total_after_row["cnt"] if hasattr(total_after_row, "keys") else total_after_row[0]
+
+        return {
+            "action": "dry_run" if dry_run else "purge_test_entities",
+            "test_signals_found": len(test_signals),
+            "test_signals_deleted": 0 if dry_run else len(test_signals),
+            "total_signals_before": total_before,
+            "total_signals_after": total_after,
+            "sample_entities": list(set(s["entity"] for s in test_signals[:20])),
+            "governance": "scoped to test_entity_guard pattern — real names preserved",
+        }
+    finally:
+        conn.close()
