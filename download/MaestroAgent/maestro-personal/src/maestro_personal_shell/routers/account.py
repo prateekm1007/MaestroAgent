@@ -1293,11 +1293,29 @@ async def get_metrics(token: str = Depends(verify_token_dep)):
 
 @router.get("/ambient")
 async def get_ambient(token: str = Depends(verify_token_dep)):
-    """Get ambient intelligence — what's happening between calls."""
+    """Get ambient intelligence — what's happening between calls.
+
+    P0 fix (restored): 5-minute cache wrapper to avoid re-computing
+    ambient on every request. The cache was stripped during a refactor
+    and never restored — this is the third time this fix has been needed.
+    """
     from maestro_personal_shell.copilot_live import get_ambient_intelligence
     from maestro_personal_shell.api import build_shell
+    from maestro_personal_shell.simple_cache import get_cached, set_cached
+
+    # P0: check cache first (5-minute TTL)
+    _cache_key = f"ambient:{token}"
+    _cached = get_cached(_cache_key)
+    if _cached is not None:
+        return _cached
+
     shell = build_shell(user_email=token)
-    return await get_ambient_intelligence(shell=shell)
+    result = await get_ambient_intelligence(shell=shell)
+
+    # P0: cache the result for 5 minutes
+    set_cached(_cache_key, result)
+
+    return result
 
 
 @router.get("/persisted-situations")

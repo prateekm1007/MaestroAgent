@@ -219,8 +219,18 @@ async def get_ambient_intelligence(shell: Any) -> dict[str, Any]:
 
     if llm_active:
         try:
-            result["sentiment_alerts"] = await _llm_sentiment_analysis(shell)
+            # P0 fix (restored): 8s timeout on LLM sentiment analysis.
+            # The timeout was stripped during a refactor and never restored.
+            # Without it, a slow LLM provider hangs the entire /api/ambient
+            # endpoint for 30-60 seconds.
+            import asyncio as _asyncio_timeout
+            result["sentiment_alerts"] = await _asyncio_timeout.wait_for(
+                _llm_sentiment_analysis(shell), timeout=8.0
+            )
             result["llm_powered"] = True
+        except _asyncio_timeout.TimeoutError:
+            logger.warning("LLM sentiment analysis timed out (8s) — using keyword fallback")
+            result["sentiment_alerts"] = _keyword_sentiment_analysis(shell)
         except Exception as e:
             logger.debug("LLM sentiment analysis failed: %s", e)
             result["sentiment_alerts"] = _keyword_sentiment_analysis(shell)
@@ -246,11 +256,18 @@ async def get_ambient_intelligence(shell: Any) -> dict[str, Any]:
     # LLM-powered path: generate a genuine ambient summary from all context.
     if llm_active:
         try:
-            llm_summary = await _llm_ambient_summary(shell, result)
+            # P0 fix (restored): 8s timeout on LLM ambient summary.
+            import asyncio as _asyncio_timeout2
+            llm_summary = await _asyncio_timeout2.wait_for(
+                _llm_ambient_summary(shell, result), timeout=8.0
+            )
             if llm_summary:
                 result["ambient_summary"] = llm_summary
             else:
                 result["ambient_summary"] = _keyword_ambient_summary(result)
+        except _asyncio_timeout2.TimeoutError:
+            logger.warning("LLM ambient summary timed out (8s) — using keyword fallback")
+            result["ambient_summary"] = _keyword_ambient_summary(result)
         except Exception as e:
             logger.debug("LLM ambient summary failed: %s", e)
             result["ambient_summary"] = _keyword_ambient_summary(result)

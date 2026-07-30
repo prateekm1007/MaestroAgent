@@ -183,6 +183,10 @@ async def list_connectors(
     _DEMO_CONNECTORS = {
         "gmail", "calendar", "work_email",
         "yahoo_mail", "microsoft_mail",
+        # P4: ship Slack + GitHub — both are fully implemented with OAuth
+        # callbacks, test files, and connector configs. They correctly fail
+        # closed with "OAuth not configured" when credentials aren't set.
+        "slack", "github",
     }
     return {
         "connectors": [c for c in all_connectors if c["provider"] in _DEMO_CONNECTORS],
