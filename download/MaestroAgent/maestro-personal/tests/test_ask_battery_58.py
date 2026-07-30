@@ -131,7 +131,7 @@ def _ask(query: str) -> dict[str, Any]:
         f"{BASE}/api/ask",
         headers=H,
         json={"query": query},
-        timeout=60,
+        timeout=90,  # Phase 3.3: increased from 60 to 90 — some queries are slow
     )
     assert r.status_code == 200, f"Ask failed: {r.status_code} {r.text[:200]}"
     return r.json()
