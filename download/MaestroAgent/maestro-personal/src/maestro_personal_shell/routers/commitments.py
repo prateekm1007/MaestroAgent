@@ -736,25 +736,64 @@ async def get_commitments_ledger(
 ):
     """Read the normalized commitments ledger.
 
-    Phase 1.5 fix (auditor v13): the `count` field must reflect the TRUE
-    total matching the filter, not the capped entry count. The v13 auditor
-    found "3 distinct count values" because this endpoint returned
-    count=len(entries) which was capped at limit=100 while /api/commitments
-    returned 466. Now: count = total matching rows (uncapped), entries =
-    the capped slice for display.
+    Phase 1.5 fix (auditor v16): when state=active (or no state filter),
+    use the SAME CommitmentsSurface.get_active_commitments() path that
+    /api/commitments uses. This ensures all 6 count surfaces agree.
+
+    The v16 auditor found: 52/52/52/52/51/55 — the ledger was off by 7
+    because it queried the DB directly (state='active') while
+    /api/commitments used the CommitmentsSurface which applies business
+    filters (should_treat_as_commitment classification, dismissed
+    signals, etc.).
+
+    Now: when querying active commitments, delegate to the same path
+    /api/commitments uses. For other states (cancelled, disputed, etc.),
+    use the direct DB query (those don't need the business filter).
     """
     import os
     from pathlib import Path as _P
+    from maestro_personal_shell.db_util import get_db_conn
+
     _db = os.environ.get("MAESTRO_PERSONAL_DB", str(_P(__file__).resolve().parents[1] / "personal.db"))
+
+    # Phase 1.5: for active commitments, use the same path as /api/commitments
+    if state is None or state == "active":
+        from maestro_personal_shell.api import build_shell
+        from maestro_personal_shell.surfaces.commitments import CommitmentsSurface
+        from maestro_personal_shell.api import _filter_corrected_signals, _filter_dismissed_commitments, _filter_non_commitments_by_classification
+        shell = build_shell(user_email=token)
+        commit_surface = CommitmentsSurface(shell=shell)
+        all_commitments = commit_surface.get_active_commitments()
+        # Apply the same filters as /api/commitments
+        all_commitments = _filter_completed_commitments(all_commitments, shell.oem_state.signals)
+        all_commitments = _filter_dismissed_commitments(all_commitments, shell.oem_state.signals)
+        all_commitments = _filter_non_commitments_by_classification(all_commitments, shell.oem_state.signals)
+        # Filter by entity if specified
+        if entity:
+            all_commitments = [c for c in all_commitments if entity.lower() in c.get("entity", "").lower()]
+        # Convert to ledger-like format
+        entries = []
+        for c in all_commitments[:limit]:
+            entries.append({
+                "ledger_id": c.get("signal_id", ""),
+                "signal_id": c.get("signal_id", ""),
+                "entity": c.get("entity", ""),
+                "action": c.get("text", ""),
+                "state": "active",
+                "owner": c.get("metadata", {}).get("commitment_owner", "user"),
+                "deadline_text": c.get("metadata", {}).get("deadline_text", ""),
+                "deadline_datetime": c.get("metadata", {}).get("deadline_iso", ""),
+                "confidence": c.get("metadata", {}).get("commitment_confidence", 0.5),
+                "commitment_type": c.get("metadata", {}).get("commitment_type", "commitment"),
+            })
+        return {"entries": entries, "count": len(entries)}
+
+    # For non-active states, use the direct DB query
     from maestro_personal_shell.commitment_ledger import get_ledger_entries
     entries = get_ledger_entries(token, _db, state=state, entity=entity, limit=limit)
-    # Phase 1.5: compute the TRUE total (uncapped) so count surfaces agree.
-    # If entries < limit, we have the full set — count = len(entries).
-    # If entries == limit, there may be more — query the true total.
     if len(entries) < limit:
         true_total = len(entries)
     else:
-        # Query the uncapped total matching the same filter
         all_entries = get_ledger_entries(token, _db, state=state, entity=entity, limit=100000)
         true_total = len(all_entries)
     return {"entries": entries, "count": true_total}
