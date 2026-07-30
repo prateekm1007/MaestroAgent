@@ -48,10 +48,12 @@ _CACHE_TTL_SECONDS = 300  # 5 minutes
 
 # No-Gemini rule (user directive 2026-07-30): Google Gemini / Gemma is
 # forbidden for any coding or LLM-calling task.
-# v20 fix: user directed DeepSeek be used for drafting (was qwen3-coder).
-# DeepSeek V3.1 produces higher-quality email copy and is faster for
-# short-form generation tasks.
-_DRAFT_MODEL = os.environ.get("MAESTRO_DRAFT_MODEL", "deepseek/deepseek-chat-v3.1:free")
+# v20 fix: user directed DeepSeek 4 be used for drafting. Using
+# deepseek-v4-flash — the fastest V4 model — to fix the "incredibly slow"
+# draft generation the user reported. The prior model name
+# 'deepseek/deepseek-chat-v3.1:free' was wrong (:free suffix doesn't exist)
+# and caused a 404 on every LLM call, silently falling back to the template.
+_DRAFT_MODEL = os.environ.get("MAESTRO_DRAFT_MODEL", "deepseek/deepseek-v4-flash")
 _DRAFT_TEMPERATURE = float(os.environ.get("MAESTRO_DRAFT_MODEL_TEMPERATURE", "0.4"))
 
 # Regex patterns that indicate placeholder/template output
