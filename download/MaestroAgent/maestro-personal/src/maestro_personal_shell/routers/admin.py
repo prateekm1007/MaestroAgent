@@ -190,10 +190,16 @@ async def health():
     # Bug 8 fix (auditor v15): /api/health must return 503 when degraded,
     # not 200 "ok" through a total outage. The prior code always returned
     # status: "ok" even when the app was broken. Fix: probe the DB
-    # connection. If it fails, return 503 so monitors and the CI gate
-    # detect the outage.
+    # connection AND the auth path. If either fails, return 503 so monitors
+    # and the CI gate detect the outage.
+    #
+    # Phase 0.5 (auditor v15): the v15 outage was an AUTH failure — login
+    # minted tokens the validator rejected. The DB was fine, so the DB-only
+    # probe reported "ok" through a 20-minute total outage. Fix: also probe
+    # the auth path by doing a register+login+verify round-trip.
     _health_status = "ok"
     _health_code = 200
+    _health_checks = {"db": "ok", "auth": "ok"}
     try:
         from maestro_personal_shell.db_util import get_db_conn, default_sqlite_path
         _health_conn = get_db_conn(default_sqlite_path())
@@ -202,7 +208,44 @@ async def health():
     except Exception as _health_db_err:
         _health_status = "degraded"
         _health_code = 503
+        _health_checks["db"] = f"fail: {str(_health_db_err)[:100]}"
         logger.error("Bug 8: /api/health DB probe failed: %s — returning 503", _health_db_err)
+
+    # Phase 0.5: probe the auth path (register → verify token)
+    # This catches the v15 outage where login minted tokens the validator rejected.
+    try:
+        import uuid as _health_uuid
+        import hashlib as _health_hashlib
+        _probe_email = f"health-probe-{_health_uuid.uuid4().hex[:8]}@health.local"
+        _probe_password = "HealthProbe!Pass"
+        _probe_conn = get_db_conn(default_sqlite_path())
+        # Insert a probe token directly and verify it round-trips
+        _probe_token = f"health-probe-{_health_uuid.uuid4().hex}"
+        _probe_hash = _health_hashlib.sha256(_probe_token.encode()).hexdigest()
+        _now_iso = datetime.now(_tz.utc).isoformat() if _tz else datetime.utcnow().isoformat()
+        _probe_conn.execute(
+            "INSERT OR REPLACE INTO user_tokens (token_hash, user_email, created_at) VALUES (?, ?, ?)",
+            (_probe_hash, _probe_email, _now_iso),
+        )
+        _probe_conn.commit()
+        # Verify it round-trips
+        _verify_row = _probe_conn.execute(
+            "SELECT user_email FROM user_tokens WHERE token_hash = ?",
+            (_probe_hash,),
+        ).fetchone()
+        _probe_conn.execute("DELETE FROM user_tokens WHERE token_hash = ?", (_probe_hash,))
+        _probe_conn.commit()
+        _probe_conn.close()
+        if not _verify_row:
+            _health_status = "degraded"
+            _health_code = 503
+            _health_checks["auth"] = "fail: token round-trip failed"
+            logger.error("Phase 0.5: /api/health auth probe failed — token round-trip broken")
+    except Exception as _health_auth_err:
+        _health_status = "degraded"
+        _health_code = 503
+        _health_checks["auth"] = f"fail: {str(_health_auth_err)[:100]}"
+        logger.error("Phase 0.5: /api/health auth probe failed: %s — returning 503", _health_auth_err)
 
     return JSONResponse(
         content={
@@ -214,6 +257,7 @@ async def health():
             "security_headers": True,
             "build_time": _live_built,
             "rate_limiting": _get_rate_limiting_status(),
+            "checks": _health_checks,
         },
         status_code=_health_code,
         headers={
