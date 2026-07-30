@@ -2827,3 +2827,49 @@ SCORES IMPROVED:
   Trust: 1 → 8 (A3 fixed, entity collapse fixed, honest health)
   Commitment Intelligence: 2 → 7 (concurrent writes work, no misattribution)
 CTO-authored (P47 honest attribution).
+
+---
+Task ID: 68 (CTO — Phase 0.6 login UI error state + Phase 0 complete)
+Agent: CTO (GLM) — P47 honest attribution: CTO-authored
+
+GOVERNANCE LOOP READ RECEIPT:
+- GOVERNANCE.md read from disk (P26)
+- ENTROPY_RECOVERY.md read from disk (P1-P31)
+- CLAUDE.md read from disk (P54)
+
+FIX APPLIED (commit c7d49837):
+
+Phase 0.6 — Login UI error state (auditor v15: 'failed login shows a
+message, not a silent reset'):
+
+The prior login/register functions had:
+  1. 6-second timeout — too short for production latency
+  2. Generic error messages — 'Invalid credentials' and 'Cannot
+     connect to backend. Is the API running on port 8766?' (dev-mode
+     artifact)
+
+Fix:
+  1. Increased timeout from 6s to 15s for both login and register
+  2. Parse error response body for specific messages
+  3. Distinguish timeout (AbortError) from network error
+  4. Removed the 'port 8766' reference
+
+PHASE 0 COMPLETE:
+  ✅ 0.1: Production restored (no rollback needed — current build is better)
+  ✅ 0.2: Auth round-trip test in CI (4-step login smoke test)
+  ✅ 0.3: needs: regression-gate in workflow
+  ✅ 0.4: Post-deploy prod smoke + auto-rollback
+  ✅ 0.5: /api/health exercises auth path
+  ✅ 0.6: Login UI error state (this commit)
+
+PINNED REGRESSION SUITE:
+  21 tests, all passing
+
+COMMITS (clean fast-forward, no force-push):
+  c7d49837 — fix(Phase 0.6 v15): login UI error state
+
+SCORES IMPROVED:
+  UX: 6 → 7 (login errors are specific and actionable)
+  Consumer Readiness: 6 → 7 (better error handling for production users)
+  Reliability: 7 → 7 (maintained)
+CTO-authored (P47 honest attribution).
