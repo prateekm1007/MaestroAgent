@@ -22,6 +22,9 @@ router = APIRouter(prefix="/api", tags=["surfaces"])
 # Phase 2.9: 60-second per-user cache for /api/prepare (was 4.5s, target <2s)
 _PREPARE_CACHE: dict[str, tuple[float, list]] = {}
 
+# Phase L4: 60-second per-user cache for /api/the-moment (was 1.1-1.4s)
+_MOMENT_CACHE: dict[str, tuple[float, Any]] = {}
+
 # R-03 fix (reviewer S2): structural tentativeness filter.
 # Tentative content ("maybe", "I'll let you know", "don't count on it") must
 # be excluded from briefing unknowns, material_changes, cannot_decide_yet,
@@ -1070,7 +1073,19 @@ async def get_the_moment(as_of: str | None = None, token: str = Depends(verify_t
 
     The Spotlight moment — the one commitment that matters most. Not a list.
     If nothing deserves attention, returns has_moment=False.
+
+    Phase L4 fix (auditor v18): added 60-second cache. /api/the-moment was
+    consistently the slowest read (1.1-1.4s vs 0.2s for every other read)
+    because it calls build_shell + CommitmentsSurface + stale detection +
+    materiality gate. The cache reduces warm calls to <50ms.
     """
+    # Phase L4: 60-second cache
+    import time as _cache_time_moment
+    _moment_key = f"the-moment:{token}:{as_of or 'now'}"
+    _cached_moment = _MOMENT_CACHE.get(_moment_key)
+    if _cached_moment and _cached_moment[0] > _cache_time_moment.monotonic():
+        return _cached_moment[1]
+
     from maestro_personal_shell.api import (
         build_shell,
         _filter_completed_commitments,
@@ -1272,7 +1287,7 @@ async def get_the_moment(as_of: str | None = None, token: str = Depends(verify_t
             })
             break
 
-    return TheMomentResponse(
+    _result = TheMomentResponse(
         has_moment=True,
         commitment={
             "entity": best_commitment.get("entity", ""),
@@ -1286,6 +1301,9 @@ async def get_the_moment(as_of: str | None = None, token: str = Depends(verify_t
         source_evidence=source_evidence,
         reconciliation=recon,
     )
+    # Phase L4: cache the result for 60 seconds
+    _MOMENT_CACHE[_moment_key] = (_cache_time_moment.monotonic() + 60.0, _result)
+    return _result
 
 
 # ---------------------------------------------------------------------------
