@@ -17,11 +17,17 @@ a Docker build arg.
 from __future__ import annotations
 
 import os
+import sqlite3
 
 from fastapi import APIRouter, Header
 from fastapi.responses import JSONResponse
 
 router = APIRouter(tags=["admin"])
+
+
+def _is_postgres_env() -> bool:
+    """Check if production is using Postgres (MAESTRO_DATABASE_URL set)."""
+    return bool(os.environ.get("MAESTRO_DATABASE_URL", ""))
 
 # Read version from build-time env var. This is the ONLY source of truth.
 # Dockerfile sets: ENV MAESTRO_VERSION=1.0.0-beta
@@ -246,46 +252,59 @@ async def purge_demo_data():
 
 
 @router.get("/api/admin/purge-demo-data")
-async def purge_demo_data_get(token: str = ""):
+async def purge_demo_data_get(token: str = "", dry_run: bool = False):
     """Purge all demo_seed-sourced signals. GET for easy curl testing.
 
     Query params:
         token: MAESTRO_PERSONAL_TOKEN (admin auth)
-        dry_run: if "1", report only without deleting
+        dry_run: if True, report only without deleting
+
+    Phase 0 v15 fix: parameterize LIKE queries for Postgres compatibility.
     """
-    import sqlite3
     import json
     from maestro_personal_shell.db_util import get_db_conn, default_sqlite_path
     from fastapi import HTTPException
     import os
-    from urllib.parse import parse_qs
 
     admin_token = os.environ.get("MAESTRO_PERSONAL_TOKEN", "")
     if not admin_token or token != admin_token:
         raise HTTPException(status_code=403, detail="Invalid admin token")
 
-    dry_run = "1" in str(os.environ.get("DRY_RUN", ""))
-
     db_path = default_sqlite_path()
     db = get_db_conn(db_path)
-    db.row_factory = sqlite3.Row
+    try:
+        db.row_factory = sqlite3.Row
+    except Exception:
+        pass  # PostgresConnection ignores this
 
     try:
-        # Find all demo_seed signals
+        # Phase 0 v15: parameterize LIKE query — inline % breaks Postgres
         demo_rows = db.execute(
-            "SELECT signal_id, user_email, entity, text FROM signals WHERE metadata LIKE '%demo_seed%'"
+            "SELECT signal_id, user_email, entity, text FROM signals WHERE metadata LIKE ?",
+            ("%demo_seed%",),
         ).fetchall()
 
-        total_before = db.execute("SELECT COUNT(*) FROM signals").fetchone()[0]
-        real_count = db.execute(
-            "SELECT COUNT(*) FROM signals WHERE metadata NOT LIKE '%demo_seed%'"
-        ).fetchone()[0]
+        # COUNT queries — use parameterized LIKE and handle DictRow
+        total_before_row = db.execute("SELECT COUNT(*) AS cnt FROM signals").fetchone()
+        total_before = total_before_row["cnt"] if hasattr(total_before_row, "keys") else total_before_row[0]
 
-        users_affected = list(set(row["user_email"] for row in demo_rows))
+        real_count_row = db.execute(
+            "SELECT COUNT(*) AS cnt FROM signals WHERE metadata NOT LIKE ?",
+            ("%demo_seed%",),
+        ).fetchone()
+        real_count = real_count_row["cnt"] if hasattr(real_count_row, "keys") else real_count_row[0]
+
+        # Extract signal_ids safely (works for both sqlite3.Row and DictRow)
+        users_affected = list(set(
+            (row["user_email"] if hasattr(row, "keys") else row[1]) for row in demo_rows
+        ))
 
         if not dry_run and demo_rows:
-            signal_ids = [row["signal_id"] for row in demo_rows]
-            placeholders = ",".join("?" * len(signal_ids))
+            signal_ids = [
+                (row["signal_id"] if hasattr(row, "keys") else row[0])
+                for row in demo_rows
+            ]
+            placeholders = ",".join(["%s" if _is_postgres_env() else "?" for _ in signal_ids])
             db.execute(
                 f"DELETE FROM signals WHERE signal_id IN ({placeholders})",
                 signal_ids,
@@ -306,10 +325,14 @@ async def purge_demo_data_get(token: str = ""):
                 pass
             db.commit()
 
-        total_after = db.execute("SELECT COUNT(*) FROM signals").fetchone()[0]
-        demo_remaining = db.execute(
-            "SELECT COUNT(*) FROM signals WHERE metadata LIKE '%demo_seed%'"
-        ).fetchone()[0]
+        total_after_row = db.execute("SELECT COUNT(*) AS cnt FROM signals").fetchone()
+        total_after = total_after_row["cnt"] if hasattr(total_after_row, "keys") else total_after_row[0]
+
+        demo_remaining_row = db.execute(
+            "SELECT COUNT(*) AS cnt FROM signals WHERE metadata LIKE ?",
+            ("%demo_seed%",),
+        ).fetchone()
+        demo_remaining = demo_remaining_row["cnt"] if hasattr(demo_remaining_row, "keys") else demo_remaining_row[0]
 
         return {
             "action": "dry_run" if dry_run else "purge_demo_data",
