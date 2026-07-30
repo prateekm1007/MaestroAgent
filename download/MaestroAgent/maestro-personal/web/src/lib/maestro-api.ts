@@ -924,6 +924,72 @@ export const maestroApi = {
   },
 
   /* ---------------------------------------------------------------- */
+  /*  INSTANT draft generation — SSE streaming via /api/drafts/auto/stream  */
+  /*  First token <2s. Progressive text rendered in modal.            */
+  /* ---------------------------------------------------------------- */
+  async streamAutoDraft(
+    provider: string,
+    recipient: string,
+    onMeta: (meta: any) => void,
+    onChunk: (chunk: string) => void,
+    onFinal: (final: { body: string; draft_id: string; needs_recipient?: boolean; llm_generated?: boolean }) => void,
+    onError: (err: string) => void,
+  ): Promise<void> {
+    const token = getToken();
+    if (!token) {
+      onError("Not authenticated");
+      return;
+    }
+    try {
+      const res = await fetch("/api/drafts/auto/stream", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ provider, recipient }),
+      });
+      if (!res.ok) {
+        onError(`HTTP ${res.status}`);
+        return;
+      }
+      const reader = res.body?.getReader();
+      if (!reader) {
+        onError("No response body");
+        return;
+      }
+      const decoder = new TextDecoder();
+      let buffer = "";
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split("\n");
+        buffer = lines.pop() || "";
+        for (const line of lines) {
+          if (!line.startsWith("data: ")) continue;
+          const payload = line.slice(6).trim();
+          if (payload === "[DONE]") return;
+          try {
+            const evt = JSON.parse(payload);
+            if (evt.meta) onMeta(evt.meta);
+            else if (evt.chunk) onChunk(evt.chunk);
+            else if (evt.final) onFinal({
+              body: evt.final,
+              draft_id: evt.draft_id || "",
+              needs_recipient: evt.needs_recipient,
+              llm_generated: evt.llm_generated,
+            });
+            else if (evt.error) onError(evt.error);
+          } catch { /* skip malformed */ }
+        }
+      }
+    } catch (e: any) {
+      onError(e?.message || "Stream failed");
+    }
+  },
+
+  /* ---------------------------------------------------------------- */
   /*  P1-10: Account metrics — GET /api/metrics                       */
   /*  Returns commitment counts + engagement stats for Settings card.  */
   /* ---------------------------------------------------------------- */

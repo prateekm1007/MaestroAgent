@@ -187,26 +187,58 @@ export function Commitments({
     }
   }
 
-  // P0-6: Draft from The One or any commitment row — calls generateAutoDraft + opens shared modal
+  // P0-6: Draft from The One or any commitment row — INSTANT streaming
   async function handleDraft(entity: string) {
     if (!entity) return;
     setDraftBusyEntity(entity);
-    try {
-      const { data, live } = await maestroApi.generateAutoDraft("gmail", entity);
-      if (!live || !data) {
-        toast({
-          title: "Draft generation failed",
-          description: "Could not reach the API or no commitments found for this entity.",
-          variant: "destructive",
+    // Open modal INSTANTLY with skeleton
+    const skeletonDraft: DraftWithMeta = {
+      draft_id: "streaming",
+      provider: "gmail",
+      recipient: entity,
+      subject: "Generating...",
+      body: "",
+      commitment_ref: "",
+      evidence_refs: [],
+      status: "pending",
+      created_at: new Date().toISOString(),
+      derived: true,
+      llm_generated: true,
+    } as any;
+    setDraftForReview(skeletonDraft);
+    let accumulated = "";
+    await maestroApi.streamAutoDraft(
+      "gmail", entity,
+      (meta) => {
+        setDraftForReview({
+          ...skeletonDraft,
+          subject: meta.subject || "Follow-up",
+          recipient: meta.to || entity,
+          evidence_refs: meta.evidence_refs || [],
+          commitment_ref: meta.commitment_source || "",
         });
-      } else {
-        setDraftForReview(data as DraftWithMeta);
-      }
-    } catch (e: any) {
-      toast({ title: "Draft failed", description: e?.message || "Unknown error", variant: "destructive" });
-    } finally {
-      setDraftBusyEntity(null);
-    }
+      },
+      (chunk) => {
+        accumulated += chunk;
+        setDraftForReview({
+          ...skeletonDraft,
+          subject: skeletonDraft.subject === "Generating..." ? "Re: follow-up" : skeletonDraft.subject,
+          body: accumulated,
+        });
+      },
+      (final) => {
+        setDraftForReview({
+          ...skeletonDraft,
+          draft_id: final.draft_id || "streaming",
+          body: final.body || accumulated,
+        });
+      },
+      (err) => {
+        toast({ title: "Draft failed", description: err, variant: "destructive" });
+        setDraftForReview(null);
+      },
+    );
+    setDraftBusyEntity(null);
   }
 
   // P1-#4 fix (2026-07-20): View Threads for Entity — calls getThreadsForEntity

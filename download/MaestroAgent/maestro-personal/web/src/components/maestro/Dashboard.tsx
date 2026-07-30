@@ -116,49 +116,118 @@ export function Dashboard({
     }
   }
 
-  // P0-4: Draft from The Moment — call generateAutoDraft, open shared modal
+  // P0-4: Draft from The Moment — INSTANT streaming draft
+  // Opens modal immediately with skeleton, streams text in (first token <2s)
   async function handleMomentDraft() {
     const entity = moment?.commitment?.entity;
     if (!entity) return;
     setMomentBusy("draft");
-    try {
-      const { data, live } = await maestroApi.generateAutoDraft("gmail", entity);
-      if (!live || !data) {
-        toast({
-          title: "Draft generation failed",
-          description: "Could not reach the API or no commitments found for this entity.",
-          variant: "destructive",
+    // Open modal INSTANTLY with a skeleton draft — user sees feedback immediately
+    const skeletonDraft: DraftWithMeta = {
+      draft_id: "streaming",
+      provider: "gmail",
+      recipient: entity,
+      subject: "Generating...",
+      body: "",
+      commitment_ref: "",
+      evidence_refs: [],
+      status: "pending",
+      created_at: new Date().toISOString(),
+      derived: true,
+      llm_generated: true,
+    } as any;
+    setDraftForReview(skeletonDraft);
+    let accumulated = "";
+    await maestroApi.streamAutoDraft(
+      "gmail", entity,
+      (meta) => {
+        // Meta arrived — update subject + evidence
+        setDraftForReview({
+          ...skeletonDraft,
+          subject: meta.subject || "Follow-up",
+          recipient: meta.to || entity,
+          evidence_refs: meta.evidence_refs || [],
+          commitment_ref: meta.commitment_source || "",
         });
-      } else {
-        setDraftForReview(data as DraftWithMeta);
-      }
-    } catch (e: any) {
-      toast({ title: "Draft failed", description: e?.message || "Unknown error", variant: "destructive" });
-    } finally {
-      setMomentBusy(null);
-    }
+      },
+      (chunk) => {
+        // Progressive text — append to body
+        accumulated += chunk;
+        setDraftForReview({
+          ...skeletonDraft,
+          subject: skeletonDraft.subject === "Generating..." ? "Re: follow-up" : skeletonDraft.subject,
+          body: accumulated,
+        });
+      },
+      (final) => {
+        // Final cleaned text + draft_id
+        setDraftForReview({
+          ...skeletonDraft,
+          draft_id: final.draft_id || "streaming",
+          body: final.body || accumulated,
+          subject: final.body ? skeletonDraft.subject : "Follow-up",
+        });
+        accumulated = final.body || accumulated;
+      },
+      (err) => {
+        toast({ title: "Draft failed", description: err, variant: "destructive" });
+        setDraftForReview(null);
+      },
+    );
+    setMomentBusy(null);
   }
 
-  // P0-5: Whisper "Draft follow-up" — call generateAutoDraft (was: onAsk)
+  // P0-5: Whisper "Draft follow-up" — INSTANT streaming (same as handleMomentDraft)
   async function handleWhisperDraft(entity: string) {
     if (!entity) return;
     setMomentBusy("draft");
-    try {
-      const { data, live } = await maestroApi.generateAutoDraft("gmail", entity);
-      if (!live || !data) {
-        toast({
-          title: "Draft generation failed",
-          description: "Could not reach the API or no commitments found for this entity.",
-          variant: "destructive",
+    const skeletonDraft: DraftWithMeta = {
+      draft_id: "streaming",
+      provider: "gmail",
+      recipient: entity,
+      subject: "Generating...",
+      body: "",
+      commitment_ref: "",
+      evidence_refs: [],
+      status: "pending",
+      created_at: new Date().toISOString(),
+      derived: true,
+      llm_generated: true,
+    } as any;
+    setDraftForReview(skeletonDraft);
+    let accumulated = "";
+    await maestroApi.streamAutoDraft(
+      "gmail", entity,
+      (meta) => {
+        setDraftForReview({
+          ...skeletonDraft,
+          subject: meta.subject || "Follow-up",
+          recipient: meta.to || entity,
+          evidence_refs: meta.evidence_refs || [],
         });
-      } else {
-        setDraftForReview(data as DraftWithMeta);
-      }
-    } catch (e: any) {
-      toast({ title: "Draft failed", description: e?.message || "Unknown error", variant: "destructive" });
-    } finally {
-      setMomentBusy(null);
-    }
+      },
+      (chunk) => {
+        accumulated += chunk;
+        setDraftForReview({
+          ...skeletonDraft,
+          subject: skeletonDraft.subject === "Generating..." ? "Re: follow-up" : skeletonDraft.subject,
+          body: accumulated,
+        });
+      },
+      (final) => {
+        setDraftForReview({
+          ...skeletonDraft,
+          draft_id: final.draft_id || "streaming",
+          body: final.body || accumulated,
+        });
+        accumulated = final.body || accumulated;
+      },
+      (err) => {
+        toast({ title: "Draft failed", description: err, variant: "destructive" });
+        setDraftForReview(null);
+      },
+    );
+    setMomentBusy(null);
   }
 
   // Resolve draft (shared modal) — approve / deny / use_draft

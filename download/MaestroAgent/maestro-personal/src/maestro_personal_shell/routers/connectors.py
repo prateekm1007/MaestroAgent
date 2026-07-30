@@ -7,6 +7,7 @@ import json
 import logging
 import os
 from typing import Any
+from fastapi.responses import StreamingResponse
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Request
 from fastapi.responses import HTMLResponse
@@ -1155,6 +1156,164 @@ async def create_auto_draft(req: ConnectorAutoDraftRequest, token: str = Depends
     result["llm_generated"] = draft_data.get("llm_generated", False)
     result["style_applied"] = draft_data.get("style_applied", False)
     return result
+
+
+@router.post("/drafts/auto/stream")
+async def create_auto_draft_stream(req: ConnectorAutoDraftRequest, token: str = Depends(verify_token_dep)):
+    """INSTANT draft generation via SSE streaming — first token <2s.
+
+    Same derivation as /api/drafts/auto (find commitment, derive evidence,
+    build prompt), but streams the LLM output token-by-token instead of
+    waiting for the full response. The user sees progressive text in the
+    modal — no more 12s frozen screen.
+
+    SSE events:
+      data: {"meta": {"subject":"...", "to":"...", "evidence_refs":[...], "derived":true}}\n\n
+      data: {"chunk": "Hi "}\n\n
+      data: {"chunk": "Bob, "}\n\n
+      ...
+      data: {"final": "full cleaned body", "draft_id": "...", "needs_recipient": false}\n\n
+      data: [DONE]\n\n
+    """
+    import json as _json
+
+    async def event_stream():
+        from maestro_personal_shell.connectors import ConnectorStore, ConnectorDraftGenerator
+        from maestro_personal_shell.api import build_shell
+        from maestro_personal_shell.draft_generator import (
+            _call_openrouter_stream, _clean_signature, _ban_placeholders,
+            _filter_voice_phrases, _clean_phrase, _has_placeholders,
+            _deterministic_fallback_body,
+        )
+        from maestro_personal_shell.voice_analyzer import get_user_voice_profile
+        import re as _re
+        import os as _os
+
+        store = ConnectorStore()
+
+        # Step 1: Derive commitment (same as generate_auto_draft)
+        try:
+            shell = build_shell(user_email=token)
+            gen = ConnectorDraftGenerator(shell=shell)
+            # We need the derivation but NOT the LLM call — do it manually
+            commitment, evidence_refs, source_signal_id = gen._derive_commitment_for_recipient(
+                shell, req.recipient
+            )
+
+            if not commitment:
+                yield f'data: {{"error": "No active commitments found for \'{req.recipient}\'. Connect a connector and ingest."}}\n\n'
+                yield "data: [DONE]\n\n"
+                return
+
+            entity = commitment.get("entity", req.recipient)
+            commitment_text = commitment.get("text", "")
+
+            # Send meta immediately so the modal can render subject + evidence
+            subject = f"Re: {commitment_text[:50]}" if commitment_text else f"Follow-up — {req.recipient}"
+            meta = {
+                "subject": subject,
+                "to": req.recipient,
+                "entity": entity,
+                "evidence_refs": evidence_refs[:3],
+                "derived": True,
+                "commitment_source": source_signal_id,
+                "evidence_count": len(evidence_refs),
+            }
+            yield f'data: {{"meta": {_json.dumps(meta)}}}\n\n'
+
+            # Step 2: Build prompt (same as draft_generator but inline for streaming)
+            api_key = _os.environ.get("OPENROUTER_API_KEY")
+            if not api_key:
+                # Fallback to template — stream it as a single chunk
+                fallback_body = _deterministic_fallback_body(commitment)
+                yield f'data: {{"chunk": {_json.dumps(fallback_body)}}}\n\n'
+                result = store.create_draft(
+                    user_email=token, provider=req.provider, recipient=req.recipient,
+                    subject=subject, body=fallback_body, commitment_ref=commitment_text,
+                    evidence_refs=evidence_refs,
+                )
+                yield f'data: {{"final": {_json.dumps(fallback_body)}, "draft_id": "{result.get("draft_id", "")}"}}\n\n'
+                yield "data: [DONE]\n\n"
+                return
+
+            # Voice profile
+            try:
+                voice_profile = await get_user_voice_profile(token)
+                clean_phrases = _filter_voice_phrases(getattr(voice_profile, 'common_phrases', []) or [])
+                formality = getattr(voice_profile, 'formality', 0.5)
+                signature = _clean_phrase(getattr(voice_profile, 'signature', '') or '') or "Thanks,"
+            except Exception:
+                clean_phrases, formality, signature = [], 0.5, "Thanks,"
+
+            prompt = f"""You are writing a follow-up email for the user.
+
+HARD RULES:
+1. NEVER use placeholders like [Your Name] or [Original Email Subject].
+2. Use ONLY the real information provided below.
+3. Start directly with "Hi {entity}," — no "Subject:" line.
+4. Reference the SPECIFIC commitment: "{commitment_text}"
+5. End with:
+Thanks,
+Prateek
+6. Length: 4-6 sentences. Tone: professional.
+
+REAL INFORMATION:
+- RECIPIENT: {entity}
+- SENDER: Prateek
+- COMMITMENT: "{commitment_text}"
+
+{"USER VOICE PROFILE:" if clean_phrases else "No voice profile available."}
+- Formality: {formality:.1f}/1.0
+{chr(10).join('- Common phrase: "' + p + '"' for p in clean_phrases)}
+- Sign-off: {signature}
+
+Write the email body now. Start with "Hi {entity},". Use ACTUAL newlines."""
+
+            # Step 3: Stream the LLM output
+            accumulated = ""
+            try:
+                async for chunk in _call_openrouter_stream(prompt, api_key):
+                    accumulated += chunk
+                    yield f'data: {{"chunk": {_json.dumps(chunk)}}}\n\n'
+            except Exception as e:
+                logger.warning(f"Stream auto-draft LLM error, using fallback: {e}")
+                accumulated = _deterministic_fallback_body(commitment)
+                yield f'data: {{"chunk": {_json.dumps(accumulated)}}}\n\n'
+
+            # Step 4: Post-process (clean signature, ban placeholders)
+            final_text = _re.sub(r'^\s*subject:\s*[^\n]*\n', '', accumulated, flags=_re.IGNORECASE).strip()
+            final_text = _clean_signature(final_text, signature, token)
+            final_text = _ban_placeholders(final_text, entity, token)
+
+            # Step 5: Persist the draft
+            result = store.create_draft(
+                user_email=token, provider=req.provider, recipient=req.recipient,
+                subject=subject, body=final_text, commitment_ref=commitment_text,
+                evidence_refs=evidence_refs,
+            )
+            if "error" in result:
+                yield f'data: {{"error": "Failed to persist draft: {result["error"][:80]}"}}\n\n'
+            else:
+                # Send final corrected text + draft_id so the frontend can update
+                needs_recipient = "@" not in req.recipient
+                yield f'data: {{"final": {_json.dumps(final_text)}, "draft_id": "{result.get("draft_id", "")}", "needs_recipient": {_json.dumps(needs_recipient)}, "llm_generated": true, "style_applied": bool(clean_phrases)}}\n\n'
+
+            yield "data: [DONE]\n\n"
+
+        except Exception as e:
+            logger.error(f"Error in auto-draft stream: {e}", exc_info=True)
+            yield f'data: {{"error": "Failed to generate draft: {str(e)[:100]}"}}\n\n'
+            yield "data: [DONE]\n\n"
+
+    return StreamingResponse(
+        event_stream(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        },
+    )
 
 
 @router.get("/drafts")
