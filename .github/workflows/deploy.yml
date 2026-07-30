@@ -54,6 +54,35 @@ jobs:
           PYTHONPATH=src pytest tests/test_regression_audit.py::test_f28_multi_word_entity_extraction \
             tests/test_regression_audit.py::test_f29_temporal_and_conflict_intents \
             -v --tb=short
+      - name: 🔒 LOGIN SMOKE TEST (Bug 7 — ALWAYS RUN, blocks deploy on auth failure)
+        # Audit #15: production went completely offline while /api/health reported "ok".
+        # A 5-line login smoke test would have blocked that deploy. This is it.
+        # The test registers a user, logs in, and hits an authenticated endpoint.
+        # If any step fails, the deploy is BLOCKED.
+        run: |
+          pip install requests
+          python3 -c "
+          import requests, uuid, sys
+          BASE = 'https://maestroagent-production.up.railway.app'
+          email = f'ci-smoke-{uuid.uuid4().hex[:8]}@example.com'
+          # 1. Register
+          r = requests.post(f'{BASE}/api/auth/register', json={'user_email': email, 'password': 'SmokeTest!Pass', 'name': 'CI'}, timeout=30)
+          assert r.status_code == 200, f'REGISTER FAILED: {r.status_code} {r.text[:200]}'
+          token = r.json().get('token')
+          assert token, 'NO TOKEN from register'
+          # 2. Authenticated request
+          r = requests.get(f'{BASE}/api/commitments', headers={'Authorization': f'Bearer {token}'}, timeout=30)
+          assert r.status_code == 200, f'AUTH FAILED: {r.status_code} {r.text[:200]}'
+          # 3. Login
+          r = requests.post(f'{BASE}/api/auth/login', json={'user_email': email, 'password': 'SmokeTest!Pass'}, timeout=30)
+          assert r.status_code == 200, f'LOGIN FAILED: {r.status_code} {r.text[:200]}'
+          login_token = r.json().get('token')
+          assert login_token, 'NO TOKEN from login'
+          # 4. Authenticated request with login token
+          r = requests.get(f'{BASE}/api/commitments', headers={'Authorization': f'Bearer {login_token}'}, timeout=30)
+          assert r.status_code == 200, f'LOGIN TOKEN AUTH FAILED: {r.status_code} {r.text[:200]}'
+          print('✅ LOGIN SMOKE TEST PASSED — auth works, deploy may proceed')
+          "
       - name: Run production-path regression tests (requires staging secrets)
         working-directory: download/MaestroAgent/maestro-personal
         run: |

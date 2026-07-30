@@ -181,9 +181,26 @@ async def health():
     except Exception:
         _live_built = _PROCESS_START_TIME
 
+    # Bug 8 fix (auditor v15): /api/health must return 503 when degraded,
+    # not 200 "ok" through a total outage. The prior code always returned
+    # status: "ok" even when the app was broken. Fix: probe the DB
+    # connection. If it fails, return 503 so monitors and the CI gate
+    # detect the outage.
+    _health_status = "ok"
+    _health_code = 200
+    try:
+        from maestro_personal_shell.db_util import get_db_conn, default_sqlite_path
+        _health_conn = get_db_conn(default_sqlite_path())
+        _health_conn.execute("SELECT 1")
+        _health_conn.close()
+    except Exception as _health_db_err:
+        _health_status = "degraded"
+        _health_code = 503
+        logger.error("Bug 8: /api/health DB probe failed: %s — returning 503", _health_db_err)
+
     return JSONResponse(
         content={
-            "status": "ok",
+            "status": _health_status,
             "service": "maestro-personal",
             "version": _VERSION,
             "commit": _live_commit,
@@ -192,6 +209,7 @@ async def health():
             "build_time": _live_built,
             "rate_limiting": _get_rate_limiting_status(),
         },
+        status_code=_health_code,
         headers={
             "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0",
         },
