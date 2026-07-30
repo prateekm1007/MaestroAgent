@@ -638,7 +638,14 @@ async def create_signal(req: SignalCreate, token: str = Depends(verify_token_dep
     # (state machine, closure matching, correction propagation). The
     # signals table holds raw observations; the ledger holds the
     # normalized commitment derived from each signal.
-    try:
+    #
+    # A3 fix (auditor v14): wrap the ENTIRE ledger derivation in the write
+    # lock to serialize concurrent writes. The prior code ran upsert_ledger_entry
+    # + append_event WITHOUT the lock, causing concurrent requests to interleave
+    # and corrupt each other's state (63% loss, misattribution).
+    from maestro_personal_shell.db_util import get_write_lock
+    with get_write_lock():
+      try:
         from maestro_personal_shell.commitment_ledger import upsert_ledger_entry, match_closure, transition_ledger_state, get_ledger_entries
         from pathlib import Path as _P
         _db = os.environ.get("MAESTRO_PERSONAL_DB", str(_P(__file__).resolve().parents[1] / "personal.db"))
@@ -825,7 +832,7 @@ async def create_signal(req: SignalCreate, token: str = Depends(verify_token_dep
                     "P59 lifecycle APPLIED: signal %s → ledger %s transitioned to %s",
                     signal_id, match["ledger_id"], target,
                 )
-    except Exception as e:
+      except Exception as e:
         # Phase 1.1 fix (auditor v13): honest derivation — don't silently
         # swallow ledger persistence failures. The prior code logged at
         # debug level ("non-fatal"), which hid derivation failures from

@@ -224,7 +224,13 @@ class PostgresConnection:
         elif "INSERT OR IGNORE" in sql_upper:
             sql = self._convert_insert_or_ignore(sql)
 
-        cur = self._conn.cursor()
+        # A3 fix (auditor v14): use RealDictCursor so rows support string key
+        # access (mimicking sqlite3.Row). The prior code used the default
+        # psycopg2 cursor which returns plain tuples — accessing
+        # row["column_name"] raised TypeError, silently losing 63% of
+        # concurrent ledger derivations.
+        from psycopg2.extras import RealDictCursor
+        cur = self._conn.cursor(cursor_factory=RealDictCursor)
         cur.execute(sql, params if isinstance(params, (tuple, list)) else (params,))
         return cur
 
