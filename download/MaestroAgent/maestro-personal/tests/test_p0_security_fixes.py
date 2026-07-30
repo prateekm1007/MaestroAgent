@@ -85,7 +85,7 @@ class TestP0SecurityFixes:
              patch("maestro_personal_shell.llm_bridge.is_llm_available", return_value=False):
             for secret in ["SECRET_TOKEN", "AUTH_TOKEN", "API_KEY", "PRIVATE_KEY", "JWT_SECRET"]:
                 resp = client.post("/api/signals", json={
-                    "entity": "TestCorp",
+                    "entity": f"TestCorp-{secret}",
                     "text": f"The {secret} is hidden here",
                     "signal_type": "commitment_made",
                 }, headers=auth_headers)

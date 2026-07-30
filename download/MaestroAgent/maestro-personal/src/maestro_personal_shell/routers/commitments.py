@@ -820,20 +820,55 @@ async def transition_commitment(
                         "completed_verified", "disputed", "cancelled", "superseded", "tombstoned"}:
         raise HTTPException(status_code=400, detail=f"Unknown state: {to_state}")
 
-    # P58: check if the ledger entry exists AND belongs to the requesting user
+    # P58: check if the ledger entry exists AND belongs to the requesting user.
+    # v19 fix: the prior code ONLY checked commitments_ledger. When the
+    # ledger write hasn't happened yet (or the ID passed is a signal_id,
+    # not a ledger_id), the lookup returned None → 404 "not found" instead
+    # of 403 "not authorized". This let user B discover that user A's
+    # commitment EXISTS (404 vs 403 is an information leak). Fix: also
+    # check the signals table by signal_id. If the signal exists and
+    # belongs to another user → 403. Only if neither exists → 404.
     entry = get_ledger_entry(ledger_id, _db) if 'get_ledger_entry' in dir() else None
-    # The transition_ledger_state function does the ownership check internally;
-    # if it returns False, we need to distinguish "not found" from "not authorized"
-    # by checking if the entry exists at all.
     import sqlite3
+    actual_ledger_id = ledger_id  # may be updated if we find via signal_id
     try:
         from maestro_personal_shell.db_util import get_db_conn
         conn = get_db_conn(_db)
         conn.row_factory = sqlite3.Row
+        # 1. Check commitments_ledger by ledger_id
         row = conn.execute(
-            "SELECT user_email FROM commitments_ledger WHERE ledger_id = ?", (ledger_id,)
+            "SELECT user_email, ledger_id FROM commitments_ledger WHERE ledger_id = ?", (ledger_id,)
         ).fetchone()
+        if row is None:
+            # 2. Check commitments_ledger by signal_id (the caller may have
+            # passed a signal_id instead of a ledger_id)
+            row = conn.execute(
+                "SELECT user_email, ledger_id FROM commitments_ledger WHERE signal_id = ?", (ledger_id,)
+            ).fetchone()
+        if row is None:
+            # 3. Fallback: check signals table by signal_id (the ledger write
+            # may not have happened yet, or the caller passed a signal_id)
+            sig_row = conn.execute(
+                "SELECT user_email FROM signals WHERE signal_id = ?", (ledger_id,)
+            ).fetchone()
+            if sig_row is not None:
+                # Signal exists but no ledger entry yet. Check ownership.
+                if sig_row["user_email"] != token:
+                    raise HTTPException(status_code=403, detail="Not authorized: this commitment belongs to another user")
+                # v19 fix: the ledger write is async and may not have happened.
+                # Rather than 409 "Illegal transition", return 202 "Accepted —
+                # ledger entry pending" so the client can retry.
+                conn.close()
+                raise HTTPException(
+                    status_code=202,
+                    detail="Commitment found but ledger entry not yet written. Please retry in a few seconds."
+                )
+            row = None
+        if row is not None:
+            actual_ledger_id = row["ledger_id"]
         conn.close()
+    except HTTPException:
+        raise
     except Exception:
         row = None
 
@@ -843,10 +878,11 @@ async def transition_commitment(
         # P58: cross-tenant mutation attempt → 403 Forbidden
         raise HTTPException(status_code=403, detail="Not authorized: this commitment belongs to another user")
 
-    ok = transition_ledger_state(ledger_id, to_state, token, _db)
+    # Use the actual ledger_id (may differ from the input if caller passed signal_id)
+    ok = transition_ledger_state(actual_ledger_id, to_state, token, _db)
     if not ok:
         raise HTTPException(status_code=409, detail="Illegal transition")
-    return {"ledger_id": ledger_id, "state": to_state, "transitioned": True}
+    return {"ledger_id": actual_ledger_id, "state": to_state, "transitioned": True}
 
 
 @router.post("/simulate")

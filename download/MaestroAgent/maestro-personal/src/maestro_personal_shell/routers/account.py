@@ -568,26 +568,39 @@ async def get_calibration(token: str = Depends(verify_token_dep)):
     total = counts.get("total", 0) if isinstance(counts, dict) else 0
     brier = report.get("brier_score")
 
-    if resolved < 5 or total < 10:
+    # v19 fix: lowered total threshold from 10 to 5. The prior `total < 10`
+    # gate suppressed Brier even when there were 5 resolved predictions
+    # (enough for a meaningful score). The original v13 concern was 0
+    # resolved predictions being shown as authority — `resolved < 5` already
+    # guards that. `total < 5` is sufficient.
+    #
+    # v19 fix 2: REMOVED the "worse than chance > 0.33" suppression. Hiding
+    # a bad Brier score is itself a form of metric gaming (Prime Directive:
+    # "surface the truth"). If the Brier is 0.81, the user should see 0.81
+    # and know their calibration is bad — not see None and think it's
+    # "insufficient data." The prior code conflated "bad calibration" with
+    # "insufficient calibration" — they are different problems. Bad
+    # calibration is a real signal; insufficient data is an absence of
+    # signal. Conflating them hides the truth.
+    if resolved < 5 or total < 5:
         report["brier_score"] = None
         report["calibration_note"] = (
             f"Insufficient data for calibration ({resolved} resolved / {total} total predictions). "
             f"Need at least 5 resolved predictions to compute a meaningful Brier score."
         )
         report["calibration_suppressed"] = True
-    elif brier is not None and brier > 0.33:
-        # Brier > 0.33 means worse than random chance for binary predictions.
-        # Showing this as "calibration authority" is misleading — suppress it.
-        report["brier_score"] = None
-        report["calibration_note"] = (
-            f"Calibration score ({brier:.4f}) is worse than chance. "
-            f"Maestro's predictions need more refinement before this number can be "
-            f"presented as calibration authority. Showing 'Insufficient calibration' "
-            f"instead of a misleading score."
-        )
-        report["calibration_suppressed"] = True
     else:
         report["calibration_suppressed"] = False
+        if brier is not None and brier > 0.33:
+            report["calibration_note"] = (
+                f"Brier score {brier:.4f} is worse than random chance (0.33 for binary). "
+                f"This is a real signal — your predictions need refinement. "
+                f"Shown honestly per the Prime Directive (surface the truth)."
+            )
+        elif brier is not None:
+            report["calibration_note"] = (
+                f"Brier score {brier:.4f} across {resolved} resolved predictions."
+            )
 
     return {**report, "counts": counts}
 

@@ -26,10 +26,11 @@ patterns:
     replacement: ''
     scope: all
 
-  - name: redacted_marker
-    pattern: '\[REDACTED[^\]]*\]'
-    replacement: ''
-    scope: all
+  # NOTE: [REDACTED] / [REDACTED_KEY] / [REDACTED_OTP] markers are
+  # USER-FACING — they tell the user "we found a secret and redacted it."
+  # They must NOT be stripped from responses. The prior redacted_marker
+  # pattern stripped them, defeating P0.2 secret redaction (auditor v19).
+  # Removed 2026-07-30.
 
   - name: guard_triggered_marker
     pattern: '\[GUARD TRIGGERED[^\]]*\]'
@@ -121,34 +122,15 @@ patterns:
     replacement: 'Bearer [redacted]'
     scope: all
 
-  # ---- HTML entities that should have been decoded (FA31) ----
-  # Raw &lt; &gt; &amp; in answer text indicates a serialization bug
-  # somewhere upstream. Decode to the literal character so the user sees
-  # `<` not `&lt;`.
-  - name: html_entity_lt
-    pattern: '&lt;'
-    replacement: '<'
-    scope: string_fields_only
-
-  - name: html_entity_gt
-    pattern: '&gt;'
-    replacement: '>'
-    scope: string_fields_only
-
-  - name: html_entity_amp
-    pattern: '&amp;'
-    replacement: '&'
-    scope: string_fields_only
-
-  - name: html_entity_quote
-    pattern: '&quot;'
-    replacement: '"'
-    scope: string_fields_only
-
-  - name: html_entity_apos
-    pattern: '&#39;'
-    replacement: "'"
-    scope: string_fields_only
+  # ---- HTML entity decoding REMOVED (auditor v19) ----
+  # The html_entity_lt/gt/amp/quote/apos patterns UN-ESCAPED &lt; → < in
+  # API responses. This directly defeated the P0.1 stored-XSS protection
+  # which html-escapes <script> → &lt;script&gt; at write time. The output
+  # middleware was un-escaping it back to <script> before sending to the
+  # client, re-introducing the XSS risk. Removed 2026-07-30.
+  # HTML entities in JSON responses are fine — frontends render them
+  # correctly. Do NOT re-add these patterns without a corresponding
+  # input-sanitization review.
 
   # ---- Stack trace leakage (P86) ----
   # Tracebacks in API responses leak file paths, library versions, and
