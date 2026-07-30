@@ -6,6 +6,7 @@ import hmac
 import json
 import logging
 import os
+from datetime import datetime, timezone
 from typing import Any
 from fastapi.responses import StreamingResponse
 
@@ -1127,19 +1128,19 @@ async def create_auto_draft_stream(req: ConnectorAutoDraftRequest, token: str = 
     import json as _json
 
     async def event_stream():
-        # Imports must be inside the generator (FastAPI requirement) but
-        # keep them minimal. Do NOT import build_shell — it triggers loading
-        # the entire 2200-line api.py module. We query the DB directly.
-        from maestro_personal_shell.connectors import ConnectorStore
+        # Imports kept minimal — do NOT import build_shell or voice_analyzer
+        # (they trigger heavy module loading). We query the DB directly.
         from maestro_personal_shell.draft_generator import (
             _call_openrouter_stream, _clean_signature, _ban_placeholders,
-            _filter_voice_phrases, _clean_phrase,
             _deterministic_fallback_body,
         )
         import re as _re
         import os as _os
+        import secrets as _secrets
 
-        store = ConnectorStore()
+        # Do NOT create ConnectorStore() here — its __init__ calls _init_db()
+        # which does a DB round-trip. We only need the DB for the final
+        # persist, and we can do that with a direct INSERT.
 
         # Step 1: Derive commitment — INSTANT direct DB query (no build_shell)
         # build_shell loads ALL signals (2-9s). For streaming, we query the
@@ -1288,18 +1289,32 @@ Write the email body now. Start with "Hi {entity},". Use ACTUAL newlines."""
             final_text = _clean_signature(final_text, signature, token)
             final_text = _ban_placeholders(final_text, entity, token)
 
-            # Step 5: Persist the draft
-            result = store.create_draft(
-                user_email=token, provider=req.provider, recipient=req.recipient,
-                subject=subject, body=final_text, commitment_ref=commitment_text,
-                evidence_refs=evidence_refs,
-            )
-            if "error" in result:
-                yield f'data: {{"error": "Failed to persist draft: {result["error"][:80]}"}}\n\n'
-            else:
-                # Send final corrected text + draft_id so the frontend can update
+            # Step 5: Persist the draft — direct INSERT (no ConnectorStore init)
+            draft_id = f"draft-{_secrets.token_urlsafe(12)}"
+            now_iso = datetime.now(timezone.utc).isoformat()
+            evidence_json = _json.dumps(evidence_refs or [])
+            try:
+                from maestro_personal_shell.db_util import get_db_conn as _get_conn
+                pconn = _get_conn()
+                pconn.execute(
+                    "INSERT INTO drafts "
+                    "(draft_id, user_email, provider, recipient, subject, body, "
+                    "commitment_ref, evidence_refs, status, created_at) "
+                    "VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?)",
+                    (draft_id, token, req.provider, req.recipient, subject,
+                     final_text, commitment_text, evidence_json, now_iso),
+                )
+                pconn.commit()
+                try:
+                    pconn.close()
+                except Exception:
+                    pass
                 needs_recipient = "@" not in req.recipient
-                yield f'data: {{"final": {_json.dumps(final_text)}, "draft_id": "{result.get("draft_id", "")}", "needs_recipient": {_json.dumps(needs_recipient)}, "llm_generated": true, "style_applied": bool(clean_phrases)}}\n\n'
+                yield f'data: {{"final": {_json.dumps(final_text)}, "draft_id": "{draft_id}", "needs_recipient": {_json.dumps(needs_recipient)}, "llm_generated": true}}\n\n'
+            except Exception as persist_err:
+                logger.warning(f"Draft persist failed (non-fatal): {persist_err}")
+                # Still send the final text even if persist failed
+                yield f'data: {{"final": {_json.dumps(final_text)}, "draft_id": "streaming", "needs_recipient": {_json.dumps("@" not in req.recipient)}, "llm_generated": true}}\n\n'
 
             yield "data: [DONE]\n\n"
 
