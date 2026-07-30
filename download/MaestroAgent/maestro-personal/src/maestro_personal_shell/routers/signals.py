@@ -1240,15 +1240,55 @@ async def correct_signal(
 async def sync_gmail(req: GmailSyncRequest, token: str = Depends(verify_token_dep)):
     """Sync Gmail messages → signals.
 
-    Accepts pre-fetched Gmail messages (the OAuth wiring happens in the
-    mobile app or a background worker). Extracts commitments, follow-ups,
-    and meeting changes using the Gmail adapter.
+    F-40 fix (auditor v18): when `messages` is empty/omitted, the server
+    attempts a server-initiated pull using the user's stored OAuth tokens.
+    If no tokens are available, returns a clear 400 error directing the
+    user to connect Gmail first.
+
+    When `messages` is provided (client-side fetch), behavior is unchanged
+    — the server processes the supplied messages.
     """
     from maestro_personal_shell.api import save_signal_to_db
     from maestro_personal_shell.signal_adapters.gmail import extract_signals_from_message
 
+    messages = req.messages
+
+    # F-40: server-initiated pull when no messages supplied
+    if not messages:
+        try:
+            from maestro_personal_shell.gmail_connector import (
+                is_gmail_configured, fetch_real_gmail_messages,
+            )
+            from maestro_personal_shell.connectors import ConnectorStore
+            store = ConnectorStore()
+            stored_token = store.get_stored_token(token, "gmail")
+            if not stored_token:
+                raise HTTPException(
+                    status_code=400,
+                    detail="Gmail not connected. POST /api/connectors/gmail/connect first, or supply 'messages' in the request body."
+                )
+            if not is_gmail_configured():
+                raise HTTPException(
+                    status_code=503,
+                    detail="Gmail OAuth not configured on the server. Set GMAIL_CLIENT_ID and GMAIL_CLIENT_SECRET."
+                )
+            # Server-side fetch using stored OAuth token
+            max_msgs = min(max(req.max_messages, 1), 200)
+            messages = fetch_real_gmail_messages(
+                stored_token, max_results=max_msgs
+            )
+            logger.info("F-40: server-initiated Gmail pull fetched %d messages for %s", len(messages), token)
+        except HTTPException:
+            raise
+        except Exception as e:
+            logger.error("F-40: server-side Gmail fetch failed: %s", e)
+            raise HTTPException(
+                status_code=502,
+                detail=f"Server-side Gmail fetch failed: {str(e)[:200]}"
+            )
+
     count = 0
-    for message in req.messages:
+    for message in messages:
         signals = extract_signals_from_message(message, req.user_email)
         for sig in signals:
             sig["signal_id"] = str(uuid4())
@@ -1259,7 +1299,7 @@ async def sync_gmail(req: GmailSyncRequest, token: str = Depends(verify_token_de
 
     return GmailSyncResponse(
         signals_created=count,
-        message=f"Extracted {count} signals from {len(req.messages)} Gmail messages",
+        message=f"Extracted {count} signals from {len(messages)} Gmail messages",
     )
 
 
@@ -1267,14 +1307,51 @@ async def sync_gmail(req: GmailSyncRequest, token: str = Depends(verify_token_de
 async def sync_calendar(req: CalendarSyncRequest, token: str = Depends(verify_token_dep)):
     """Sync Calendar events → signals.
 
+    F-39 fix (auditor v18): when `events` is empty/omitted, the server
+    attempts a server-initiated pull using the user's stored Calendar
+    OAuth tokens. If no tokens are available, returns a clear 400 error.
+
     Accepts pre-fetched calendar events. Extracts meeting.scheduled,
     meeting.cancelled, and deadline.approaching signals.
     """
     from maestro_personal_shell.api import save_signal_to_db
     from maestro_personal_shell.signal_adapters.calendar import extract_signals_from_event
 
+    events = req.events
+
+    # F-39: server-initiated pull when no events supplied
+    if not events:
+        try:
+            from maestro_personal_shell.calendar_connector import (
+                is_calendar_configured, fetch_real_calendar_events,
+            )
+            from maestro_personal_shell.connectors import ConnectorStore
+            store = ConnectorStore()
+            stored_token = store.get_stored_token(token, "calendar")
+            if not stored_token:
+                raise HTTPException(
+                    status_code=400,
+                    detail="Calendar not connected. POST /api/connectors/calendar/connect first, or supply 'events' in the request body."
+                )
+            if not is_calendar_configured():
+                raise HTTPException(
+                    status_code=503,
+                    detail="Calendar OAuth not configured on the server."
+                )
+            max_evts = min(max(req.max_events, 1), 200)
+            events = fetch_real_calendar_events(stored_token, max_results=max_evts)
+            logger.info("F-39: server-initiated Calendar pull fetched %d events for %s", len(events), token)
+        except HTTPException:
+            raise
+        except Exception as e:
+            logger.error("F-39: server-side Calendar fetch failed: %s", e)
+            raise HTTPException(
+                status_code=502,
+                detail=f"Server-side Calendar fetch failed: {str(e)[:200]}"
+            )
+
     count = 0
-    for event in req.events:
+    for event in events:
         signals = extract_signals_from_event(event, req.user_email)
         for sig in signals:
             sig["signal_id"] = str(uuid4())
@@ -1285,7 +1362,7 @@ async def sync_calendar(req: CalendarSyncRequest, token: str = Depends(verify_to
 
     return CalendarSyncResponse(
         signals_created=count,
-        message=f"Extracted {count} signals from {len(req.events)} calendar events",
+        message=f"Extracted {count} signals from {len(events)} calendar events",
     )
 
 

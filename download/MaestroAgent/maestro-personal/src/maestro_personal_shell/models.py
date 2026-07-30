@@ -454,8 +454,13 @@ class PushDeliverResponse(BaseModel):
 
 
 class GmailSyncRequest(BaseModel):
-    messages: list[dict[str, Any]]
+    # F-40 fix (auditor v18): messages is now optional. When empty/omitted,
+    # the server attempts a server-initiated pull using stored OAuth tokens.
+    messages: list[dict[str, Any]] = []
     user_email: str = "me"
+    # F-40: max_messages controls how many messages to fetch in a server-side
+    # pull (default 50, capped at 200 to prevent runaway syncs).
+    max_messages: int = 50
 
 
 class GmailSyncResponse(BaseModel):
@@ -464,8 +469,11 @@ class GmailSyncResponse(BaseModel):
 
 
 class CalendarSyncRequest(BaseModel):
-    events: list[dict[str, Any]]
+    # F-39 fix (auditor v18): events is now optional. When empty/omitted,
+    # the server attempts a server-initiated pull using stored OAuth tokens.
+    events: list[dict[str, Any]] = []
     user_email: str = "me"
+    max_events: int = 50
 
 
 class CalendarSyncResponse(BaseModel):
