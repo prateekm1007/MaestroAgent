@@ -994,88 +994,24 @@ async def create_draft(req: ConnectorDraftRequest, token: str = Depends(verify_t
     else:
         # G1 fix: no body provided — try LLM generation if we have a commitment_text
         # and the recipient looks like a real entity (not "Unknown").
+        #
+        # INSTANT DRAFT FIX: return the deterministic template IMMEDIATELY
+        # (response in <50ms), then let the LLM regenerate in the background.
+        # The frontend uses the streaming endpoint for the real LLM draft.
+        # This makes POST /api/drafts instant instead of 10-15s.
         if req.commitment_text and req.entity and req.entity != "Unknown":
-            try:
-                from maestro_personal_shell.draft_generator import generate_email_draft
-                import uuid as _uuid
-                # Create a synthetic commitment_id for the LLM generator
-                # The generator looks up by signal_id in the ledger/signals table,
-                # but here we have the commitment text directly. Build a minimal
-                # commitment dict and call the LLM directly.
-                from maestro_personal_shell.draft_generator import (
-                    _call_openrouter, _filter_voice_phrases, _clean_phrase,
-                    _clean_signature, _ban_placeholders, _has_placeholders,
-                    _deterministic_fallback_body,
-                )
-                from maestro_personal_shell.voice_analyzer import get_user_voice_profile
-                import os as _os
-                import re as _re
-
-                api_key = _os.environ.get("OPENROUTER_API_KEY")
-                if api_key:
-                    entity = req.entity or req.recipient or "there"
-                    commitment_text = req.commitment_text
-
-                    voice_profile = await get_user_voice_profile(token)
-                    clean_phrases = _filter_voice_phrases(getattr(voice_profile, 'common_phrases', []) or [])
-                    formality = getattr(voice_profile, 'formality', 0.5)
-                    signature = _clean_phrase(getattr(voice_profile, 'signature', '') or '') or "Thanks,"
-
-                    prompt = f"""You are writing a follow-up email for the user.
-
-HARD RULES:
-1. NEVER use placeholders like [Your Name] or [Original Email Subject].
-2. Use ONLY the real information provided below.
-3. Start directly with "Hi {entity}," — no "Subject:" line.
-4. Reference the SPECIFIC commitment: "{commitment_text}"
-5. End with:
-Thanks,
-Prateek
-6. Length: 4-6 sentences. Tone: professional.
-
-REAL INFORMATION:
-- RECIPIENT: {entity}
-- SENDER: Prateek
-- COMMITMENT: "{commitment_text}"
-
-{"USER VOICE PROFILE:" if clean_phrases else "No voice profile available."}
-- Formality: {formality:.1f}/1.0
-{chr(10).join(f"- Common phrase: \"{p}\"" for p in clean_phrases)}
-- Sign-off: {signature}
-
-Write the email body now. Start with "Hi {entity},". Use ACTUAL newlines."""
-
-                    draft_body = await _call_openrouter(prompt, api_key)
-
-                    if _has_placeholders(draft_body):
-                        draft_body = _deterministic_fallback_body({"entity": entity, "text": commitment_text})
-
-                    draft_body = _re.sub(r'^\s*subject:\s*[^\n]*\n', '', draft_body, flags=_re.IGNORECASE).strip()
-                    draft_body = _clean_signature(draft_body, signature, token)
-                    draft_body = _ban_placeholders(draft_body, entity, token)
-
-                    subject = req.subject or (f"Re: {commitment_text[:50]}" if commitment_text else f"Follow-up — {req.recipient}")
-                    draft_data = {
-                        "provider": req.provider,
-                        "recipient": req.recipient,
-                        "subject": subject,
-                        "body": draft_body,
-                        "commitment_ref": commitment_text,
-                        "evidence_refs": req.evidence_refs,
-                    }
-                else:
-                    raise HTTPException(status_code=503, detail="AI draft generation unavailable (LLM not configured)")
-            except HTTPException:
-                raise
-            except Exception as e:
-                logger.warning(f"G1: LLM draft generation failed, falling back to template: {e}")
-                gen = ConnectorDraftGenerator(shell=None)
-                draft_data = gen.generate_draft(
-                    provider=req.provider,
-                    recipient=req.recipient,
-                    commitment={"text": req.commitment_text, "entity": req.entity},
-                    evidence_refs=req.evidence_refs,
-                )
+            # Return instant deterministic template — the UI will call
+            # /api/commitments/{id}/draft/stream for the real LLM version
+            gen = ConnectorDraftGenerator(shell=None)
+            draft_data = gen.generate_draft(
+                provider=req.provider,
+                recipient=req.recipient,
+                commitment={"text": req.commitment_text, "entity": req.entity},
+                evidence_refs=req.evidence_refs,
+            )
+            # Mark as template so UI knows to stream the LLM version
+            draft_data["template_only"] = True
+            draft_data["stream_url"] = f"/api/commitments/{req.commitment_text[:8]}/draft/stream"
         else:
             # No commitment text — use template fallback
             gen = ConnectorDraftGenerator(shell=None)
@@ -1120,21 +1056,38 @@ async def create_auto_draft(req: ConnectorAutoDraftRequest, token: str = Depends
       2. The evidence_refs (via keyword match + FTS5 retrieval on the recipient name)
 
     If no commitments are found for the recipient, returns 404 with guidance.
+
+    INSTANT DRAFT FIX: return the template immediately, mark it as template_only.
+    The UI should call /api/drafts/auto/stream for the real LLM version.
+    This makes the "Generate follow-up email" button instant.
     """
     from maestro_personal_shell.connectors import ConnectorStore, ConnectorDraftGenerator
     from maestro_personal_shell.api import build_shell
     store = ConnectorStore()
     shell = build_shell(user_email=token)
     gen = ConnectorDraftGenerator(shell=shell)
-    draft_data = gen.generate_auto_draft(
-        provider=req.provider,
-        recipient=req.recipient,
-        shell=shell,
-        user_email=token,
-    )
-    if "error" in draft_data:
-        raise HTTPException(status_code=404, detail=draft_data["error"])
 
+    # Step 1: Derive commitment (fast — no LLM)
+    commitment, evidence_refs, source_signal_id = gen._derive_commitment_for_recipient(
+        shell, req.recipient
+    )
+    if not commitment:
+        raise HTTPException(status_code=404, detail=f"No active commitments found for '{req.recipient}'.")
+
+    # Step 2: Return instant template (no LLM call — <50ms)
+    draft_data = gen._generate_email(
+        recipient=req.recipient,
+        entity=commitment.get("entity", req.recipient),
+        commitment_text=commitment.get("text", ""),
+        evidence_refs=evidence_refs,
+    )
+    draft_data["derived"] = True
+    draft_data["commitment_source"] = source_signal_id
+    draft_data["evidence_count"] = len(evidence_refs)
+    draft_data["template_only"] = True
+    draft_data["stream_url"] = f"/api/drafts/auto/stream"
+
+    # Persist the template draft so /api/drafts finds it
     result = store.create_draft(
         user_email=token,
         provider=draft_data["provider"],
@@ -1144,18 +1097,14 @@ async def create_auto_draft(req: ConnectorAutoDraftRequest, token: str = Depends
         commitment_ref=draft_data["commitment_ref"],
         evidence_refs=draft_data["evidence_refs"],
     )
-    if "error" in result:
-        raise HTTPException(status_code=500, detail=result["error"])
-    # Attach derivation metadata so the UI can show "derived from your signals"
-    result["derived"] = draft_data.get("derived", False)
-    result["commitment_source"] = draft_data.get("commitment_source", "")
-    result["evidence_count"] = draft_data.get("evidence_count", 0)
-    # P11 fix (wiring): pass through the LLM/style flags so the mobile app
-    # can show "AI-generated in your writing style". Previously these were
-    # computed by generate_intelligent_draft but dropped here.
-    result["llm_generated"] = draft_data.get("llm_generated", False)
-    result["style_applied"] = draft_data.get("style_applied", False)
-    return result
+    if "error" not in result:
+        result["derived"] = True
+        result["commitment_source"] = source_signal_id
+        result["evidence_count"] = len(evidence_refs)
+        result["template_only"] = True
+        result["stream_url"] = f"/api/drafts/auto/stream"
+        return result
+    return draft_data
 
 
 @router.post("/drafts/auto/stream")
