@@ -61,16 +61,25 @@ export function formatTimeUntil(dueDate: string): string {
   const hours = (due.getTime() - now.getTime()) / (1000 * 60 * 60)
   if (isNaN(hours)) return ''
 
-  if (hours < 0) {
+  // Phase 1 fix (auditor v17): kill "0 hours overdue" on future items.
+  // The prior code would show "0 hours overdue" when hours was between
+  // -1 and 0 (just barely past due). Fix: if abs(hours) < 1, show
+  // "Due in N minutes" or "Just now" — never "0 hours overdue".
+  if (hours >= 0) {
+    // Future deadline — show "Due in X"
+    if (hours < 1) return `Due in ${Math.floor(hours * 60)} minutes`
+    if (hours < 4) return `Due in ${Math.floor(hours)} hours`
+    if (hours < 24) return `Due today`
+    if (hours < 48) return `Due tomorrow`
+    return `Due in ${Math.floor(hours / 24)} days`
+  } else {
+    // Past deadline — show "X overdue"
     const daysOverdue = Math.abs(hours) / 24
     if (daysOverdue > 1) return `${Math.floor(daysOverdue)} days overdue`
-    return `${Math.floor(Math.abs(hours))} hours overdue`
+    const absHours = Math.floor(Math.abs(hours))
+    if (absHours === 0) return `Just now overdue`  // was "0 hours overdue"
+    return `${absHours} hours overdue`
   }
-  if (hours < 1) return `Due in ${Math.floor(hours * 60)} minutes`
-  if (hours < 4) return `Due in ${Math.floor(hours)} hours`
-  if (hours < 24) return `Due today`
-  if (hours < 48) return `Due tomorrow`
-  return `Due in ${Math.floor(hours / 24)} days`
 }
 
 /**

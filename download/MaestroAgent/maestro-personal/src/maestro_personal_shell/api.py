@@ -452,14 +452,21 @@ def save_signal_to_db(signal: dict[str, Any], db_path: str | None = None, user_e
     # SQLite level, which is the root cause of "database is locked" errors.
     with get_write_lock():
         conn = get_db_conn(db_path)
-        # Check for existing duplicate within the last hour
-        one_hour_ago = (datetime.now(timezone.utc) - timedelta(hours=1)).isoformat()
+        # Phase 2 fix (auditor v17): extend dedup window from 1h to 24h.
+        # The prior 1h window allowed duplicates if the same signal was
+        # re-ingested after 1 hour (e.g., Gmail sync running every 2h).
+        # 24h catches all same-day re-ingests.
+        # Also: normalize text for comparison (strip whitespace, lowercase)
+        # so "I will send  the report" and "I will send the report" dedup.
+        dedup_window_ago = (datetime.now(timezone.utc) - timedelta(hours=24)).isoformat()
+        _norm_entity = signal["entity"].strip().lower()
+        _norm_text = " ".join(signal["text"].split()).lower()  # collapse whitespace
         existing = conn.execute(
             """SELECT signal_id FROM signals
-               WHERE entity = ? AND text = ? AND user_email = ?
-               AND created_at > ?
+               WHERE LOWER(TRIM(entity)) = ? AND LOWER(TRIM(REPLACE(REPLACE(text, '\\n', ' '), '\\t', ' '))) = ?
+               AND user_email = ? AND created_at > ?
                LIMIT 1""",
-            (signal["entity"], signal["text"], user_email, one_hour_ago),
+            (_norm_entity, _norm_text, user_email, dedup_window_ago),
         ).fetchone()
 
         if existing:
