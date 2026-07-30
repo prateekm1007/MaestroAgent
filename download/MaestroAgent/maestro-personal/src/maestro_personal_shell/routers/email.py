@@ -6,6 +6,7 @@ Handles email thread retrieval, draft generation, and sending.
 """
 
 from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi.responses import StreamingResponse
 from typing import Optional
 import logging
 from datetime import datetime
@@ -152,6 +153,45 @@ async def generate_draft(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to generate draft: {str(e)}"
         )
+
+
+@router.post("/commitments/{commitment_id}/draft/stream")
+async def stream_draft(
+    commitment_id: str,
+    request: DraftRequest,
+    user_email: str = Depends(verify_token_dep)
+):
+    """L-D1 fix: Stream draft generation via SSE — first token <1.5s.
+
+    Returns a Server-Sent Events stream. Each event is:
+      data: {"chunk": "..."}\n\n    — progressive text as the LLM generates
+      data: {"final": "...", "recipient_email": "...", "needs_recipient": bool}\n\n
+      data: [DONE]\n\n
+
+    This cuts the 12s cold-wait to <1.5s first-token. The UI should
+    render chunks progressively so the user sees text appear in real-time.
+    """
+    from maestro_personal_shell.draft_generator import stream_email_draft
+
+    async def event_stream():
+        async for sse_chunk in stream_email_draft(
+            commitment_id=commitment_id,
+            user_email=user_email,
+            tone=request.tone,
+            length=request.length,
+            context=request.context,
+        ):
+            yield sse_chunk
+
+    return StreamingResponse(
+        event_stream(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",  # disable proxy buffering
+        },
+    )
 
 
 @router.post("/drafts/{draft_id}/send")

@@ -952,31 +952,137 @@ async def connector_audit_log(token: str = Depends(verify_token_dep), limit: int
 
 @router.post("/drafts")
 async def create_draft(req: ConnectorDraftRequest, token: str = Depends(verify_token_dep)):
-    """Create a pending draft for user approval."""
+    """Create a pending draft for user approval.
+
+    G1 fix (auditor v19): when no subject/body is provided, route through
+    the LLM generator (draft_generator.generate_email_draft) instead of
+    the template-only ConnectorDraftGenerator. The prior code always
+    produced boilerplate with [Your name] placeholders.
+    G2 fix (auditor v19): when subject is provided but body is not,
+    generate the body independently — don't suppress it.
+    """
     from maestro_personal_shell.connectors import ConnectorStore, ConnectorDraftGenerator
+
     store = ConnectorStore()
-    gen = ConnectorDraftGenerator(shell=None)
-    # F-33 fix (auditor v18): if caller provides subject/body, use them
-    # instead of overwriting with the generated template. The prior code
-    # always called gen.generate_draft() which overwrote any caller-provided
-    # subject/body with a template — silently discarding the input.
-    if req.subject or req.body:
-        # Caller provided content — use it directly, don't generate
+
+    # G2 fix: only use caller-provided content when BOTH subject AND body
+    # are present. If only subject is provided, we still need to generate
+    # the body. If only body is provided, use it with a default subject.
+    if req.subject and req.body:
+        # Both provided — use directly
         draft_data = {
             "provider": req.provider,
             "recipient": req.recipient,
-            "subject": req.subject or f"Follow-up — {req.recipient}",
-            "body": req.body or "",
+            "subject": req.subject,
+            "body": req.body,
+            "commitment_ref": req.commitment_text or "",
+            "evidence_refs": req.evidence_refs,
+        }
+    elif req.body:
+        # Body provided, generate/use default subject
+        draft_data = {
+            "provider": req.provider,
+            "recipient": req.recipient,
+            "subject": req.subject or f"Re: {req.commitment_text[:50]}" if req.commitment_text else f"Follow-up — {req.recipient}",
+            "body": req.body,
             "commitment_ref": req.commitment_text or "",
             "evidence_refs": req.evidence_refs,
         }
     else:
-        draft_data = gen.generate_draft(
-            provider=req.provider,
-            recipient=req.recipient,
-            commitment={"text": req.commitment_text, "entity": req.entity},
-            evidence_refs=req.evidence_refs,
-        )
+        # G1 fix: no body provided — try LLM generation if we have a commitment_text
+        # and the recipient looks like a real entity (not "Unknown").
+        if req.commitment_text and req.entity and req.entity != "Unknown":
+            try:
+                from maestro_personal_shell.draft_generator import generate_email_draft
+                import uuid as _uuid
+                # Create a synthetic commitment_id for the LLM generator
+                # The generator looks up by signal_id in the ledger/signals table,
+                # but here we have the commitment text directly. Build a minimal
+                # commitment dict and call the LLM directly.
+                from maestro_personal_shell.draft_generator import (
+                    _call_openrouter, _filter_voice_phrases, _clean_phrase,
+                    _clean_signature, _ban_placeholders, _has_placeholders,
+                    _deterministic_fallback_body,
+                )
+                from maestro_personal_shell.voice_analyzer import get_user_voice_profile
+                import os as _os
+                import re as _re
+
+                api_key = _os.environ.get("OPENROUTER_API_KEY")
+                if api_key:
+                    entity = req.entity or req.recipient or "there"
+                    commitment_text = req.commitment_text
+
+                    voice_profile = await get_user_voice_profile(token)
+                    clean_phrases = _filter_voice_phrases(getattr(voice_profile, 'common_phrases', []) or [])
+                    formality = getattr(voice_profile, 'formality', 0.5)
+                    signature = _clean_phrase(getattr(voice_profile, 'signature', '') or '') or "Thanks,"
+
+                    prompt = f"""You are writing a follow-up email for the user.
+
+HARD RULES:
+1. NEVER use placeholders like [Your Name] or [Original Email Subject].
+2. Use ONLY the real information provided below.
+3. Start directly with "Hi {entity}," — no "Subject:" line.
+4. Reference the SPECIFIC commitment: "{commitment_text}"
+5. End with:
+Thanks,
+Prateek
+6. Length: 4-6 sentences. Tone: professional.
+
+REAL INFORMATION:
+- RECIPIENT: {entity}
+- SENDER: Prateek
+- COMMITMENT: "{commitment_text}"
+
+{"USER VOICE PROFILE:" if clean_phrases else "No voice profile available."}
+- Formality: {formality:.1f}/1.0
+{chr(10).join(f"- Common phrase: \"{p}\"" for p in clean_phrases)}
+- Sign-off: {signature}
+
+Write the email body now. Start with "Hi {entity},". Use ACTUAL newlines."""
+
+                    draft_body = await _call_openrouter(prompt, api_key)
+
+                    if _has_placeholders(draft_body):
+                        draft_body = _deterministic_fallback_body({"entity": entity, "text": commitment_text})
+
+                    draft_body = _re.sub(r'^\s*subject:\s*[^\n]*\n', '', draft_body, flags=_re.IGNORECASE).strip()
+                    draft_body = _clean_signature(draft_body, signature, token)
+                    draft_body = _ban_placeholders(draft_body, entity, token)
+
+                    subject = req.subject or (f"Re: {commitment_text[:50]}" if commitment_text else f"Follow-up — {req.recipient}")
+                    draft_data = {
+                        "provider": req.provider,
+                        "recipient": req.recipient,
+                        "subject": subject,
+                        "body": draft_body,
+                        "commitment_ref": commitment_text,
+                        "evidence_refs": req.evidence_refs,
+                    }
+                else:
+                    raise HTTPException(status_code=503, detail="AI draft generation unavailable (LLM not configured)")
+            except HTTPException:
+                raise
+            except Exception as e:
+                logger.warning(f"G1: LLM draft generation failed, falling back to template: {e}")
+                gen = ConnectorDraftGenerator(shell=None)
+                draft_data = gen.generate_draft(
+                    provider=req.provider,
+                    recipient=req.recipient,
+                    commitment={"text": req.commitment_text, "entity": req.entity},
+                    evidence_refs=req.evidence_refs,
+                )
+        else:
+            # No commitment text — use template fallback
+            gen = ConnectorDraftGenerator(shell=None)
+            draft_data = gen.generate_draft(
+                provider=req.provider,
+                recipient=req.recipient,
+                commitment={"text": req.commitment_text, "entity": req.entity},
+                evidence_refs=req.evidence_refs,
+            )
+
     result = store.create_draft(
         user_email=token,
         provider=draft_data["provider"],
