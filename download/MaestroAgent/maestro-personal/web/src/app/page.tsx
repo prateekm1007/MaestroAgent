@@ -14,6 +14,21 @@ import { WhisperView } from '@/components/maestro/WhisperView'
 import { CommitmentsView } from '@/components/maestro/CommitmentsView'
 import { CorrectionButton } from '@/components/maestro/CorrectionButton'
 
+function formatRelativeTime(iso: string): string {
+  if (!iso) return 'never';
+  const then = new Date(iso).getTime();
+  const now = Date.now();
+  const diffMs = now - then;
+  const diffMin = Math.floor(diffMs / 60000);
+  if (diffMin < 1) return 'just now';
+  if (diffMin < 60) return `${diffMin} min ago`;
+  const diffHr = Math.floor(diffMin / 60);
+  if (diffHr < 24) return `${diffHr} hr ago`;
+  const diffDay = Math.floor(diffHr / 24);
+  if (diffDay < 30) return `${diffDay} day${diffDay === 1 ? '' : 's'} ago`;
+  return new Date(iso).toLocaleDateString();
+}
+
 type Tab = 'today' | 'ask' | 'commitments' | 'whisper' | 'connectors'
 
 const API_BASE = typeof window !== 'undefined'
@@ -762,10 +777,25 @@ function ConnectorsView({ onDraft, draftBusy }: { onDraft: (entity: string) => v
                 </div>
                 <p className="text-xs text-gray-400 mt-0.5">{c.ingest_description || `Connect your ${c.name || c.provider}`}</p>
                 {c.connected && c.commitments_ingested > 0 && <p className="text-xs text-gray-400 mt-1 tabular-nums">{c.commitments_ingested} commitments ingested</p>}
+                {/* F-38 fix (auditor v18): surface 'previously connected' state.
+                    When connected=false but commitments_ingested > 0 and last_ingest_at
+                    is non-empty, the connector was previously connected but the OAuth
+                    token expired or was revoked. Show an amber banner so the user
+                    understands why their data is still there but new ingestion stopped. */}
+                {!c.connected && c.commitments_ingested > 0 && c.last_ingest_at && (
+                  <div className="mt-2 text-[11px] rounded-md border border-amber-200 bg-amber-50 px-2 py-1 text-amber-800">
+                    ⚠ Previously connected — {c.commitments_ingested} commitments ingested, last sync {formatRelativeTime(c.last_ingest_at)}
+                  </div>
+                )}
               </div>
               <div className="flex items-center gap-2 flex-shrink-0">
                 {c.connected && <button onClick={() => handleSync(c.provider)} disabled={syncing === c.provider} className="flex items-center gap-1 text-xs text-gray-500 hover:text-gray-900 px-3 py-1.5 rounded-lg hover:bg-gray-50 disabled:opacity-50">{syncing === c.provider ? <Loader2 className="h-3 w-3 animate-spin" /> : <RefreshCw className="h-3 w-3" />}Sync</button>}
-                {c.connected ? <button className="text-xs text-gray-400 hover:text-red-500 px-2 py-1.5">Disconnect</button> : <button className="flex items-center gap-1 text-xs font-medium text-gray-600 px-3 py-1.5 rounded-lg bg-white border border-gray-200"><Plus className="h-3 w-3" />Connect</button>}
+                {/* F-38: label 'Reconnect' when previously connected */}
+                {c.connected ? <button className="text-xs text-gray-400 hover:text-red-500 px-2 py-1.5">Disconnect</button> : (
+                  <button className="flex items-center gap-1 text-xs font-medium text-gray-600 px-3 py-1.5 rounded-lg bg-white border border-gray-200">
+                    <Plus className="h-3 w-3" />{!c.connected && c.commitments_ingested > 0 && c.last_ingest_at ? 'Reconnect' : 'Connect'}
+                  </button>
+                )}
               </div>
             </div>
           ))}

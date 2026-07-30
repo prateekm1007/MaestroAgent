@@ -38,6 +38,21 @@ import {
   type DraftWithMeta,
 } from "@/components/maestro/DraftApprovalModal";
 
+function formatRelativeTime(iso: string): string {
+  if (!iso) return 'never';
+  const then = new Date(iso).getTime();
+  const now = Date.now();
+  const diffMs = now - then;
+  const diffMin = Math.floor(diffMs / 60000);
+  if (diffMin < 1) return 'just now';
+  if (diffMin < 60) return `${diffMin} min ago`;
+  const diffHr = Math.floor(diffMin / 60);
+  if (diffHr < 24) return `${diffHr} hr ago`;
+  const diffDay = Math.floor(diffHr / 24);
+  if (diffDay < 30) return `${diffDay} day${diffDay === 1 ? '' : 's'} ago`;
+  return new Date(iso).toLocaleDateString();
+}
+
 const PROVIDER_ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
   email: Mail,
   message: MessageSquare,
@@ -631,6 +646,20 @@ function ConnectorCard({
           </div>
         )}
 
+        {/* F-38 fix (auditor v18): surface 'previously connected' state.
+            When connected=false but commitments_ingested > 0 and last_ingest_at
+            is present, the OAuth token expired or was revoked. Show an amber
+            banner so the user understands why their data is still there but
+            new ingestion stopped. Do NOT lie by setting connected=true. */}
+        {!connected && connector.commitments_ingested > 0 && connector.last_ingest_at && (
+          <div className="rounded-md border border-amber-400/50 bg-amber-50 p-2 text-[11px] text-amber-900 dark:bg-amber-950/20 dark:text-amber-200">
+            <div className="font-medium">⚠ Previously connected</div>
+            <div className="mt-0.5 text-amber-800 dark:text-amber-300">
+              {connector.commitments_ingested} commitments ingested · last sync {formatTimeAgo(connector.last_ingest_at)}. Reconnect to resume ingestion — your existing data is preserved.
+            </div>
+          </div>
+        )}
+
         <div className="flex items-center gap-2 pt-1">
           {!connected ? (
             <Button
@@ -640,7 +669,8 @@ function ConnectorCard({
               disabled={busy}
             >
               {busy ? <Loader2 className="size-3.5 animate-spin" /> : <Link2 className="size-3.5" />}
-              Connect
+              {/* F-38: label 'Reconnect' when previously connected */}
+              {!connected && connector.commitments_ingested > 0 && connector.last_ingest_at ? 'Reconnect' : 'Connect'}
             </Button>
           ) : (
             <>
