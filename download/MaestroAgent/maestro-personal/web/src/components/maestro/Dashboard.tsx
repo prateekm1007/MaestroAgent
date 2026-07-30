@@ -10,6 +10,7 @@ import {
   Eye,
   Loader2,
   Mail,
+  MoreVertical,
   Quote,
   Sparkles,
   Wind,
@@ -22,6 +23,7 @@ import { cn } from "@/lib/utils";
 import {
   confidenceTextColor,
   formatRelative,
+  getToken,
   type AmbientIntelligence,
   type Briefing,
   type CopilotWhisper,
@@ -38,6 +40,7 @@ import {
 } from "./DraftApprovalModal";
 import { TodayConnectorsBanner } from "./TodayConnectorsBanner";
 import { FeatureBubble } from "./FeatureBubble";
+import { CorrectionButton } from "./CorrectionButton";
 
 export function Dashboard({
   llm,
@@ -664,6 +667,16 @@ function TheMomentCard({
                 See all commitments
                 <ArrowRight className="size-3" />
               </Button>
+              {/* Phase 4: CorrectionButton — 'this is wrong' (dispute) + 'edit text'.
+                  Adds the Trust-lift correction path the audit asked for. */}
+              {signalId && (
+                <CorrectionButton
+                  signalId={signalId}
+                  apiBase=""
+                  token={getToken() || ""}
+                  onCorrected={() => onCorrect("dismiss")}
+                />
+              )}
             </div>
           </div>
         ) : (

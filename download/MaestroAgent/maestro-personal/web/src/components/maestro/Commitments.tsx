@@ -8,6 +8,7 @@ import {
   Loader2,
   Mail,
   MessageSquare,
+  MoreVertical,
   Plus,
   Search,
   Sparkles,
@@ -57,6 +58,7 @@ import {
   confidenceTier,
   formatRelative,
   formatTimestamp,
+  getToken,
   type Commitment,
   type CommitmentsTheOne,
   type Signal,
@@ -66,6 +68,7 @@ import {
   DraftApprovalModal,
   type DraftWithMeta,
 } from "./DraftApprovalModal";
+import { CorrectionButton } from "./CorrectionButton";
 
 // Signal types for the Add-Signal form (inlined from deleted Signals.tsx)
 const SIGNAL_TYPES = [
@@ -805,6 +808,15 @@ function TheOneCard({
             Dismiss
           </Button>
           <CancelWithConfirm onConfirm={() => onCorrect(commitment.signal_id, "cancel")} disabled={busy} />
+          {/* Phase 4: CorrectionButton — 'this is wrong' (dispute) + 'edit text'.
+              The existing Complete/Dismiss/Cancel buttons cover lifecycle actions;
+              this adds the Trust-lift correction path the audit asked for. */}
+          <CorrectionButton
+            signalId={commitment.signal_id}
+            apiBase=""
+            token={getToken() || ""}
+            onCorrected={() => onCorrect(commitment.signal_id, "dismiss")}
+          />
           {/* P0-6: Draft button — generates auto-draft + opens shared modal */}
           <Button
             size="sm"

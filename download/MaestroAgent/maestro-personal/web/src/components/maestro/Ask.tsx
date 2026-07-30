@@ -5,6 +5,7 @@ import {
   AlertTriangle,
   ArrowRight,
   Brain,
+  ChevronDown,
   Clock,
   FileText,
   HelpCircle,
@@ -21,6 +22,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { cn } from "@/lib/utils";
 import {
   confidenceColor,
@@ -79,6 +81,8 @@ export function Ask({
   // user sees progress within low seconds (time-to-first-token), not the
   // 28-37s cliff the audit measured.
   const [streamingText, setStreamingText] = useState("");
+  // Provenance drill-down state
+  const [openEvidenceRefs, setOpenEvidenceRefs] = useState<Record<number, boolean>>({});
   const [history, setHistory] = useState<string[]>([]);
   const [qaHistory, setQaHistory] = useState<QaPair[]>([]);
   const inputRef = useRef<HTMLInputElement>(null);
