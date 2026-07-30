@@ -1348,3 +1348,47 @@ async def resolve_draft(draft_id: str, req: DraftResolutionRequest, token: str =
     if "error" in result:
         raise HTTPException(status_code=400, detail=result["error"])
     return result
+
+
+@router.delete("/drafts/purge-defective")
+async def purge_defective_drafts(token: str = Depends(verify_token_dep)):
+    """Purge drafts with empty bodies, [Your name] placeholders, or orphan signatures.
+
+    Q1/Q2/Q3 fix (auditor v19): clean up the 64 defective drafts from
+    before the draft subsystem v20 fixes. These drafts have:
+    - Empty body (0 chars)
+    - [Your name] placeholder
+    - Orphan "Best,." signature
+    """
+    from maestro_personal_shell.db_util import get_db_conn, default_sqlite_path
+    from maestro_personal_shell.connectors import ConnectorStore
+    store = ConnectorStore()
+    conn = get_db_conn(store.db_path)
+
+    # Find defective drafts
+    rows = conn.execute(
+        "SELECT draft_id, body FROM drafts WHERE user_email = ? AND status = 'pending'",
+        (token,),
+    ).fetchall()
+
+    defective_ids = []
+    for row in rows:
+        draft_id = row[0] if hasattr(row, "__getitem__") else row["draft_id"]
+        body = row[1] if hasattr(row, "__getitem__") else row["body"]
+        if not body or "[Your name]" in body or body.endswith("Best,."):
+            defective_ids.append(draft_id)
+
+    if defective_ids:
+        placeholders = ",".join(["?" for _ in defective_ids])
+        conn.execute(
+            f"DELETE FROM drafts WHERE draft_id IN ({placeholders})",
+            defective_ids,
+        )
+        conn.commit()
+
+    conn.close()
+    return {
+        "status": "complete",
+        "defective_drafts_purged": len(defective_ids),
+        "remaining_drafts": len(rows) - len(defective_ids),
+    }

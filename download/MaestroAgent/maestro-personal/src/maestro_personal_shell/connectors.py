@@ -918,12 +918,15 @@ class ConnectorStore:
         there's one pending draft per commitment, with a 7-day TTL.
         """
         # Q6 dedup: check for existing pending draft with same recipient + commitment
+        # G2 fix: don't return deduplicated draft if its body is empty — that
+        # would return a pre-fix defective draft instead of generating a new one.
         if commitment_ref:
             try:
                 conn = get_db_conn(self.db_path)
                 existing = conn.execute(
                     "SELECT draft_id, subject, body, status, created_at FROM drafts "
                     "WHERE user_email = ? AND recipient = ? AND commitment_ref = ? AND status = 'pending' "
+                    "AND body != '' AND body IS NOT NULL "
                     "ORDER BY created_at DESC LIMIT 1",
                     (user_email, recipient, commitment_ref),
                 ).fetchone()
