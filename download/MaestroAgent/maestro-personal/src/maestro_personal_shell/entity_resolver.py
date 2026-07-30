@@ -191,8 +191,23 @@ def resolve_entity(
     user_email: str = "bootstrap",
     known_entities: list[str] | None = None,
     db_path: str | None = None,
+    allow_fuzzy: bool = False,
 ) -> str:
-    """Resolve an entity name to its canonical form."""
+    """Resolve an entity name to its canonical form.
+
+    Phase 1.1 fix (auditor v16): fuzzy matching is now DISABLED at write
+    time (allow_fuzzy=False). The prior code fuzzy-matched at ingestion,
+    causing "Fabian Ashworth 1785394619" to merge with "Nadia Ashworth
+    1785393308" (similarity > 0.85 because they share "Ashworth 178539").
+    This caused 1-in-8 misattribution across four consecutive audits.
+
+    Fix: at write time, only exact alias table + exact normalized match.
+    Fuzzy matching is query-time only (allow_fuzzy=True in Ask path).
+
+    Args:
+        allow_fuzzy: if True, allow fuzzy matching (query-time only).
+                     Default False (write-time: exact match only).
+    """
     if not entity or not entity.strip():
         return entity or ""
 
@@ -209,7 +224,7 @@ def resolve_entity(
         ).fetchone()
         conn.close()
         if row:
-            return row[0]
+            return row[0] if hasattr(row, "keys") else row[0]
     except Exception as e:
         logger.debug("Entity alias lookup failed: %s", e)
 
@@ -220,10 +235,12 @@ def resolve_entity(
             if _normalize(known) == norm_input:
                 return known  # Return the known canonical form (preserves original casing)
 
-        # 3. Fuzzy match against known entities
-        for known in known_entities:
-            if _fuzzy_match(entity, known):
-                return known
+        # 3. Fuzzy match against known entities (QUERY-TIME ONLY)
+        # Phase 1.1 fix: disabled at write time to prevent cross-run merges.
+        if allow_fuzzy:
+            for known in known_entities:
+                if _fuzzy_match(entity, known):
+                    return known
 
     # 4. Return normalized input as canonical (title case for consistency)
     return entity
@@ -234,11 +251,15 @@ def resolve_entity_with_signals(
     signals: list[Any],
     user_email: str = "bootstrap",
     db_path: str | None = None,
+    allow_fuzzy: bool = False,
 ) -> str:
     """Resolve entity using existing signals as the known-entity pool.
 
     This is the production entry point — it collects all known entities
     from the user's signals and resolves against them.
+
+    Phase 1.1 fix (auditor v16): allow_fuzzy defaults to False (write-time).
+    The Ask path should pass allow_fuzzy=True for query-time fuzzy matching.
     """
     known = set()
     for sig in signals:
@@ -251,6 +272,7 @@ def resolve_entity_with_signals(
         user_email=user_email,
         known_entities=list(known),
         db_path=db_path,
+        allow_fuzzy=allow_fuzzy,
     )
 
 
