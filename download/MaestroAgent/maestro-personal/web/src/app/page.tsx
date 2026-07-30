@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { cn } from '@/lib/utils'
-import { Sun, Search, Calendar, Zap, Unplug, Mail, MessageSquare, FileText, RefreshCw, CheckCircle2, Plus, Send, Loader2, LogOut, Sparkles, PenLine } from 'lucide-react'
+import { Sun, Search, Calendar, Zap, Unplug, Mail, MessageSquare, FileText, RefreshCw, CheckCircle2, Plus, Send, Loader2, LogOut, Sparkles, PenLine, Settings } from 'lucide-react'
 import { maestroApi, getToken, setToken, clearToken } from '@/lib/maestro-api'
 import { Login } from '@/components/maestro/Login'
 import { DraftApprovalModal, type DraftWithMeta } from '@/components/maestro/DraftApprovalModal'
@@ -13,6 +13,8 @@ import { TheOne } from '@/components/maestro/TheOne'
 import { WhisperView } from '@/components/maestro/WhisperView'
 import { CommitmentsView } from '@/components/maestro/CommitmentsView'
 import { CorrectionButton } from '@/components/maestro/CorrectionButton'
+import { Connectors } from '@/components/maestro/Connectors'
+import { More } from '@/components/maestro/More'
 
 function formatRelativeTime(iso: string): string {
   if (!iso) return 'never';
@@ -29,7 +31,7 @@ function formatRelativeTime(iso: string): string {
   return new Date(iso).toLocaleDateString();
 }
 
-type Tab = 'today' | 'ask' | 'commitments' | 'whisper' | 'connectors'
+type Tab = 'today' | 'ask' | 'commitments' | 'whisper' | 'connectors' | 'settings'
 
 const API_BASE = typeof window !== 'undefined'
   ? (window.location.origin === 'https://web-production-d5c26.up.railway.app'
@@ -157,6 +159,7 @@ export default function Home() {
     { id: 'commitments', label: 'Commitments', icon: <Calendar className="h-4 w-4" /> },
     { id: 'whisper', label: 'Whisper', icon: <Zap className="h-4 w-4" /> },
     { id: 'connectors', label: 'Connectors', icon: <Unplug className="h-4 w-4" /> },
+    { id: 'settings', label: 'Settings', icon: <Settings className="h-4 w-4" /> },
   ]
 
   const handleLogout = () => {
@@ -213,7 +216,8 @@ export default function Home() {
               {tab === 'ask' && <AskView />}
               {tab === 'commitments' && <CommitmentsViewReal onDraft={handleGenerateDraft} draftBusy={draftBusy} />}
               {tab === 'whisper' && <WhisperViewReal onDraft={handleGenerateDraft} draftBusy={draftBusy} />}
-              {tab === 'connectors' && <ConnectorsView onDraft={handleGenerateDraft} draftBusy={draftBusy} />}
+              {tab === 'connectors' && <Connectors />}
+              {tab === 'settings' && <More />}
             </motion.div>
           </AnimatePresence>
         </main>
@@ -695,149 +699,3 @@ function WhisperViewReal({ onDraft, draftBusy }: { onDraft: (entity: string) => 
   )
 }
 
-// === CONNECTORS — real API ===
-function ConnectorsView({ onDraft, draftBusy }: { onDraft: (entity: string) => void; draftBusy: boolean }) {
-  const [connectors, setConnectors] = useState<any[]>([])
-  const [loading, setLoading] = useState(true)
-  const [syncing, setSyncing] = useState<string | null>(null)
-  const [drafts, setDrafts] = useState<any[]>([])
-  const [generatingDraft, setGeneratingDraft] = useState(false)
-
-  const load = useCallback(async () => {
-    setLoading(true)
-    try {
-      const [connRes, draftRes] = await Promise.all([
-        maestroApi.listConnectors(),
-        maestroApi.listDrafts('pending'),
-      ])
-      if (connRes.live && connRes.data?.connectors) setConnectors(connRes.data.connectors)
-      if (draftRes.live && draftRes.data?.drafts) setDrafts(draftRes.data.drafts)
-    } catch {}
-    finally { setLoading(false) }
-  }, [])
-
-  useEffect(() => { load() }, [load])
-
-  const handleSync = async (provider: string) => {
-    setSyncing(provider)
-    try {
-      const { data, live } = await maestroApi.ingestConnector(provider)
-      if (live) alert(`Synced ${data.ingested} items. ${data.new_commitments} new commitments.`)
-      load()
-    } catch { alert('Sync failed.') }
-    finally { setSyncing(null) }
-  }
-
-  const handleGenerateDraft = async () => {
-    setGeneratingDraft(true)
-    try {
-      const { data, live } = await maestroApi.generateAutoDraft('gmail', 'follow_up')
-      if (live && data) {
-        // F-35 hygiene: the prior code called setDraftForReview(data) which
-        // is not in scope in ConnectorsView. Prepend the new draft to the
-        // drafts list so it appears in the DraftCard list below.
-        setDrafts(prev => [data, ...(prev || [])])
-        load()
-      } else alert('Backend not connected.')
-    } catch { alert('Draft generation failed. Make sure Gmail is connected.') }
-    finally { setGeneratingDraft(false) }
-  }
-
-  const handleResolveDraft = async (id: string, resolution: 'approve' | 'deny' | 'use_draft') => {
-    try {
-      const { data, live } = await maestroApi.resolveDraft(id, resolution)
-      if (!live) { alert('Backend unreachable.'); return }
-      // F-35: surface send_failed — do not silently reload.
-      if (resolution === 'approve' && data?.status === 'send_failed') {
-        alert(`Send failed: ${data?.send_error || 'Unknown error'}. Check that Gmail is connected.`)
-      } else if (resolution === 'approve' && data?.status === 'approved') {
-        alert(`Sent. Message ID: ${data?.sent_message_id || '(none)'}`)
-      }
-      load()
-    } catch { alert('Failed to resolve draft.') }
-  }
-
-  if (loading) return <div className="flex justify-center py-16"><Loader2 className="h-5 w-5 animate-spin text-gray-300" /></div>
-
-  return (
-    <div className="max-w-2xl mx-auto space-y-10">
-      <div>
-        <p className="text-xs font-medium uppercase tracking-wider text-gray-400 mb-4">Connectors</p>
-        <div className="space-y-3">
-          {connectors.length === 0 && <p className="text-sm text-gray-400">No connectors loaded.</p>}
-          {connectors.map((c, i) => (
-            <div key={c.provider || i} className={cn('flex items-center gap-4 py-4 px-5 rounded-xl', c.connected ? 'bg-white border border-gray-100' : 'bg-gray-50/50')}>
-              <div className={cn('flex items-center justify-center h-10 w-10 rounded-lg flex-shrink-0', c.connected ? 'bg-gray-900 text-white' : 'bg-gray-100 text-gray-500')}>
-                {c.provider === 'gmail' ? <Mail className="h-5 w-5" /> : c.provider === 'calendar' ? <Calendar className="h-5 w-5" /> : c.provider === 'slack' ? <MessageSquare className="h-5 w-5" /> : <FileText className="h-5 w-5" />}
-              </div>
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2">
-                  <h3 className="font-medium text-sm text-gray-900">{c.name || c.provider}</h3>
-                  {c.connected && <CheckCircle2 className="h-3.5 w-3.5 text-green-500" />}
-                </div>
-                <p className="text-xs text-gray-400 mt-0.5">{c.ingest_description || `Connect your ${c.name || c.provider}`}</p>
-                {c.connected && c.commitments_ingested > 0 && <p className="text-xs text-gray-400 mt-1 tabular-nums">{c.commitments_ingested} commitments ingested</p>}
-                {/* F-38 fix (auditor v18): surface 'previously connected' state.
-                    When connected=false but commitments_ingested > 0 and last_ingest_at
-                    is non-empty, the connector was previously connected but the OAuth
-                    token expired or was revoked. Show an amber banner so the user
-                    understands why their data is still there but new ingestion stopped. */}
-                {!c.connected && c.commitments_ingested > 0 && c.last_ingest_at && (
-                  <div className="mt-2 text-[11px] rounded-md border border-amber-200 bg-amber-50 px-2 py-1 text-amber-800">
-                    ⚠ Previously connected — {c.commitments_ingested} commitments ingested, last sync {formatRelativeTime(c.last_ingest_at)}
-                  </div>
-                )}
-              </div>
-              <div className="flex items-center gap-2 flex-shrink-0">
-                {c.connected && <button onClick={() => handleSync(c.provider)} disabled={syncing === c.provider} className="flex items-center gap-1 text-xs text-gray-500 hover:text-gray-900 px-3 py-1.5 rounded-lg hover:bg-gray-50 disabled:opacity-50">{syncing === c.provider ? <Loader2 className="h-3 w-3 animate-spin" /> : <RefreshCw className="h-3 w-3" />}Sync</button>}
-                {/* F-38: label 'Reconnect' when previously connected */}
-                {c.connected ? <button className="text-xs text-gray-400 hover:text-red-500 px-2 py-1.5">Disconnect</button> : (
-                  <button className="flex items-center gap-1 text-xs font-medium text-gray-600 px-3 py-1.5 rounded-lg bg-white border border-gray-200">
-                    <Plus className="h-3 w-3" />{!c.connected && c.commitments_ingested > 0 && c.last_ingest_at ? 'Reconnect' : 'Connect'}
-                  </button>
-                )}
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      <div>
-        <div className="flex items-center justify-between mb-4">
-          <p className="text-xs font-medium uppercase tracking-wider text-gray-400">Draft Emails</p>
-          <button onClick={handleGenerateDraft} disabled={generatingDraft} className="flex items-center gap-1.5 text-xs font-medium text-gray-600 hover:text-gray-900 px-3 py-1.5 rounded-lg bg-white border border-gray-200 hover:border-gray-300 disabled:opacity-50">
-            {generatingDraft ? <Loader2 className="h-3 w-3 animate-spin" /> : <Plus className="h-3 w-3" />}Generate Follow-up
-          </button>
-        </div>
-        <div className="space-y-3">
-          {drafts.length === 0 && <p className="text-sm text-gray-400">No pending drafts. Click "Generate Follow-up" to create one.</p>}
-          {drafts.map((d, i) => (
-            <DraftCard key={d.draft_id || i} draft={d} onResolve={handleResolveDraft} />
-          ))}
-        </div>
-      </div>
-    </div>
-  )
-}
-
-function DraftCard({ draft, onResolve }: { draft: any; onResolve: (id: string, resolution: 'approve' | 'deny' | 'use_draft') => void }) {
-  const [expanded, setExpanded] = useState(false)
-  return (
-    <div className="bg-white border border-gray-100 rounded-xl p-4">
-      <div className="flex items-start justify-between gap-3">
-        <div className="flex-1 min-w-0">
-          {draft.llm_generated && <span className="text-xs text-blue-500 font-medium">AI-generated </span>}
-          <h4 className="font-medium text-sm text-gray-900 truncate">{draft.subject || '(no subject)'}</h4>
-          <p className="text-xs text-gray-400 mt-0.5">To: {draft.to_email || 'Unknown'} · {draft.provider || 'gmail'}</p>
-        </div>
-        <button onClick={() => setExpanded(!expanded)} className="text-xs text-gray-400 hover:text-gray-600">{expanded ? 'Collapse' : 'Expand'}</button>
-      </div>
-      {expanded && <div className="mt-3 pl-3 border-l-2 border-gray-100"><p className="text-sm text-gray-600 whitespace-pre-wrap">{draft.body || '(empty)'}</p></div>}
-      <div className="flex items-center gap-2 mt-3 pt-3 border-t border-gray-50">
-        <button onClick={() => onResolve(draft.draft_id, 'approve')} className="flex items-center gap-1 text-xs font-medium text-white bg-green-600 hover:bg-green-700 px-3 py-1.5 rounded-lg"><Send className="h-3 w-3" />Approve & Send</button>
-        <button onClick={() => onResolve(draft.draft_id, 'deny')} className="text-xs text-gray-400 hover:text-red-500 px-3 py-1.5">Deny</button>
-        <button onClick={() => onResolve(draft.draft_id, 'use_draft')} className="text-xs text-gray-400 hover:text-gray-600 px-3 py-1.5">Use as draft</button>
-      </div>
-    </div>
-  )
-}
