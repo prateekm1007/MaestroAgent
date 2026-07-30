@@ -348,6 +348,22 @@ async def purge_demo_data_get(token: str = "", dry_run: bool = False):
                 (row["signal_id"] if hasattr(row, "keys") else row[0])
                 for row in demo_rows
             ]
+
+            # Bug 9 guardrail (auditor v16): check before deleting
+            guard = _purge_guardrail_check(db, signal_ids, dry_run=False)
+            if not guard["safe"]:
+                return {
+                    "action": "blocked_by_guardrail",
+                    "reason": guard["reason"],
+                    "demo_signals_found": len(demo_rows),
+                    "demo_signals_deleted": 0,
+                    "conn_signals_protected": guard["conn_signals_protected"],
+                    "blast_radius_pct": guard["blast_radius_pct"],
+                    "total_signals_before": total_before,
+                    "users_affected": users_affected,
+                    "governance": "Bug 9: purge blocked by safety guardrail",
+                }
+
             placeholders = ",".join(["%s" if _is_postgres_env() else "?" for _ in signal_ids])
             db.execute(
                 f"DELETE FROM signals WHERE signal_id IN ({placeholders})",
@@ -1677,6 +1693,22 @@ async def purge_test_entities(token: str = "", dry_run: bool = False):
 
         if not dry_run and test_signals:
             signal_ids = [s["signal_id"] for s in test_signals]
+
+            # Bug 9 guardrail (auditor v16): check before deleting
+            guard = _purge_guardrail_check(conn, signal_ids, dry_run=False)
+            if not guard["safe"]:
+                return {
+                    "action": "blocked_by_guardrail",
+                    "reason": guard["reason"],
+                    "test_signals_found": len(test_signals),
+                    "test_signals_deleted": 0,
+                    "conn_signals_protected": guard["conn_signals_protected"],
+                    "blast_radius_pct": guard["blast_radius_pct"],
+                    "total_signals_before": total_before,
+                    "sample_entities": list(set(s["entity"] for s in test_signals[:20])),
+                    "governance": "Bug 9: purge blocked by safety guardrail",
+                }
+
             placeholders = ",".join(["%s" if _is_postgres_env() else "?" for _ in signal_ids])
             conn.execute(
                 f"DELETE FROM signals WHERE signal_id IN ({placeholders})",
@@ -1715,9 +1747,89 @@ async def purge_test_entities(token: str = "", dry_run: bool = False):
 
 
 # ---------------------------------------------------------------------------
-# Phase 1.1: Purge numeric-suffix test entities (race test artifacts)
-# (auditor v15: "8 cross-entity bleeds — same error, different code path")
+# Bug 9 guardrails (auditor v16): purge-safety functions
+# Never delete conn_* signals, cap blast radius at 50%, dry-run first
 # ---------------------------------------------------------------------------
+
+def _purge_guardrail_check(conn, signal_ids_to_delete: list, dry_run: bool) -> dict:
+    """Bug 9: purge-safety guardrails.
+
+    Three assertions (auditor v16):
+      1. Never delete conn_* signals (Gmail-sourced real data)
+      2. Cap blast radius at 50% of total signals
+      3. Report what would be deleted (dry-run first)
+
+    Returns a dict with:
+      - safe: True if all guardrails pass
+      - reason: explanation if unsafe
+      - conn_signals_protected: count of conn_* signals that would NOT be deleted
+      - blast_radius_pct: percentage of total signals being deleted
+    """
+    result = {
+        "safe": True,
+        "reason": "",
+        "conn_signals_protected": 0,
+        "blast_radius_pct": 0.0,
+    }
+
+    if not signal_ids_to_delete:
+        return result
+
+    # Count total signals
+    total_row = conn.execute("SELECT COUNT(*) AS cnt FROM signals").fetchone()
+    total = total_row["cnt"] if hasattr(total_row, "keys") else total_row[0]
+
+    # Guardrail 1: Never delete conn_* signals (Gmail-sourced)
+    # Check if any of the signals to delete have metadata containing "conn_"
+    # in their signal_id (Gmail connector signals have IDs like conn_gmail_*)
+    conn_signals_in_delete = [
+        sid for sid in signal_ids_to_delete
+        if sid.startswith("conn_") or sid.startswith("conn-")
+    ]
+    if conn_signals_in_delete:
+        result["safe"] = False
+        result["reason"] = (
+            f"BLOCKED: {len(conn_signals_in_delete)} Gmail-sourced signals "
+            f"(conn_*) would be deleted. Bug 9 guardrail: never delete conn_* signals."
+        )
+        result["conn_signals_protected"] = len(conn_signals_in_delete)
+        return result
+
+    # Also check metadata for source:conn_* or source:gmail
+    placeholders = ",".join(["%s" if _is_postgres_env() else "?" for _ in signal_ids_to_delete])
+    try:
+        gmail_rows = conn.execute(
+            f"SELECT COUNT(*) AS cnt FROM signals WHERE signal_id IN ({placeholders}) "
+            f"AND (metadata LIKE ? OR metadata LIKE ? OR metadata LIKE ?)",
+            signal_ids_to_delete + ["%conn_%", "%gmail%", "%source%gmail%"],
+        ).fetchone()
+        gmail_count = gmail_rows["cnt"] if hasattr(gmail_rows, "keys") else gmail_rows[0]
+        if gmail_count > 0:
+            result["safe"] = False
+            result["reason"] = (
+                f"BLOCKED: {gmail_count} signals with Gmail-source metadata "
+                f"would be deleted. Bug 9 guardrail: never delete Gmail data."
+            )
+            result["conn_signals_protected"] = gmail_count
+            return result
+    except Exception:
+        pass  # If metadata check fails, proceed with signal_id check only
+
+    # Guardrail 2: Cap blast radius at 50% of total signals
+    if total > 0:
+        blast_pct = (len(signal_ids_to_delete) / total) * 100
+        result["blast_radius_pct"] = round(blast_pct, 1)
+        if blast_pct > 50.0:
+            result["safe"] = False
+            result["reason"] = (
+                f"BLOCKED: would delete {len(signal_ids_to_delete)} of {total} signals "
+                f"({blast_pct:.1f}%) — exceeds 50% blast radius cap. "
+                f"Bug 9 guardrail: cap blast radius at 50%."
+            )
+            return result
+
+    return result
+
 
 @router.get("/api/admin/purge-numeric-suffix-entities")
 async def purge_numeric_suffix_entities(token: str = "", dry_run: bool = False):
