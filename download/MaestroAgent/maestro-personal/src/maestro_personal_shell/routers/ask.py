@@ -300,7 +300,7 @@ def _apply_ticket10_filter(
 
 
 @router.post("", response_model=AskResponse)
-@rate_limit("30/minute")  # P0-6: Ask is LLM-powered + expensive — cap at 30/min per IP
+@rate_limit("10/minute")  # Phase 4 fix (auditor v17): cap at 10/min per user — was 30/min
 async def ask(request: Request, req: AskRequest, as_of: str | None = None, token: str = Depends(verify_token_dep)):
     """Ask a question — get the truth, sourced (LLM-powered when available).
 
@@ -4916,6 +4916,7 @@ async def _ask_impl(request: Request, req: AskRequest, as_of: str | None = None,
 
 
 @router.post("/stream")
+@rate_limit("10/minute")  # Phase 4 fix (auditor v17): same rate limit as /api/ask
 async def ask_stream(req: AskRequest, token: str = Depends(verify_token_dep)):
     """Streaming Ask — SSE for sub-2s perceived latency."""
     from fastapi.responses import StreamingResponse

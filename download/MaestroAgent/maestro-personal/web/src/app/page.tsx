@@ -322,6 +322,62 @@ function AskView() {
     if (!q.trim()) return
     setLoading(true); setAnswer(null)
     try {
+      // Phase 4 fix (auditor v17): try streaming first for sub-2s perceived latency.
+      // Falls back to regular /api/ask if streaming fails.
+      const API_BASE_LOCAL = typeof window !== 'undefined'
+        ? (window.location.origin === 'https://web-production-d5c26.up.railway.app'
+          ? 'https://maestroagent-production.up.railway.app'
+          : 'http://localhost:8766')
+        : 'https://maestroagent-production.up.railway.app'
+      const _token = getToken()
+      let streamDone = false
+      try {
+        const streamRes = await fetch(`${API_BASE_LOCAL}/api/ask/stream`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${_token}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ query: q }),
+        })
+        if (streamRes.ok && streamRes.body) {
+          const reader = streamRes.body.getReader()
+          const decoder = new TextDecoder()
+          let chunks = ''
+          while (true) {
+            const { done, value } = await reader.read()
+            if (done) break
+            const text = decoder.decode(value, { stream: true })
+            // Parse SSE data lines
+            for (const line of text.split('\n')) {
+              if (line.startsWith('data: ')) {
+                const payload = line.slice(6).trim()
+                if (payload === '[DONE]') { streamDone = true; break }
+                try {
+                  const parsed = JSON.parse(payload)
+                  if (parsed.chunk) chunks += parsed.chunk
+                  if (parsed.answer) { chunks = parsed.answer; streamDone = true; break }
+                } catch {}
+              }
+            }
+            if (streamDone) break
+            // Update answer progressively for perceived latency
+            if (chunks) {
+              setAnswer({ answer: chunks, confidence: 0.5, evidence_refs: [], _streaming: true })
+            }
+          }
+          if (chunks) {
+            // Final fetch to get full response with evidence
+            const { data, live } = await maestroApi.ask(q)
+            if (live) setAnswer(data)
+            else setAnswer({ answer: chunks, confidence: 0.5, evidence_refs: [] })
+            return
+          }
+        }
+      } catch (streamErr) {
+        // Streaming failed — fall through to regular ask
+      }
+      // Fallback: regular /api/ask
       const { data, live } = await maestroApi.ask(q)
       if (live) setAnswer(data)
       else setAnswer({ answer: 'Backend not connected.', confidence: 0, evidence_refs: [] })
