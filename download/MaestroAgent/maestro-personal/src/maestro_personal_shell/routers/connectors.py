@@ -965,9 +965,11 @@ async def create_draft(req: ConnectorDraftRequest, token: str = Depends(verify_t
 
     store = ConnectorStore()
 
-    # G2 fix: only use caller-provided content when BOTH subject AND body
-    # are present. If only subject is provided, we still need to generate
-    # the body. If only body is provided, use it with a default subject.
+    # G2 fix: when subject is provided but body is not, DON'T suppress body.
+    # The prior code fell through to the "else" branch which checks
+    # req.commitment_text and req.entity — but when subject is set without
+    # body, we need to generate the body via LLM (same as G1 path).
+    # Fix: treat "subject only" the same as "neither" — go to LLM generation.
     if req.subject and req.body:
         # Both provided — use directly
         draft_data = {
