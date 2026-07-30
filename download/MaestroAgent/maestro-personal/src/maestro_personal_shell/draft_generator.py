@@ -557,6 +557,18 @@ async def _call_openrouter(prompt: str, api_key: str) -> str:
         raise Exception("OpenRouter returned empty content")
 
 
+# Global reusable httpx client — avoids connection setup overhead on every call.
+# Creating a new AsyncClient per request adds ~500ms for TLS handshake + pool init.
+# The global client reuses connections across requests.
+_STREAM_CLIENT: httpx.AsyncClient | None = None
+
+def _get_stream_client() -> httpx.AsyncClient:
+    global _STREAM_CLIENT
+    if _STREAM_CLIENT is None or _STREAM_CLIENT.is_closed:
+        _STREAM_CLIENT = httpx.AsyncClient(timeout=30.0)
+    return _STREAM_CLIENT
+
+
 async def _call_openrouter_stream(prompt: str, api_key: str):
     """L-D1 fix: streaming version of _call_openrouter for draft generation.
 
@@ -580,34 +592,35 @@ async def _call_openrouter_stream(prompt: str, api_key: str):
         "stream": True,  # L-D1: streaming
     }
 
-    async with httpx.AsyncClient(timeout=30.0) as client:
-        async with client.stream(
-            "POST",
-            "https://openrouter.ai/api/v1/chat/completions",
-            headers=headers,
-            json=data
-        ) as response:
-            if response.status_code != 200:
-                body = await response.aread()
-                logger.error(f"OpenRouter stream error {response.status_code}: {body[:300]}")
-                raise Exception(f"OpenRouter error: {response.status_code}")
+    # Use global reusable client — saves ~500ms TLS overhead per call
+    client = _get_stream_client()
+    async with client.stream(
+        "POST",
+        "https://openrouter.ai/api/v1/chat/completions",
+        headers=headers,
+        json=data,
+    ) as response:
+        if response.status_code != 200:
+            body = await response.aread()
+            logger.error(f"OpenRouter stream error {response.status_code}: {body[:300]}")
+            raise Exception(f"OpenRouter error: {response.status_code}")
 
-            async for line in response.aiter_lines():
-                if not line or not line.startswith("data: "):
-                    continue
-                payload = line[6:]  # strip "data: " prefix
-                if payload.strip() == "[DONE]":
-                    break
-                try:
-                    import json as _json
-                    chunk = _json.loads(payload)
-                    choice = chunk.get("choices", [{}])[0]
-                    delta = choice.get("delta", {})
-                    content = delta.get("content")
-                    if content:
-                        yield content
-                except Exception:
-                    continue
+        async for line in response.aiter_lines():
+            if not line or not line.startswith("data: "):
+                continue
+            payload = line[6:]  # strip "data: " prefix
+            if payload.strip() == "[DONE]":
+                break
+            try:
+                import json as _json
+                chunk = _json.loads(payload)
+                choice = chunk.get("choices", [{}])[0]
+                delta = choice.get("delta", {})
+                content = delta.get("content")
+                if content:
+                    yield content
+            except Exception:
+                continue
 
 
 async def stream_email_draft(
