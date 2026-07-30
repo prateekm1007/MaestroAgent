@@ -126,13 +126,24 @@ async def send_email_draft(
 
 
 async def _get_draft_by_id(draft_id: str, user_email: str) -> Optional[dict]:
-    """Look up a draft by ID. Returns dict with to/subject/body or None."""
+    """Look up a draft by ID. Returns dict with to/subject/body or None.
+
+    F-34 v2 fix (auditor v19): the prior version used sqlite3.connect()
+    directly, which bypassed get_db_conn()'s Postgres detection. On
+    Railway (Postgres), this created a fresh empty SQLite file and
+    never found the draft — causing every /drafts/{id}/send to 400.
+    Fix: use get_db_conn() so the lookup hits the same database the
+    ConnectorStore wrote to.
+    """
     try:
-        from maestro_personal_shell.db_util import default_sqlite_path
+        from maestro_personal_shell.db_util import get_db_conn
         import sqlite3
-        db_path = default_sqlite_path()
-        with sqlite3.connect(db_path) as conn:
+        conn = get_db_conn()
+        try:
             conn.row_factory = sqlite3.Row
+        except Exception:
+            pass  # PostgresConnection handles row_factory via DictCursor
+        try:
             row = conn.execute(
                 "SELECT draft_id, user_email, provider, recipient, subject, body, commitment_ref, evidence_refs, status, created_at, resolved_at, sent_message_id "
                 "FROM drafts WHERE draft_id = ? AND user_email = ?",
@@ -147,10 +158,13 @@ async def _get_draft_by_id(draft_id: str, user_email: str) -> Optional[dict]:
                 "body": row["body"] or "",
                 "commitment_id": row["commitment_ref"],
             }
+        finally:
+            try:
+                conn.close()
+            except Exception:
+                pass
     except Exception as e:
-        # Table might not exist yet, or schema differs. Try in-memory fallback
-        # by re-generating from commitment_id (best-effort).
-        logger.warning(f"_get_draft_by_id DB lookup failed: {e}. Returning minimal draft.")
+        logger.warning(f"_get_draft_by_id DB lookup failed: {e}. Returning None.")
         return None
 
 
@@ -158,13 +172,19 @@ async def _get_user_oauth_tokens(user_email: str) -> Optional[dict]:
     """
     Look up the user's Gmail OAuth tokens from the database.
     Returns None if not connected or table doesn't exist.
+
+    F-34 v2 fix: use get_db_conn() (Postgres-aware) instead of
+    sqlite3.connect() directly.
     """
     try:
-        from maestro_personal_shell.db_util import default_sqlite_path
+        from maestro_personal_shell.db_util import get_db_conn
         import sqlite3
-        db_path = default_sqlite_path()
-        with sqlite3.connect(db_path) as conn:
+        conn = get_db_conn()
+        try:
             conn.row_factory = sqlite3.Row
+        except Exception:
+            pass
+        try:
             row = conn.execute(
                 "SELECT access_token, refresh_token, expires_at "
                 "FROM user_oauth_tokens WHERE user_email = ? AND provider = 'gmail'",
@@ -177,6 +197,11 @@ async def _get_user_oauth_tokens(user_email: str) -> Optional[dict]:
                 "refresh_token": row["refresh_token"],
                 "expires_at": row["expires_at"],
             }
+        finally:
+            try:
+                conn.close()
+            except Exception:
+                pass
     except Exception as e:
         # Table doesn't exist or schema differs — most users have no OAuth
         logger.debug(f"OAuth token lookup failed (likely no tokens table): {e}")
