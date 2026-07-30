@@ -1144,12 +1144,13 @@ async def create_auto_draft_stream(req: ConnectorAutoDraftRequest, token: str = 
         # build_shell loads ALL signals (2-9s). For streaming, we query the
         # signals table directly for just this recipient's commitments.
         try:
-            from maestro_personal_shell.db_util import get_db_conn, default_sqlite_path
+            from maestro_personal_shell.db_util import get_db_conn
             import sqlite3 as _sqlite3
-            import json as _json_mod
 
-            db_path = default_sqlite_path()
-            conn = get_db_conn(db_path)
+            # Use get_db_conn() with no args — it checks MAESTRO_DATABASE_URL
+            # for Postgres automatically. Passing a SQLite path when Postgres
+            # is active would create a wrong connection.
+            conn = get_db_conn()
             try:
                 conn.row_factory = _sqlite3.Row
             except Exception:
