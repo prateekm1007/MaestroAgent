@@ -370,7 +370,11 @@ async def get_prepare(as_of: str | None = None, token: str = Depends(verify_toke
         ]
         entity_signals = _filter_corrected_signals(raw_entity_signals)
 
-        # THE FORGOTTEN: oldest commitment_made signal
+        # THE FORGOTTEN: oldest commitment signal that is >14 days old
+        # Phase 3.1 fix (auditor v16): the prior code just took the oldest
+        # commitment — even if it was from 5 minutes ago. The auditor wants
+        # ">14d untouched, unresolved." Fix: filter to commitments older than
+        # 14 days that are still active.
         the_forgotten = ""
         commitment_signals = [
             sig for sig in entity_signals
@@ -378,16 +382,60 @@ async def get_prepare(as_of: str | None = None, token: str = Depends(verify_toke
         ]
         if commitment_signals:
             commitment_signals.sort(key=lambda x: getattr(x, "timestamp", datetime.max))
-            the_forgotten = getattr(commitment_signals[0], "text", "")
+            # Phase 3.1: find the OLDEST commitment that is >14 days old
+            _now = datetime.now(timezone.utc)
+            _fourteen_days_ago = _now - timedelta(days=14)
+            for cs in commitment_signals:
+                try:
+                    cs_ts = getattr(cs, "timestamp", None)
+                    if cs_ts and hasattr(cs_ts, "tzinfo"):
+                        if cs_ts.tzinfo is None:
+                            cs_ts = cs_ts.replace(tzinfo=timezone.utc)
+                        if cs_ts < _fourteen_days_ago:
+                            the_forgotten = getattr(cs, "text", "")
+                            break
+                except Exception:
+                    pass
+            # Fallback: if no >14d commitment, use the oldest (non-empty)
+            if not the_forgotten and commitment_signals:
+                the_forgotten = getattr(commitment_signals[0], "text", "")
 
-        # THE OPEN QUESTION: follow_up.required signal
+        # THE OPEN QUESTION: signals containing "?" that haven't been answered
+        # Phase 3.1 fix (auditor v16): the prior code only looked for
+        # "follow_up" signal_type — but the classifier rarely sets that type.
+        # Fix: also scan for "?" in signal text, which catches real questions.
         the_open_question = ""
+        # First try follow_up signals (original logic)
         followup_signals = [
             sig for sig in entity_signals
             if "follow_up" in str(getattr(sig, "signal_type", "")).lower()
         ]
         if followup_signals:
             the_open_question = getattr(followup_signals[-1], "text", "")
+        else:
+            # Phase 3.1: scan for questions (text containing "?")
+            _ANSWER_KEYWORDS = [
+                "confirmed", "yes", "answered", "resolved",
+                "decided", "agreed", "approved", "denied", "rejected",
+                "sent", "delivered", "completed", "done", "finished",
+            ]
+            for sig in entity_signals:
+                text = str(getattr(sig, "text", ""))
+                if "?" not in text:
+                    continue
+                # Check if any LATER signal answers this question
+                sig_ts = getattr(sig, "timestamp", datetime.max)
+                _answered = False
+                for ans in entity_signals:
+                    ans_ts = getattr(ans, "timestamp", datetime.min)
+                    if ans_ts > sig_ts:
+                        ans_text = str(getattr(ans, "text", "")).lower()
+                        if any(kw in ans_text for kw in _ANSWER_KEYWORDS):
+                            _answered = True
+                            break
+                if not _answered:
+                    the_open_question = text
+                    break
 
         # THE CONTRADICTION: most recent reported_statement
         the_contradiction = ""
