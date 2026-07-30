@@ -85,6 +85,9 @@ jobs:
           "
       - name: Run production-path regression tests (requires staging secrets)
         working-directory: download/MaestroAgent/maestro-personal
+        env:
+          MAESTRO_URL: ${{ secrets.STAGING_URL }}
+          MAESTRO_TOKEN: ${{ secrets.STAGING_TOKEN }}
         run: |
           if [ -z "$MAESTRO_URL" ] || [ -z "$MAESTRO_TOKEN" ]; then
             echo "⚠ STAGING_URL or STAGING_TOKEN secret not set — production-path tests SKIPPED."
@@ -92,7 +95,25 @@ jobs:
             echo "Unit-level regression tests (F-28, F-29) already ran above."
             exit 0
           fi
-          pytest tests/test_regression_audit.py -v --tb=short --ignore-glob='**/test_f28*' --ignore-glob='**/test_f29*'
+          # The STAGING_TOKEN secret is the PASSWORD, not a JWT.
+          # Login to get a real JWT token for the regression tests.
+          pip install requests
+          JWT_TOKEN=$(python3 -c "
+          import requests
+          r = requests.post('$MAESTRO_URL/api/auth/login',
+              json={'email': 'bootstrap', 'password': '$MAESTRO_TOKEN'},
+              timeout=30)
+          if r.status_code != 200:
+              print(f'LOGIN FAILED: {r.status_code} {r.text[:200]}')
+              exit(1)
+          print(r.json()['token'])
+          ")
+          if [ -z "$JWT_TOKEN" ]; then
+            echo "❌ Failed to get JWT token from login — cannot run production-path tests."
+            exit 1
+          fi
+          echo "✅ Got JWT token — running production-path regression tests."
+          MAESTRO_URL="$MAESTRO_URL" MAESTRO_TOKEN="$JWT_TOKEN" pytest tests/test_regression_audit.py -v --tb=short --ignore-glob='**/test_f28*' --ignore-glob='**/test_f29*'
       - name: Regression gate result
         if: always()
         run: |
