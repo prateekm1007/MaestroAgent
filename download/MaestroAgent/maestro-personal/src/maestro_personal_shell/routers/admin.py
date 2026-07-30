@@ -1795,3 +1795,85 @@ async def purge_numeric_suffix_entities(token: str = "", dry_run: bool = False):
         }
     finally:
         conn.close()
+
+
+# ---------------------------------------------------------------------------
+# Phase 1.1: Purge race-test entities (3B87, A3b prefixes + B-prefixed actions)
+# ---------------------------------------------------------------------------
+
+@router.get("/api/admin/purge-race-test-entities")
+async def purge_race_test_entities(token: str = "", dry_run: bool = False):
+    """Purge signals from race test entities (3B87, A3b prefixes, B-prefixed actions).
+
+    These are test artifacts from A3 verification that have real-sounding
+    names but test-pattern content (B5039B1: I will deliver by Friday).
+    """
+    import re
+    from fastapi import HTTPException
+    from maestro_personal_shell.db_util import get_db_conn, default_sqlite_path
+
+    admin_token = os.environ.get("MAESTRO_PERSONAL_TOKEN", "")
+    if not admin_token or token != admin_token:
+        raise HTTPException(status_code=403, detail="Invalid admin token")
+
+    db_path = default_sqlite_path()
+    conn = get_db_conn(db_path)
+    try:
+        conn.row_factory = sqlite3.Row
+    except Exception:
+        pass
+
+    _RACE_TEST_PATTERNS = [
+        re.compile(r'3B87', re.IGNORECASE),
+        re.compile(r'A3b', re.IGNORECASE),
+        re.compile(r'^B\d+[A-Z]\d+', re.IGNORECASE),  # B5039B1 pattern in entity
+    ]
+
+    try:
+        all_rows = conn.execute(
+            "SELECT signal_id, entity, text FROM signals"
+        ).fetchall()
+
+        race_test_signals = []
+        for row in all_rows:
+            entity = row["entity"] if hasattr(row, "keys") else row[1]
+            text = row["text"] if hasattr(row, "keys") else row[2]
+            # Check if entity matches any race test pattern
+            if entity and any(p.search(entity) for p in _RACE_TEST_PATTERNS):
+                race_test_signals.append({
+                    "signal_id": row["signal_id"] if hasattr(row, "keys") else row[0],
+                    "entity": entity,
+                })
+            # Also check if text starts with B+digits (race test action pattern)
+            elif text and re.match(r'^B\d+[A-Z]\d+', text):
+                race_test_signals.append({
+                    "signal_id": row["signal_id"] if hasattr(row, "keys") else row[0],
+                    "entity": entity,
+                })
+
+        total_before_row = conn.execute("SELECT COUNT(*) AS cnt FROM signals").fetchone()
+        total_before = total_before_row["cnt"] if hasattr(total_before_row, "keys") else total_before_row[0]
+
+        if not dry_run and race_test_signals:
+            signal_ids = [s["signal_id"] for s in race_test_signals]
+            placeholders = ",".join(["%s" if _is_postgres_env() else "?" for _ in signal_ids])
+            conn.execute(f"DELETE FROM signals WHERE signal_id IN ({placeholders})", signal_ids)
+            try: conn.execute(f"DELETE FROM commitments_ledger WHERE signal_id IN ({placeholders})", signal_ids)
+            except: pass
+            try: conn.execute(f"DELETE FROM commitment_events WHERE source_signal_id IN ({placeholders})", signal_ids)
+            except: pass
+            conn.commit()
+
+        total_after_row = conn.execute("SELECT COUNT(*) AS cnt FROM signals").fetchone()
+        total_after = total_after_row["cnt"] if hasattr(total_after_row, "keys") else total_after_row[0]
+
+        return {
+            "action": "dry_run" if dry_run else "purge_race_test_entities",
+            "race_test_signals_found": len(race_test_signals),
+            "race_test_signals_deleted": 0 if dry_run else len(race_test_signals),
+            "total_signals_before": total_before,
+            "total_signals_after": total_after,
+            "sample_entities": list(set(s["entity"] for s in race_test_signals[:20])),
+        }
+    finally:
+        conn.close()
