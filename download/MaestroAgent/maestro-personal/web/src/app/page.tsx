@@ -61,13 +61,27 @@ export default function Home() {
   }
 
   // Resolve draft — approve / deny / use_draft
+  // F-35 fix (auditor v18): surface send failures — never close modal on
+  // send_failed. The prior code closed the modal regardless of the result,
+  // so the user believed the email was sent when it wasn't.
   const handleResolveDraft = async (draft: DraftWithMeta, resolution: 'approve' | 'deny' | 'use_draft') => {
     setDraftResolving(true)
     try {
-      await maestroApi.resolveDraft(draft.draft_id, resolution)
+      const result = await maestroApi.resolveDraft(draft.draft_id, resolution)
+      // F-35: check if the send failed
+      if (resolution === 'approve') {
+        const status = result?.status || ''
+        const sendError = result?.send_error || ''
+        if (status === 'send_failed' || sendError) {
+          // Don't close the modal — show the error
+          alert(`Send failed: ${sendError || 'Unknown error'}. Check that Gmail is connected.`)
+          return  // Keep modal open so user can retry or copy
+        }
+      }
       setDraftForReview(null)
-    } catch {
-      alert('Failed to resolve draft.')
+    } catch (e: any) {
+      const msg = e?.message || String(e)
+      alert(`Failed to resolve draft: ${msg}`)
     } finally {
       setDraftResolving(false)
     }

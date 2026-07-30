@@ -1072,17 +1072,48 @@ async def openapi_contract(authorization: str = Header(None)):
     # Auditor-scoped path: accept MAESTRO_PERSONAL_TOKEN as Bearer
     admin_token = os.environ.get("MAESTRO_PERSONAL_TOKEN", "")
     if admin_token and authorization == f"Bearer {admin_token}":
+        try:
+            return JSONResponse(
+                content=app.openapi(),
+                headers={"Cache-Control": "no-store"},
+            )
+        except Exception as e:
+            # F-32 fix (auditor v18): app.openapi() can fail if a model
+            # has a schema generation error. Fall back to a minimal spec.
+            logger.warning("openapi_contract: app.openapi() failed: %s", e)
+            return JSONResponse(
+                content={
+                    "openapi": "3.1.0",
+                    "info": {"title": "Maestro Personal API", "version": "1.0.0-beta"},
+                    "paths": {},
+                    "error": f"Schema generation failed: {str(e)[:200]}",
+                },
+                headers={"Cache-Control": "no-store"},
+            )
+
+    # User-scoped path: validate the user token
+    try:
+        await verify_token(authorization=authorization)
+    except Exception:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=401, detail="Invalid or missing token")
+    try:
         return JSONResponse(
             content=app.openapi(),
             headers={"Cache-Control": "no-store"},
         )
-
-    # User-scoped path: validate the user token
-    await verify_token(authorization=authorization)
-    return JSONResponse(
-        content=app.openapi(),
-        headers={"Cache-Control": "no-store"},
-    )
+    except Exception as e:
+        # F-32 fix: same fallback for authenticated requests
+        logger.warning("openapi_contract: app.openapi() failed (auth): %s", e)
+        return JSONResponse(
+            content={
+                "openapi": "3.1.0",
+                "info": {"title": "Maestro Personal API", "version": "1.0.0-beta"},
+                "paths": {},
+                "error": f"Schema generation failed: {str(e)[:200]}",
+            },
+            headers={"Cache-Control": "no-store"},
+        )
 
 # S3 fix (auditor): API root must never be a bare 404.
 # The backend is a pure API; the UI lives on a different host.

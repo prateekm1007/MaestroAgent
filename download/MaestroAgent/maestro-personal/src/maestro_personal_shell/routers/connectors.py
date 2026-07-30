@@ -130,6 +130,8 @@ class ConnectorDraftRequest(BaseModel):
     commitment_text: str = ""
     entity: str = ""
     evidence_refs: list[dict[str, Any]] = []
+    subject: str = ""  # F-33 fix (auditor v18): accept caller-provided subject
+    body: str = ""    # F-33 fix (auditor v18): accept caller-provided body
 
 
 class ConnectorAutoDraftRequest(BaseModel):
@@ -954,12 +956,27 @@ async def create_draft(req: ConnectorDraftRequest, token: str = Depends(verify_t
     from maestro_personal_shell.connectors import ConnectorStore, ConnectorDraftGenerator
     store = ConnectorStore()
     gen = ConnectorDraftGenerator(shell=None)
-    draft_data = gen.generate_draft(
-        provider=req.provider,
-        recipient=req.recipient,
-        commitment={"text": req.commitment_text, "entity": req.entity},
-        evidence_refs=req.evidence_refs,
-    )
+    # F-33 fix (auditor v18): if caller provides subject/body, use them
+    # instead of overwriting with the generated template. The prior code
+    # always called gen.generate_draft() which overwrote any caller-provided
+    # subject/body with a template — silently discarding the input.
+    if req.subject or req.body:
+        # Caller provided content — use it directly, don't generate
+        draft_data = {
+            "provider": req.provider,
+            "recipient": req.recipient,
+            "subject": req.subject or f"Follow-up — {req.recipient}",
+            "body": req.body or "",
+            "commitment_ref": req.commitment_text or "",
+            "evidence_refs": req.evidence_refs,
+        }
+    else:
+        draft_data = gen.generate_draft(
+            provider=req.provider,
+            recipient=req.recipient,
+            commitment={"text": req.commitment_text, "entity": req.entity},
+            evidence_refs=req.evidence_refs,
+        )
     result = store.create_draft(
         user_email=token,
         provider=draft_data["provider"],
