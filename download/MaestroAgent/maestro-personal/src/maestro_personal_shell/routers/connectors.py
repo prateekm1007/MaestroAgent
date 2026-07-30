@@ -1140,14 +1140,63 @@ async def create_auto_draft_stream(req: ConnectorAutoDraftRequest, token: str = 
 
         store = ConnectorStore()
 
-        # Step 1: Derive commitment (same as generate_auto_draft)
+        # Step 1: Derive commitment — INSTANT direct DB query (no build_shell)
+        # build_shell loads ALL signals (2-9s). For streaming, we query the
+        # signals table directly for just this recipient's commitments.
         try:
-            shell = build_shell(user_email=token)
-            gen = ConnectorDraftGenerator(shell=shell)
-            # We need the derivation but NOT the LLM call — do it manually
-            commitment, evidence_refs, source_signal_id = gen._derive_commitment_for_recipient(
-                shell, req.recipient
-            )
+            from maestro_personal_shell.db_util import get_db_conn, default_sqlite_path
+            import sqlite3 as _sqlite3
+            import json as _json_mod
+
+            db_path = default_sqlite_path()
+            conn = get_db_conn(db_path)
+            try:
+                conn.row_factory = _sqlite3.Row
+            except Exception:
+                pass
+
+            recipient_lower = req.recipient.lower()
+            recipient_name = recipient_lower.split("@")[0] if "@" in recipient_lower else recipient_lower
+
+            # Direct query: find commitments mentioning this recipient
+            # Search by entity name match (case-insensitive)
+            rows = conn.execute(
+                """SELECT signal_id, entity, text, timestamp, metadata
+                   FROM signals
+                   WHERE user_email = ?
+                     AND (LOWER(entity) LIKE ? OR LOWER(text) LIKE ?)
+                   ORDER BY timestamp DESC LIMIT 10""",
+                (token, f"%{recipient_name}%", f"%{recipient_name}%")
+            ).fetchall()
+            try:
+                conn.close()
+            except Exception:
+                pass
+
+            commitment = None
+            evidence_refs = []
+            source_signal_id = ""
+            if rows:
+                # Pick the first row that looks like a commitment
+                for row in rows:
+                    text = row["text"] if "text" in row.keys() else ""
+                    entity_val = row["entity"] if "entity" in row.keys() else ""
+                    sig_id = row["signal_id"] if "signal_id" in row.keys() else ""
+                    ts = row["timestamp"] if "timestamp" in row.keys() else ""
+                    if text and ("will " in text.lower() or "promise" in text.lower() or "send" in text.lower() or "deliver" in text.lower() or "by " in text.lower()):
+                        commitment = {"text": text, "entity": entity_val}
+                        source_signal_id = sig_id
+                        evidence_refs = [{"entity": entity_val, "text": text, "timestamp": ts}]
+                        break
+                # Fallback: use first row if no commitment-like text found
+                if not commitment and rows:
+                    row = rows[0]
+                    commitment = {
+                        "text": row["text"] if "text" in row.keys() else "",
+                        "entity": row["entity"] if "entity" in row.keys() else req.recipient,
+                    }
+                    source_signal_id = row["signal_id"] if "signal_id" in row.keys() else ""
+                    evidence_refs = [{"entity": commitment["entity"], "text": commitment["text"], "timestamp": row["timestamp"] if "timestamp" in row.keys() else ""}]
 
             if not commitment:
                 yield f'data: {{"error": "No active commitments found for \'{req.recipient}\'. Connect a connector and ingest."}}\n\n'
