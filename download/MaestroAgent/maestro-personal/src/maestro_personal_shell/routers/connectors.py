@@ -1083,6 +1083,17 @@ Write the email body now. Start with "Hi {entity},". Use ACTUAL newlines."""
                 evidence_refs=req.evidence_refs,
             )
 
+    # Q1+Q2 fix: always apply signature cleaning + placeholder ban, even
+    # for the template fallback path. This ensures no draft is persisted
+    # with [Your name] or Best,. regardless of which generation path ran.
+    try:
+        from maestro_personal_shell.draft_generator import _ban_placeholders, _clean_signature
+        _entity = draft_data.get("recipient", "")
+        cleaned_body = _ban_placeholders(draft_data.get("body", ""), _entity, token)
+        draft_data["body"] = cleaned_body
+    except Exception as _clean_err:
+        logger.debug(f"Post-processing draft body (non-fatal): {_clean_err}")
+
     result = store.create_draft(
         user_email=token,
         provider=draft_data["provider"],

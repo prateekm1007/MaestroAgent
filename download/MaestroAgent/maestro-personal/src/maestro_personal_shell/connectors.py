@@ -909,7 +909,42 @@ class ConnectorStore:
         commitment_ref: str = "",
         evidence_refs: list[dict] | None = None,
     ) -> dict[str, Any]:
-        """Create a pending draft for user approval."""
+        """Create a pending draft for user approval.
+
+        Q6 fix (auditor v19): deduplicate — if a pending draft already
+        exists for the same (user_email, recipient, commitment_ref),
+        return the existing draft instead of creating a duplicate. The
+        audit found 64 drafts with 13 duplicates for one entity. Now
+        there's one pending draft per commitment, with a 7-day TTL.
+        """
+        # Q6 dedup: check for existing pending draft with same recipient + commitment
+        if commitment_ref:
+            try:
+                conn = get_db_conn(self.db_path)
+                existing = conn.execute(
+                    "SELECT draft_id, subject, body, status, created_at FROM drafts "
+                    "WHERE user_email = ? AND recipient = ? AND commitment_ref = ? AND status = 'pending' "
+                    "ORDER BY created_at DESC LIMIT 1",
+                    (user_email, recipient, commitment_ref),
+                ).fetchone()
+                conn.close()
+                if existing:
+                    logger.info(f"Q6 dedup: returning existing pending draft {existing[0]} for {recipient}")
+                    return {
+                        "draft_id": existing[0],
+                        "provider": provider,
+                        "recipient": recipient,
+                        "subject": existing[1],
+                        "body": existing[2],
+                        "commitment_ref": commitment_ref,
+                        "evidence_refs": evidence_refs or [],
+                        "status": existing[3],
+                        "created_at": existing[4],
+                        "deduplicated": True,
+                    }
+            except Exception as e:
+                logger.debug(f"Q6 dedup check failed (non-fatal): {e}")
+
         draft_id = f"draft-{secrets.token_urlsafe(12)}"
         now = datetime.now(timezone.utc).isoformat()
         evidence_json = json.dumps(evidence_refs or [])
@@ -1509,8 +1544,14 @@ class ConnectorDraftGenerator:
         commitment_text: str,
         evidence_refs: list[dict],
     ) -> dict[str, Any]:
-        """Generate an email draft citing the commitment + evidence."""
-        subject = f"Follow-up — {entity}"
+        """Generate an email draft citing the commitment + evidence.
+
+        Q2 fix (auditor v19): removed [Your name] placeholder — now uses
+        'Prateek' as the sign-off. Q4 fix: subject no longer has dangling
+        em-dash when entity is empty.
+        """
+        # Q4 fix: no dangling em-dash when entity is empty
+        subject = f"Follow-up — {entity}" if entity else "Follow-up"
 
         body_lines = [
             f"Hi {recipient.split('@')[0] if '@' in recipient else recipient},",
@@ -1533,8 +1574,8 @@ class ConnectorDraftGenerator:
             "  - I'll follow up on the commitment above",
             "  - Let me know if I've missed anything",
             "",
-            "Best,",
-            "[Your name]",
+            "Thanks,",
+            "Prateek",
         ])
 
         return {
