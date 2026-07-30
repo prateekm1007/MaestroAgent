@@ -1258,8 +1258,10 @@ async def sync_gmail(req: GmailSyncRequest, token: str = Depends(verify_token_de
         try:
             from maestro_personal_shell.gmail_connector import (
                 is_gmail_configured, fetch_real_gmail_messages,
+                GmailOAuthClient,
             )
             from maestro_personal_shell.connectors import ConnectorStore
+            import json as _json
             store = ConnectorStore()
             stored_token = store.get_stored_token(token, "gmail")
             if not stored_token:
@@ -1272,11 +1274,17 @@ async def sync_gmail(req: GmailSyncRequest, token: str = Depends(verify_token_de
                     status_code=503,
                     detail="Gmail OAuth not configured on the server. Set GMAIL_CLIENT_ID and GMAIL_CLIENT_SECRET."
                 )
-            # Server-side fetch using stored OAuth token
+            # fetch_real_gmail_messages signature:
+            #   (stored_token_json, oauth_client, days_back, max_messages) -> (messages, updated_token)
+            token_json = stored_token if isinstance(stored_token, str) else _json.dumps(stored_token)
+            oauth_client = GmailOAuthClient()
             max_msgs = min(max(req.max_messages, 1), 200)
-            messages = fetch_real_gmail_messages(
-                stored_token, max_results=max_msgs
+            messages, updated_token = fetch_real_gmail_messages(
+                token_json, oauth_client, max_messages=max_msgs
             )
+            # Persist refreshed token if it changed
+            if updated_token and updated_token != stored_token:
+                store.update_stored_token(token, "gmail", updated_token)
             logger.info("F-40: server-initiated Gmail pull fetched %d messages for %s", len(messages), token)
         except HTTPException:
             raise
@@ -1324,8 +1332,10 @@ async def sync_calendar(req: CalendarSyncRequest, token: str = Depends(verify_to
         try:
             from maestro_personal_shell.calendar_connector import (
                 is_calendar_configured, fetch_real_calendar_events,
+                CalendarOAuthClient,
             )
             from maestro_personal_shell.connectors import ConnectorStore
+            import json as _json
             store = ConnectorStore()
             stored_token = store.get_stored_token(token, "calendar")
             if not stored_token:
@@ -1338,8 +1348,17 @@ async def sync_calendar(req: CalendarSyncRequest, token: str = Depends(verify_to
                     status_code=503,
                     detail="Calendar OAuth not configured on the server."
                 )
+            # fetch_real_calendar_events signature:
+            #   (stored_token_json, oauth_client, max_events, days_ahead) -> (events, updated_token)
+            token_json = stored_token if isinstance(stored_token, str) else _json.dumps(stored_token)
+            oauth_client = CalendarOAuthClient()
             max_evts = min(max(req.max_events, 1), 200)
-            events = fetch_real_calendar_events(stored_token, max_results=max_evts)
+            events, updated_token = fetch_real_calendar_events(
+                token_json, oauth_client, max_events=max_evts
+            )
+            # Persist refreshed token if it changed
+            if updated_token and updated_token != stored_token:
+                store.update_stored_token(token, "calendar", updated_token)
             logger.info("F-39: server-initiated Calendar pull fetched %d events for %s", len(events), token)
         except HTTPException:
             raise
