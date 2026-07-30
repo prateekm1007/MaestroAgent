@@ -319,13 +319,19 @@ def upsert_ledger_entry(
             return dict(row) if row else None
         else:
             # Update fields that can change without a state transition.
+            # Phase 1.1 fix (auditor v16): ALWAYS update entity from the signal,
+            # not from the existing row. The prior code didn't update entity,
+            # so if a concurrent request had already inserted a row with a
+            # different entity (race condition), the wrong entity would persist.
+            # Binding entity from the signal ensures ledger.entity == signals.entity.
             conn.execute(
                 """UPDATE commitments_ledger
-                   SET commitment_type = ?, owner = ?, recipient = ?, action = ?,
+                   SET entity = ?, commitment_type = ?, owner = ?, recipient = ?, action = ?,
                        deadline_text = ?, deadline_datetime = ?, confidence = ?,
                        evidence_quote = ?, updated_at = ?
                    WHERE signal_id = ?""",
                 (
+                    signal.get("entity", existing["entity"]),  # Phase 1.1: always bind from signal
                     ctype,
                     classification.get("owner", existing["owner"]),
                     classification.get("recipient", existing["recipient"]),

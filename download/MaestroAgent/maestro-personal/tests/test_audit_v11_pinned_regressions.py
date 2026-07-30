@@ -1217,3 +1217,99 @@ def test_phase41_cross_user_isolation():
             os.environ.pop("MAESTRO_PERSONAL_DB", None)
         else:
             os.environ["MAESTRO_PERSONAL_DB"] = old_db
+
+
+# ---------------------------------------------------------------------------
+# Phase 1.1 (auditor v16): entity misattribution — ledger.entity must
+# always match the signal's entity, never a stale value from a prior insert
+# ---------------------------------------------------------------------------
+
+
+def test_phase11_ledger_entity_binds_from_signal():
+    """Phase 1.1 (auditor v16): When upsert_ledger_entry updates an existing
+    row, the entity field MUST be updated from the signal, not left as the
+    stale value from the original insert. This prevents the 1-in-8
+    misattribution that has persisted across four audits.
+    """
+    import tempfile
+    from maestro_personal_shell.api import init_db
+    from maestro_personal_shell.commitment_ledger import (
+        init_ledger_table, upsert_ledger_entry, get_ledger_entries,
+    )
+
+    db_path = tempfile.mktemp(suffix="_phase11_test.db")
+    old_db = os.environ.get("MAESTRO_PERSONAL_DB")
+    os.environ["MAESTRO_PERSONAL_DB"] = db_path
+    try:
+        init_db()
+        init_ledger_table(db_path)
+        user_email = "phase11-test@maestro.local"
+
+        # Step 1: Insert a ledger entry for "Alice"
+        sig1 = {
+            "signal_id": "p11-sig-001",
+            "entity": "Alice",
+            "text": "I will send the report to Alice.",
+        }
+        upsert_ledger_entry(
+            classification={
+                "is_commitment": True,
+                "commitment_type": "explicit",
+                "state": "active",
+                "owner": "user",
+                "action": sig1["text"],
+                "confidence": 0.85,
+                "evidence_quote": sig1["text"],
+            },
+            signal=sig1,
+            user_email=user_email,
+            db_path=db_path,
+        )
+
+        # Step 2: Call upsert again with the SAME signal_id but different entity
+        # This simulates the race condition where the entity resolver returns
+        # a different canonical entity
+        sig1_updated = {
+            "signal_id": "p11-sig-001",  # SAME signal_id
+            "entity": "Bob",  # DIFFERENT entity (should override)
+            "text": "I will send the report to Alice.",
+        }
+        upsert_ledger_entry(
+            classification={
+                "is_commitment": True,
+                "commitment_type": "explicit",
+                "state": "active",
+                "owner": "user",
+                "action": sig1_updated["text"],
+                "confidence": 0.85,
+                "evidence_quote": sig1_updated["text"],
+            },
+            signal=sig1_updated,
+            user_email=user_email,
+            db_path=db_path,
+        )
+
+        # Step 3: Verify the ledger entity matches the LATEST signal's entity
+        entries = get_ledger_entries(user_email, db_path, entity="Bob")
+        assert len(entries) > 0, (
+            "Phase 1.1: ledger entry for 'Bob' not found — entity was not updated "
+            "from the signal. This is the misattribution bug."
+        )
+        assert entries[0]["entity"] == "Bob", (
+            f"Phase 1.1: ledger.entity={entries[0]['entity']!r} but signal entity='Bob'. "
+            f"The entity must bind from the signal, not from the stale insert."
+        )
+
+        # Also verify there's no stale "Alice" entry
+        alice_entries = get_ledger_entries(user_email, db_path, entity="Alice")
+        assert len(alice_entries) == 0, (
+            f"Phase 1.1: stale 'Alice' entry still exists after update to 'Bob'. "
+            f"The UPDATE path should have overwritten the entity."
+        )
+    finally:
+        if os.path.exists(db_path):
+            os.unlink(db_path)
+        if old_db is None:
+            os.environ.pop("MAESTRO_PERSONAL_DB", None)
+        else:
+            os.environ["MAESTRO_PERSONAL_DB"] = old_db
