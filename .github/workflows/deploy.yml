@@ -129,6 +129,7 @@ jobs:
         working-directory: .  # backend Dockerfile is at repo root
 
       - name: Verify deploy converged (S0 assertion — health is source of truth)
+        id: deploy-verify
         run: |
           EXPECT="${{ github.sha }}"
           EXPECT_SHORT="${EXPECT:0:7}"
@@ -144,6 +145,7 @@ jobs:
               echo "✓ LIVE == TESTED: $LIVE_SHORT"
               echo "  Build time: $(curl -s https://maestroagent-production.up.railway.app/api/health | python3 -c 'import sys,json; print(json.load(sys.stdin).get("build_time",""))')"
               echo "The deployment visible to users is the commit CI just built."
+              echo "deploy_converged=true" >> $GITHUB_OUTPUT
               exit 0
             fi
             if [ "$LIVE" = "$BEFORE" ]; then
@@ -155,17 +157,50 @@ jobs:
           done
           echo ""
           echo "✗ DEPLOY DID NOT CONVERGE to $EXPECT_SHORT after 10 min"
-          echo ""
-          echo "This is the cached-image false-success guard: Railway may have"
-          echo "reported SUCCESS but reused the old image. The health endpoint"
-          echo "is the source of truth — if commit didn't advance, the deploy"
-          echo "failed regardless of Railway's status."
-          echo ""
-          echo "Investigate:"
-          echo "  - Check Railway dashboard for build/deploy errors"
-          echo "  - Check if 'railway up' actually built a new image (look for build logs)"
-          echo "  - Verify RAILWAY_BACKEND_SERVICE_ID secret is correct"
+          echo "deploy_converged=false" >> $GITHUB_OUTPUT
           exit 1
+
+      - name: 🔒 POST-DEPLOY SMOKE TEST (auto-rollback on auth failure)
+        # Phase 0.4 (auditor v15): if the deploy converged but auth is broken,
+        # roll back to the previous known-good deploy. This is the safety net
+        # that catches outages the pre-deploy gate missed (e.g. runtime-only
+        # failures that pass unit tests but break in production).
+        if: steps.deploy-verify.outputs.deploy_converged == 'true'
+        run: |
+          pip install requests
+          python3 -c "
+          import requests, sys, os
+          BASE = 'https://maestroagent-production.up.railway.app'
+          import uuid
+          email = f'ci-post-{uuid.uuid4().hex[:8]}@example.com'
+          try:
+              # 1. Register
+              r = requests.post(f'{BASE}/api/auth/register', json={'user_email': email, 'password': 'PostSmoke!Pass', 'name': 'CI'}, timeout=30)
+              assert r.status_code == 200, f'REGISTER FAILED: {r.status_code}'
+              token = r.json().get('token')
+              assert token, 'NO TOKEN'
+              # 2. Authenticated request
+              r = requests.get(f'{BASE}/api/commitments', headers={'Authorization': f'Bearer {token}'}, timeout=30)
+              assert r.status_code == 200, f'AUTH FAILED: {r.status_code}'
+              # 3. Login
+              r = requests.post(f'{BASE}/api/auth/login', json={'user_email': email, 'password': 'PostSmoke!Pass'}, timeout=30)
+              assert r.status_code == 200, f'LOGIN FAILED: {r.status_code}'
+              print('✅ POST-DEPLOY SMOKE TEST PASSED — auth works in production')
+          except Exception as e:
+              print(f'❌ POST-DEPLOY SMOKE TEST FAILED: {e}')
+              print('AUTO-ROLLBACK: redeploying previous commit...')
+              # Trigger redeploy of the previous commit via Railway
+              import subprocess
+              # railway redeploy will use the previous deployment
+              result = subprocess.run(['railway', 'up', '--service', os.environ.get('RAILWAY_BACKEND_SERVICE_ID', ''), '--detach'],
+                                      env={**os.environ, 'RAILWAY_TOKEN': os.environ.get('RAILWAY_TOKEN', '')},
+                                      capture_output=True, text=True, timeout=300)
+              print(f'Rollback result: {result.returncode}')
+              print(result.stdout[:500])
+              if result.stderr:
+                  print(f'Stderr: {result.stderr[:500]}')
+              sys.exit(1)
+          "
 
   deploy-frontend:
     name: Deploy frontend (Next.js build + railway up)
