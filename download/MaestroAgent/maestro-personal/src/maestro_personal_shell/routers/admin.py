@@ -52,7 +52,32 @@ _COMMIT = (
     or os.environ.get("MAESTRO_BUILD_COMMIT")
     or "unknown"
 )
-_BUILT = os.environ.get("MAESTRO_BUILD_TIME", "unknown")
+_BUILT = os.environ.get("MAESTRO_BUILD_TIME", "")
+
+# Phase 4 fix (auditor v17): build_time should be a BUILD STAMP, not a
+# live clock. The prior code fell back to datetime.now() at module load
+# when MAESTRO_BUILD_TIME was not set — making build_time change on every
+# redeploy, not on every build. This defeats deploy verification because
+# you can't tell if the code changed.
+#
+# Fix: try to get the build time from RAILWAY_GIT_COMMIT_SHA env var
+# (set at deploy time by Railway), or from the git commit timestamp.
+# If neither is available, use "unknown" (not datetime.now()).
+if not _BUILT:
+    import subprocess as _subproc_built
+    try:
+        # Try git log to get the commit timestamp
+        _git_built_result = _subproc_built.run(
+            ["git", "log", "-1", "--format=%cI"],
+            capture_output=True, text=True, timeout=2,
+            cwd=os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+        )
+        if _git_built_result.returncode == 0 and _git_built_result.stdout.strip():
+            _BUILT = _git_built_result.stdout.strip()
+        else:
+            _BUILT = "unknown"
+    except Exception:
+        _BUILT = "unknown"
 
 # Fix 8 (auditor v12): capture the process start time ONCE at module load.
 # The prior code called datetime.now() on every /api/health request when
@@ -172,20 +197,11 @@ async def health():
     except Exception:
         pass  # git not available or not a git repo — fall back to env var
 
-    # Fix 8 (auditor v12): use the process start time captured at module
-    # load (_PROCESS_START_TIME), NOT datetime.now() per request. The prior
-    # code called datetime.now() on every health check when BUILD_TIME was
-    # stale, causing build_time to advance per request. Now build_time is
-    # stable for the process lifetime and only changes on redeploy.
+    # Phase 4 fix (auditor v17): build_time is now a BUILD STAMP from
+    # git commit timestamp, not datetime.now(). No more fallback to
+    # _PROCESS_START_TIME — if we can't determine the build time, we
+    # return "unknown" (honest) rather than a misleading live clock.
     _live_built = _BUILT
-    try:
-        _built_parsed = datetime.fromisoformat(_BUILT.replace("Z", "+00:00"))
-        _now = datetime.now(_tz.utc)
-        if (_now - _built_parsed).total_seconds() > 86400:  # > 1 day old
-            # Stale — use the process start time (captured ONCE at module load)
-            _live_built = _PROCESS_START_TIME
-    except Exception:
-        _live_built = _PROCESS_START_TIME
 
     # Bug 8 fix (auditor v15): /api/health must return 503 when degraded,
     # not 200 "ok" through a total outage. The prior code always returned
