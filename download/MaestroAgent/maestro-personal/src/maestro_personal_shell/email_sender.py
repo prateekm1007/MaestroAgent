@@ -70,6 +70,16 @@ async def send_email_draft(
             status_code=400,
             detail="No recipient email address. Provide 'to' in the request body."
         )
+    # F-36 fix (auditor v18): recipient must be a real email address, not a
+    # person's name. The drafts table can store a name in `recipient` (when
+    # the draft was derived from a commitment whose entity is "Aurelio
+    # Bonvicini" with no email). Reject early so the user sees a clear
+    # error instead of a silently-malformed mailto link.
+    if "@" not in to_email or " " in to_email.strip():
+        raise HTTPException(
+            status_code=400,
+            detail=f"Recipient '{to_email}' is not a valid email address. Set a valid 'to' field in the request body."
+        )
     if not body:
         raise HTTPException(
             status_code=400,
@@ -124,18 +134,18 @@ async def _get_draft_by_id(draft_id: str, user_email: str) -> Optional[dict]:
         with sqlite3.connect(db_path) as conn:
             conn.row_factory = sqlite3.Row
             row = conn.execute(
-                "SELECT draft_id, user_email, commitment_id, to_email, subject, body, created_at "
-                "FROM email_drafts WHERE draft_id = ? AND user_email = ?",
+                "SELECT draft_id, user_email, provider, recipient, subject, body, commitment_ref, evidence_refs, status, created_at, resolved_at, sent_message_id "
+                "FROM drafts WHERE draft_id = ? AND user_email = ?",
                 (draft_id, user_email)
             ).fetchone()
             if not row:
                 return None
             return {
                 "draft_id": row["draft_id"],
-                "to": row["to_email"] or "",
+                "to": row["recipient"] or "",
                 "subject": row["subject"] or "",
                 "body": row["body"] or "",
-                "commitment_id": row["commitment_id"],
+                "commitment_id": row["commitment_ref"],
             }
     except Exception as e:
         # Table might not exist yet, or schema differs. Try in-memory fallback

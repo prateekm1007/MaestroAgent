@@ -610,7 +610,7 @@ export const maestroApi = {
   async resolveDraft(
     draftId: string,
     resolution: "approve" | "deny" | "use_draft",
-  ): Promise<{ data: { draft_id: string; status: string; sent_message_id?: string }; live: boolean }> {
+  ): Promise<{ data: { draft_id: string; status: string; sent_message_id?: string; send_error?: string }; live: boolean }> {
     // P0-Audit fix (2026-07-18): no fabricated fallback for mutating POST.
     // Was: fallback with fake sent_message_id=`msg-${Date.now()}` — fabricated
     // a plausible "sent" response when backend unreachable, caller discarded
@@ -619,7 +619,7 @@ export const maestroApi = {
     // try/catch (see Connectors.tsx handleResolve, Dashboard.tsx
     // handleResolveDraft, Commitments.tsx handleResolveDraft).
     const body = JSON.stringify({ resolution });
-    return maestroFetch<{ draft_id: string; status: string; sent_message_id?: string }>(
+    return maestroFetch<{ draft_id: string; status: string; sent_message_id?: string; send_error?: string }>(
       `/api/drafts/${draftId}/resolve`,
       { method: "POST", body },
       // no fallback — re-throws on failure

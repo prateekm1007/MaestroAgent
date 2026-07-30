@@ -46,6 +46,13 @@ logger = logging.getLogger(__name__)
 _DRAFT_CACHE = {}
 _CACHE_TTL_SECONDS = 300  # 5 minutes
 
+# No-Gemini rule (user directive 2026-07-30): Google Gemini / Gemma is
+# forbidden for any coding or LLM-calling task. The allowed engineers
+# are qwen/qwen3-coder (primary), deepseek/deepseek-chat-v3.1:free
+# (review), tencent/hunyuan-a13b-instruct (governance).
+_DRAFT_MODEL = os.environ.get("MAESTRO_DRAFT_MODEL", "qwen/qwen3-coder")
+_DRAFT_TEMPERATURE = float(os.environ.get("MAESTRO_DRAFT_MODEL_TEMPERATURE", "0.4"))
+
 # Regex patterns that indicate placeholder/template output
 _PLACEHOLDER_PATTERNS = [
     r'\[original email subject\]',
@@ -338,20 +345,22 @@ Write the email body now. Start with "Hi {entity},". Use ACTUAL newlines (press 
 
 
 async def _call_openrouter(prompt: str, api_key: str) -> str:
-    """Call OpenRouter API. P-DRAFT-LATENCY: reduced max_tokens to 400."""
+    """Call OpenRouter API. P-DRAFT-LATENCY: reduced max_tokens to 400.
+    No-Gemini: uses qwen/qwen3-coder by default (env-configurable).
+    """
     headers = {
         "Authorization": f"Bearer {api_key}",
         "Content-Type": "application/json"
     }
 
     data = {
-        "model": "google/gemma-3-12b-it",
+        "model": _DRAFT_MODEL,
         "messages": [{"role": "user", "content": prompt}],
-        "temperature": 0.7,
+        "temperature": _DRAFT_TEMPERATURE,
         "max_tokens": 400  # P-DRAFT-LATENCY: was 800, reduced to 400
     }
 
-    async with httpx.AsyncClient(timeout=30.0) as client:  # Reduced timeout
+    async with httpx.AsyncClient(timeout=25.0) as client:
         response = await client.post(
             "https://openrouter.ai/api/v1/chat/completions",
             headers=headers,

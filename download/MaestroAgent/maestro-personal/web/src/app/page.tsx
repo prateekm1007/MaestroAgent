@@ -67,18 +67,55 @@ export default function Home() {
   const handleResolveDraft = async (draft: DraftWithMeta, resolution: 'approve' | 'deny' | 'use_draft') => {
     setDraftResolving(true)
     try {
-      const result = await maestroApi.resolveDraft(draft.draft_id, resolution)
-      // F-35: check if the send failed
-      if (resolution === 'approve') {
-        const status = result?.status || ''
-        const sendError = result?.send_error || ''
-        if (status === 'send_failed' || sendError) {
-          // Don't close the modal — show the error
-          alert(`Send failed: ${sendError || 'Unknown error'}. Check that Gmail is connected.`)
-          return  // Keep modal open so user can retry or copy
-        }
+      const { data, live } = await maestroApi.resolveDraft(draft.draft_id, resolution)
+      if (!live) {
+        alert('Backend unreachable. Could not resolve draft.')
+        return
       }
-      setDraftForReview(null)
+
+      if (resolution === 'approve') {
+        const status = data?.status || ''
+        const sendError = data?.send_error || 'Unknown error'
+        const sentMessageId = data?.sent_message_id || ''
+
+        if (status === 'send_failed') {
+          // Do NOT close the modal
+          alert(`Send failed: ${sendError}. Check that Gmail is connected.`)
+          // Fallback: log mailto URL to console
+          if (draft.recipient) {
+            const subject = encodeURIComponent(draft.subject || '')
+            const body = encodeURIComponent(draft.body || '')
+            console.warn(
+              `Send failed. Use this mailto link: mailto:${draft.recipient}?subject=${subject}&body=${body}`
+            )
+          }
+          return  // Keep modal open so user can retry or copy
+        } else if (status === 'approved') {
+          if (sentMessageId) {
+            alert(`Sent. Message ID: ${sentMessageId}`)
+          } else {
+            alert('Sent (no message ID returned)')
+          }
+          setDraftForReview(null)
+        } else {
+          // Unexpected status
+          alert(`Unexpected response. Status: ${status}`)
+        }
+      } else if (resolution === 'use_draft') {
+        try {
+          await navigator.clipboard?.writeText(draft.body || '')
+        } catch { /* clipboard may be blocked */ }
+        if (draft.recipient) {
+          const subject = encodeURIComponent(draft.subject || '')
+          const body = encodeURIComponent(draft.body || '')
+          window.open(`mailto:${draft.recipient}?subject=${subject}&body=${body}`, '_blank')
+        }
+        alert('Opened in mail app. Body copied to clipboard as backup.')
+        setDraftForReview(null)
+      } else {
+        alert('Discarded')
+        setDraftForReview(null)
+      }
     } catch (e: any) {
       const msg = e?.message || String(e)
       alert(`Failed to resolve draft: ${msg}`)
@@ -681,16 +718,28 @@ function ConnectorsView({ onDraft, draftBusy }: { onDraft: (entity: string) => v
     try {
       const { data, live } = await maestroApi.generateAutoDraft('gmail', 'follow_up')
       if (live && data) {
-        setDraftForReview(data)
+        // F-35 hygiene: the prior code called setDraftForReview(data) which
+        // is not in scope in ConnectorsView. Prepend the new draft to the
+        // drafts list so it appears in the DraftCard list below.
+        setDrafts(prev => [data, ...(prev || [])])
         load()
       } else alert('Backend not connected.')
     } catch { alert('Draft generation failed. Make sure Gmail is connected.') }
     finally { setGeneratingDraft(false) }
   }
 
-  const handleResolveDraft = async (id: string, resolution: string) => {
-    try { await maestroApi.resolveDraft(id, resolution); load() }
-    catch { alert('Failed to resolve draft.') }
+  const handleResolveDraft = async (id: string, resolution: 'approve' | 'deny' | 'use_draft') => {
+    try {
+      const { data, live } = await maestroApi.resolveDraft(id, resolution)
+      if (!live) { alert('Backend unreachable.'); return }
+      // F-35: surface send_failed — do not silently reload.
+      if (resolution === 'approve' && data?.status === 'send_failed') {
+        alert(`Send failed: ${data?.send_error || 'Unknown error'}. Check that Gmail is connected.`)
+      } else if (resolution === 'approve' && data?.status === 'approved') {
+        alert(`Sent. Message ID: ${data?.sent_message_id || '(none)'}`)
+      }
+      load()
+    } catch { alert('Failed to resolve draft.') }
   }
 
   if (loading) return <div className="flex justify-center py-16"><Loader2 className="h-5 w-5 animate-spin text-gray-300" /></div>
@@ -741,7 +790,7 @@ function ConnectorsView({ onDraft, draftBusy }: { onDraft: (entity: string) => v
   )
 }
 
-function DraftCard({ draft, onResolve }: { draft: any; onResolve: (id: string, resolution: string) => void }) {
+function DraftCard({ draft, onResolve }: { draft: any; onResolve: (id: string, resolution: 'approve' | 'deny' | 'use_draft') => void }) {
   const [expanded, setExpanded] = useState(false)
   return (
     <div className="bg-white border border-gray-100 rounded-xl p-4">
@@ -755,8 +804,8 @@ function DraftCard({ draft, onResolve }: { draft: any; onResolve: (id: string, r
       </div>
       {expanded && <div className="mt-3 pl-3 border-l-2 border-gray-100"><p className="text-sm text-gray-600 whitespace-pre-wrap">{draft.body || '(empty)'}</p></div>}
       <div className="flex items-center gap-2 mt-3 pt-3 border-t border-gray-50">
-        <button onClick={() => onResolve(draft.draft_id, 'approved')} className="flex items-center gap-1 text-xs font-medium text-white bg-green-600 hover:bg-green-700 px-3 py-1.5 rounded-lg"><Send className="h-3 w-3" />Approve & Send</button>
-        <button onClick={() => onResolve(draft.draft_id, 'denied')} className="text-xs text-gray-400 hover:text-red-500 px-3 py-1.5">Deny</button>
+        <button onClick={() => onResolve(draft.draft_id, 'approve')} className="flex items-center gap-1 text-xs font-medium text-white bg-green-600 hover:bg-green-700 px-3 py-1.5 rounded-lg"><Send className="h-3 w-3" />Approve & Send</button>
+        <button onClick={() => onResolve(draft.draft_id, 'deny')} className="text-xs text-gray-400 hover:text-red-500 px-3 py-1.5">Deny</button>
         <button onClick={() => onResolve(draft.draft_id, 'use_draft')} className="text-xs text-gray-400 hover:text-gray-600 px-3 py-1.5">Use as draft</button>
       </div>
     </div>

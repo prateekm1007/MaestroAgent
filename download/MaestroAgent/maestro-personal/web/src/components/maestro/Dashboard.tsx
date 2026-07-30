@@ -162,11 +162,53 @@ export function Dashboard({
   async function handleResolveDraft(draft: DraftWithMeta, resolution: "approve" | "deny" | "use_draft") {
     setDraftResolving(true);
     try {
-      const { live } = await maestroApi.resolveDraft(draft.draft_id, resolution);
+      const { data, live } = await maestroApi.resolveDraft(draft.draft_id, resolution);
       if (!live) {
         toast({ title: "Backend unreachable", description: "Could not reach the API.", variant: "destructive" });
-      } else if (resolution === "approve") {
-        toast({ title: "Sent", description: "Your email has been sent." });
+        return;
+      }
+
+      if (resolution === "approve") {
+        const status = data?.status || "";
+        const sendError = data?.send_error || "Unknown error";
+        const sentMessageId = data?.sent_message_id || "";
+
+        if (status === "send_failed") {
+          // Do NOT close the modal
+          toast({
+            title: "Send failed",
+            description: sendError,
+            variant: "destructive",
+          });
+          // Fallback: log mailto URL to console
+          if (draft.recipient) {
+            const subject = encodeURIComponent(draft.subject || "");
+            const body = encodeURIComponent(draft.body || "");
+            console.warn(
+              `Send failed. Use this mailto link: mailto:${draft.recipient}?subject=${subject}&body=${body}`
+            );
+          }
+        } else if (status === "approved") {
+          if (sentMessageId) {
+            toast({
+              title: "Sent",
+              description: `Message ID: ${sentMessageId}`,
+            });
+          } else {
+            toast({
+              title: "Sent",
+              description: "Sent (no message ID returned)",
+            });
+          }
+          setDraftForReview(null);
+        } else {
+          // Unexpected status
+          toast({
+            title: "Unexpected response",
+            description: `Status: ${status}`,
+            variant: "destructive",
+          });
+        }
       } else if (resolution === "use_draft") {
         // Web equivalent of mobile's Share.share: copy body to clipboard + open mailto:
         try {
@@ -178,10 +220,11 @@ export function Dashboard({
           window.open(`mailto:${draft.recipient}?subject=${subject}&body=${body}`, "_blank");
         }
         toast({ title: "Opened in mail app", description: "Body copied to clipboard as backup." });
+        setDraftForReview(null);
       } else {
         toast({ title: "Discarded", description: "Draft denied." });
+        setDraftForReview(null);
       }
-      setDraftForReview(null);
     } catch (e: any) {
       toast({ title: "Failed", description: e?.message || "Unknown error", variant: "destructive" });
     } finally {
