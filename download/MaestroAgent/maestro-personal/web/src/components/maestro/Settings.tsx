@@ -57,7 +57,6 @@ import {
   maestroApi,
 } from "@/lib/maestro-api";
 import { useToast } from "@/hooks/use-toast";
-import { Connectors } from "@/components/maestro/Connectors";
 import { replayFeatureBubble, isFeatureBubbleDismissed } from "@/components/maestro/FeatureBubble";
 
 // P1-11: Notification prefs localStorage key (mobile uses AsyncStorage — same shape)
@@ -264,13 +263,11 @@ export function Settings() {
         </p>
       </div>
 
-      {/* Connectors — moved to TOP of More page (P-2026-07-18 fix).
-          Previously buried ~3500px down the page after 7 settings cards,
-          so users couldn't see Gmail/Calendar/Slack/etc. without scrolling
-          past LLM Status, Privacy, Calibration, Your Data, Insights,
-          Metrics, and Notifications. Connectors are the most-used feature
-          on this page — they should be the first thing the user sees. */}
-      <Connectors />
+      {/* Connectors section removed — Settings is now rendered INSIDE the
+          Connectors page (bottom section). Rendering <Connectors /> here
+          would create a circular import: Connectors.tsx imports Settings,
+          Settings.tsx imports Connectors. The merge happened in the
+          Connectors component itself. */}
 
       <div className="grid gap-6 lg:grid-cols-2">
         {/* LLM status */}
