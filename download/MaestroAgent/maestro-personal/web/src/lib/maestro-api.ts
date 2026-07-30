@@ -305,11 +305,7 @@ export type LoginResult = {
 
 export async function login(password: string, email?: string): Promise<LoginResult> {
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 6000);
-  // Fix: use 'bootstrap' as default user — demo data is seeded for this user.
-  // Was 'default@personal.local' which had 0 signals → empty whispers.
-  // If the user provides an email (via the Login form's email input),
-  // use that instead (for registered users).
+  const timeout = setTimeout(() => controller.abort(), 15000); // Phase 0.6: increased from 6s to 15s for production latency
   const user_email = email || "bootstrap";
   try {
     const res = await fetch(`/api/auth/login`, {
@@ -322,19 +318,31 @@ export async function login(password: string, email?: string): Promise<LoginResu
     if (res.ok) {
       const j = await res.json();
       setToken(j.token);
-      // P39: store user email so DemoBanner can detect demo account
       try { window.localStorage.setItem("maestro.user_email", user_email); } catch {}
       return { ok: true, demo: false, message: "Logged in." };
     }
-    return { ok: false, demo: false, message: "Invalid credentials." };
-  } catch {
-    return { ok: false, demo: false, message: "Cannot connect to backend. Is the API running on port 8766?" };
+    // Phase 0.6: parse the error body for a more specific message
+    const errorBody = await res.text().catch(() => "");
+    let msg = "Invalid email or password.";
+    try {
+      const parsed = JSON.parse(errorBody);
+      if (parsed.detail && typeof parsed.detail === "string") msg = parsed.detail;
+      else if (parsed.detail && typeof parsed.detail === "object" && parsed.detail.message) msg = parsed.detail.message;
+    } catch { /* use default */ }
+    return { ok: false, demo: false, message: msg };
+  } catch (err) {
+    clearTimeout(timeout);
+    // Phase 0.6: distinguish timeout from network error for better UX
+    if (err instanceof DOMException && err.name === "AbortError") {
+      return { ok: false, demo: false, message: "Login timed out. The server may be slow or unavailable. Please try again." };
+    }
+    return { ok: false, demo: false, message: "Cannot connect to the server. Please check your connection and try again." };
   }
 }
 
 export async function register(email: string, password: string): Promise<LoginResult> {
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 6000);
+  const timeout = setTimeout(() => controller.abort(), 15000); // Phase 0.6: increased from 6s to 15s
   try {
     const res = await fetch(`/api/auth/register`, {
       method: "POST",
@@ -349,9 +357,18 @@ export async function register(email: string, password: string): Promise<LoginRe
       return { ok: true, demo: false, message: "Account created." };
     }
     const errorBody = await res.text();
-    return { ok: false, demo: false, message: errorBody || "Registration failed." };
-  } catch {
-    return { ok: false, demo: false, message: "Cannot connect to backend. Is the API running on port 8766?" };
+    let msg = "Registration failed.";
+    try {
+      const parsed = JSON.parse(errorBody);
+      if (parsed.detail && typeof parsed.detail === "string") msg = parsed.detail;
+    } catch { /* use default */ }
+    return { ok: false, demo: false, message: msg || "Registration failed." };
+  } catch (err) {
+    clearTimeout(timeout);
+    if (err instanceof DOMException && err.name === "AbortError") {
+      return { ok: false, demo: false, message: "Registration timed out. The server may be slow or unavailable. Please try again." };
+    }
+    return { ok: false, demo: false, message: "Cannot connect to the server. Please check your connection and try again." };
   }
 }
 
