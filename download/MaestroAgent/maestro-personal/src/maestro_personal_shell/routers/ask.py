@@ -1979,7 +1979,10 @@ async def _ask_impl(request: Request, req: AskRequest, as_of: str | None = None,
                     init_ledger_table(_db_path)
                     _entries = get_ledger_entries(token, _db_path)
                     if _entries:
-                        active = [e for e in _entries if e.get("state") in ("active", "at_risk", "candidate")]
+                        # Bug 10 fix (auditor v17): Ask was counting active + at_risk + candidate
+                        # as "active" (98), while /api/commitments counted only truly active (83).
+                        # Fix: only count state='active' — matches CommitmentsSurface.
+                        active = [e for e in _entries if e.get("state") == "active"]
                         completed = [e for e in _entries if "completed" in e.get("state", "")]
                         cancelled = [e for e in _entries if e.get("state") == "cancelled"]
 
