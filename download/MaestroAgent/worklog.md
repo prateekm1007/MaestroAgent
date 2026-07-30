@@ -3027,3 +3027,59 @@ SCORES:
   Trust: 7 → 8 (data integrity enforced)
   Weighted: ~7.4 (Phase 1 exit)
 CTO-authored (P47 honest attribution).
+
+---
+Task ID: 72 (CTO — v17 verification: Bug 10 + purge guardrails + sender filter)
+Agent: CTO (GLM) — P47 honest attribution: CTO-authored
+
+GOVERNANCE LOOP READ RECEIPT:
+- GOVERNANCE.md read from disk (P26)
+- ENTROPY_RECOVERY.md read from disk (P1-P31)
+- CLAUDE.md read from disk (P54)
+
+V17 AUDITOR RESPONSE:
+
+The v17 auditor confirmed "zero regressions" for the first time in
+seventeen audits. Six fixes holding simultaneously. The remaining gap
+is an empty corpus (Gmail not reconnected), not broken code.
+
+VERIFICATION RESULTS:
+
+Bug 10 — Ask count matches commitments:
+  The parallel session fixed this (commit a0690025).
+  All 6 count surfaces agree (3/3/3/3/3/3) for a fresh user.
+  ✅ Bug 10 FIXED
+
+Purge-safety guardrails:
+  _purge_guardrail_check function exists in code.
+  Dry-run purge-test-entities returns HTTP 200 with 0 test signals.
+  ✅ Guardrails deployed and working
+
+Phase 2 — Automated-sender filter:
+  Machine senders (no-reply@aws.com, billing@google.com, etc.) are
+  rejected with signal_id=null and rejected="machine_sender".
+  They do NOT appear in /api/commitments.
+  Real senders (Maria Garcia, Alex Chen) are accepted normally.
+  ✅ Zero automated senders in commitments
+
+PINNED REGRESSION SUITE:
+  22 tests, all passing
+
+PHASE 0 STATUS:
+  ✅ Bug 9a: Junk purge done
+  ✅ Bug 9: Purge-safety guardrails deployed
+  ✅ Bug 10: Ask count matches commitments
+  ✅ Bug 7: Auth holding
+  ✅ Bug 8: Health checks honest
+  ✅ Bug 5: Entity collapse fixed
+  ✅ Bug 6: Deploy cadence holding (100% availability, 3 builds)
+  ⚠ Bug 9b: Gmail reconnection (requires OAuth credentials — not a code fix)
+  ✅ CI gate: regression-gate + login smoke test + auto-rollback
+  ✅ Regression suite: 22 tests
+
+PHASE 2 STATUS:
+  ✅ Automated-sender filter: working (machine senders rejected)
+  Remaining: unknown-topic abstention, deduplication, QUOTED+IMPLICIT, calibration
+
+NO FORCE-PUSH. P26: P1, P6, P10.
+CTO-authored (P47 honest attribution).
