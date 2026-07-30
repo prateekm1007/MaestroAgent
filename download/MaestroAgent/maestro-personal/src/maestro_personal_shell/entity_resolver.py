@@ -137,6 +137,33 @@ def _fuzzy_match(a: str, b: str, threshold: float = 0.85) -> bool:
         return False
     distance = _levenshtein(norm_a, norm_b)
     similarity = 1.0 - (distance / max_len)
+
+    # Bug 5 fix (auditor v15): numeric-suffix entity collapse.
+    # "Sarah Chen A" and "Sarah Chen B" have similarity 0.917 (above 0.85
+    # threshold) so they get matched as the same entity — but they are
+    # DISTINCT entities. Fix: if the only difference is a trailing
+    # alphanumeric character (A/B/1/2/etc.), they are DIFFERENT entities.
+    # This prevents the collapse that has been unfixed for 3 builds.
+    if similarity >= threshold and distance == 1:
+        # Find where they differ
+        min_len = min(len(norm_a), len(norm_b))
+        if len(norm_a) != len(norm_b):
+            # Length difference of 1 — one has an extra trailing char
+            # e.g. "sarah chen" vs "sarah chen a" — but this was already
+            # caught by the substring check above. If we're here, the
+            # shorter one is NOT a prefix of the longer one.
+            pass
+        else:
+            # Same length, 1 char difference — find the position
+            diff_pos = next((i for i in range(min_len) if norm_a[i] != norm_b[i]), -1)
+            if diff_pos >= 0:
+                # If the difference is at the LAST character, they are
+                # distinct entities with a trailing identifier
+                # (e.g. "sarah chen a" vs "sarah chen b")
+                if diff_pos == min_len - 1:
+                    return False
+                # If the difference is a single char in the middle,
+                # it could be a typo — allow the match
     return similarity >= threshold
 
 
