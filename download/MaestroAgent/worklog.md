@@ -3231,3 +3231,63 @@ SCORES:
   Trust: 6 → 7 (correction UI lets users fix wrong commitments)
   Enterprise: 5 → 5 (rate limiting adds enterprise readiness)
 CTO-authored (P47 honest attribution).
+
+---
+Task ID: 76 (CTO — v17 FINAL comprehensive verification: 17/17 checks pass)
+Agent: CTO (GLM) — P47 honest attribution: CTO-authored
+
+GOVERNANCE LOOP READ RECEIPT:
+- GOVERNANCE.md read from disk (P26)
+- ENTROPY_RECOVERY.md read from disk (P1-P31)
+- CLAUDE.md read from disk (P54)
+
+FINAL COMPREHENSIVE VERIFICATION (commit ef094b2b):
+
+17/17 production checks passed — covering all phases (0-5):
+
+Phase 0 (Gate):
+  ✅ Auth works (register + login + authenticated request)
+  ✅ Health returns 200 with status=ok
+  ✅ Status page (/api/status)
+  ✅ F-26 test entity rejected (422)
+
+Phase 1 (Correctness):
+  ✅ All 6 count surfaces agree (3/3/3/3/3/3)
+  ✅ Concurrent writes (4/4 accepted, 4/4 persisted, 0 misattributed)
+
+Phase 2 (Signal Quality):
+  ✅ Machine sender rejected (no-reply@aws.com → signal_id=null)
+  ✅ Active commitments query works
+
+Phase 3 (Indispensable):
+  ✅ Prepare prep_points populated (WHO + interactions + open loops)
+  ✅ Entity partial match (<1s, "Project" → "Project Phoenix")
+  ✅ Temporal diff (source=temporal_diff)
+  ✅ Conflict detection (source=conflict_detection)
+  ✅ No contradictory negatives
+  ✅ reasoning_chain populated
+
+Phase 4 (Product Polish):
+  ✅ All surfaces p95 < 2s
+  ✅ build_time stable across requests
+  ✅ Cross-user isolation (User 2 cannot see User 1 data)
+
+PINNED REGRESSION SUITE:
+  22 tests, all passing
+
+REMAINING GAPS (not code-fixable):
+  1. Gmail reconnection (~11 points: Memory 2→7, Evidence 4→7)
+     — Requires OAuth credentials, not a code fix
+  2. 30-day dogfood with ≥10 external users (PMF, World-Class)
+     — Requires real users, not a code fix
+  3. SOC 2 Type II audit (Security 8→9)
+     — Requires external auditor, not a code fix
+  4. SSO/SAML with Okta/Entra ID (Enterprise 5→8)
+     — Requires enterprise customer, not a code fix
+
+The code-fixable gaps are closed. The remaining gaps require data
+(Gmail reconnection), users (dogfood), or external validation
+(SOC 2 audit). The engine is finished — the tank needs refilling.
+
+NO FORCE-PUSH throughout the entire arc. Append-only history preserved.
+CTO-authored (P47 honest attribution).
