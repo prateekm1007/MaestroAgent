@@ -1974,31 +1974,40 @@ async def _ask_impl(request: Request, req: AskRequest, as_of: str | None = None,
             if _is_commitment_broad:
                 # Try ledger first
                 try:
-                    from maestro_personal_shell.commitment_ledger import get_ledger_entries, init_ledger_table
-                    _db_path = default_sqlite_path()
-                    init_ledger_table(_db_path)
-                    _entries = get_ledger_entries(token, _db_path)
-                    if _entries:
-                        # Bug 10 fix (auditor v17): Ask was counting active + at_risk + candidate
-                        # as "active" (98), while /api/commitments counted only truly active (83).
-                        # Fix: only count state='active' — matches CommitmentsSurface.
-                        active = [e for e in _entries if e.get("state") == "active"]
-                        completed = [e for e in _entries if "completed" in e.get("state", "")]
-                        cancelled = [e for e in _entries if e.get("state") == "cancelled"]
+                    # Bug 10 fix (auditor v17): use CommitmentsSurface (the SAME
+                    # path as /api/commitments) instead of get_ledger_entries
+                    # which counts raw DB rows. This ensures all count surfaces
+                    # agree. The prior code used get_ledger_entries which returned
+                    # 94 active rows (including dismissed/non-commitment entries),
+                    # while /api/commitments returned 83 (filtered).
+                    from maestro_personal_shell.api import build_shell
+                    from maestro_personal_shell.surfaces.commitments import CommitmentsSurface
+                    from maestro_personal_shell.api import _filter_completed_commitments, _filter_dismissed_commitments, _filter_non_commitments_by_classification
+                    _shell = build_shell(user_email=token)
+                    _commit_surface = CommitmentsSurface(shell=_shell)
+                    _all_commitments = _commit_surface.get_active_commitments()
+                    _all_commitments = _filter_completed_commitments(_all_commitments, _shell.oem_state.signals)
+                    _all_commitments = _filter_dismissed_commitments(_all_commitments, _shell.oem_state.signals)
+                    _all_commitments = _filter_non_commitments_by_classification(_all_commitments, _shell.oem_state.signals)
+
+                    if _all_commitments:
+                        active = _all_commitments
+                        completed = []  # CommitmentsSurface only returns active
+                        cancelled = []
 
                         ledger_lines = []
                         ledger_evidence = []
                         if active:
                             ledger_lines.append(f"Active commitments ({len(active)}):")
                             for e in active[:5]:
-                                action = e.get("action", "") or e.get("evidence_quote", "")[:80]
+                                action = e.get("text", "") or e.get("action", "") or ""
                                 ledger_lines.append(f"  • {e.get('entity', '?')}: {action[:80]}")
                                 ledger_evidence.append({
-                                    "text": e.get("evidence_quote", ""),
+                                    "text": e.get("text", ""),
                                     "entity": e.get("entity", ""),
-                                    "timestamp": e.get("updated_at", ""),
+                                    "timestamp": str(e.get("timestamp", "")),
                                     "signal_id": e.get("signal_id", ""),
-                                    "source_type": "ledger",
+                                    "source_type": "commitment",
                                 })
                         if completed:
                             ledger_lines.append(f"\nCompleted ({len(completed)}):")
