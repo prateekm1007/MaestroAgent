@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { cn } from '@/lib/utils'
-import { Sun, Search, Calendar, Zap, Unplug, Mail, MessageSquare, FileText, RefreshCw, CheckCircle2, Plus, Send, Loader2, LogOut, Sparkles, PenLine, Settings } from 'lucide-react'
+import { Sun, Search, Calendar, Zap, Unplug, Mail, MessageSquare, FileText, RefreshCw, CheckCircle2, Plus, Send, Loader2, LogOut, Sparkles, PenLine } from 'lucide-react'
 import { maestroApi, getToken, setToken, clearToken } from '@/lib/maestro-api'
 import { Login } from '@/components/maestro/Login'
 import { DraftApprovalModal, type DraftWithMeta } from '@/components/maestro/DraftApprovalModal'
@@ -14,7 +14,6 @@ import { WhisperView } from '@/components/maestro/WhisperView'
 import { CommitmentsView } from '@/components/maestro/CommitmentsView'
 import { CorrectionButton } from '@/components/maestro/CorrectionButton'
 import { Connectors } from '@/components/maestro/Connectors'
-import { More } from '@/components/maestro/More'
 
 function formatRelativeTime(iso: string): string {
   if (!iso) return 'never';
@@ -31,7 +30,7 @@ function formatRelativeTime(iso: string): string {
   return new Date(iso).toLocaleDateString();
 }
 
-type Tab = 'today' | 'ask' | 'commitments' | 'whisper' | 'connectors' | 'settings'
+type Tab = 'today' | 'ask' | 'commitments' | 'whisper' | 'connectors'
 
 const API_BASE = typeof window !== 'undefined'
   ? (window.location.origin === 'https://web-production-d5c26.up.railway.app'
@@ -159,7 +158,6 @@ export default function Home() {
     { id: 'commitments', label: 'Commitments', icon: <Calendar className="h-4 w-4" /> },
     { id: 'whisper', label: 'Whisper', icon: <Zap className="h-4 w-4" /> },
     { id: 'connectors', label: 'Connectors', icon: <Unplug className="h-4 w-4" /> },
-    { id: 'settings', label: 'Settings', icon: <Settings className="h-4 w-4" /> },
   ]
 
   const handleLogout = () => {
@@ -217,7 +215,6 @@ export default function Home() {
               {tab === 'commitments' && <CommitmentsViewReal onDraft={handleGenerateDraft} draftBusy={draftBusy} />}
               {tab === 'whisper' && <WhisperViewReal onDraft={handleGenerateDraft} draftBusy={draftBusy} />}
               {tab === 'connectors' && <Connectors />}
-              {tab === 'settings' && <More />}
             </motion.div>
           </AnimatePresence>
         </main>

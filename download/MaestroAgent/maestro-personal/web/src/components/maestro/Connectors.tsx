@@ -37,6 +37,7 @@ import {
   DraftApprovalModal,
   type DraftWithMeta,
 } from "@/components/maestro/DraftApprovalModal";
+import { Settings } from "@/components/maestro/Settings";
 
 function formatRelativeTime(iso: string): string {
   if (!iso) return 'never';
@@ -376,27 +377,6 @@ export function Connectors() {
         </p>
       </div>
 
-      {/* Pending Drafts — the approval flow */}
-      {drafts.length > 0 && (
-        <Card className="border-primary/40 border-l-4">
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-2 mb-3">
-              <Sparkles className="size-4 text-primary" />
-              <h3 className="text-sm font-semibold">Pending Drafts Awaiting Your Approval</h3>
-              <Badge variant="secondary" className="text-xs">{drafts.length}</Badge>
-            </div>
-            <p className="text-xs text-muted-foreground mb-4">
-              Maestro drafted these based on your commitments. Review each one, then approve to send, discard, or use as a draft you can edit.
-            </p>
-            <div className="space-y-2">
-              {drafts.map((draft) => (
-                <DraftRow key={draft.draft_id} draft={draft} onReview={() => setSelectedDraft(draft)} />
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
       {/* Work Connectors */}
       <div>
         <h3 className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground mb-3">Work Tools</h3>
@@ -566,6 +546,13 @@ export function Connectors() {
         onResolve={handleResolve}
         resolving={resolving}
       />
+
+      {/* Settings — merged into Connectors page per user request.
+          Shows real-time LLM status, privacy mode, calibration, metrics,
+          notifications, data export, and insights. */}
+      <div className="mt-8 pt-6 border-t border-border/60">
+        <Settings />
+      </div>
     </div>
   );
 }
