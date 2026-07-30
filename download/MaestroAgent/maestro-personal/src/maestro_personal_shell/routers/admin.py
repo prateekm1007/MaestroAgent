@@ -1712,3 +1712,86 @@ async def purge_test_entities(token: str = "", dry_run: bool = False):
         }
     finally:
         conn.close()
+
+
+# ---------------------------------------------------------------------------
+# Phase 1.1: Purge numeric-suffix test entities (race test artifacts)
+# (auditor v15: "8 cross-entity bleeds — same error, different code path")
+# ---------------------------------------------------------------------------
+
+@router.get("/api/admin/purge-numeric-suffix-entities")
+async def purge_numeric_suffix_entities(token: str = "", dry_run: bool = False):
+    """Purge signals with entity names ending in numeric suffixes.
+
+    These are test artifacts from the race test (A3 verification) that
+    have names like "Fabian Ashworth 1785371525" — real-sounding names
+    with 10-digit timestamps appended. They cause cross-entity bleed
+    in Prepare because the ledger has misattributed entries from
+    concurrent write races.
+
+    Phase 1.1 (auditor v15): "Eliminate shared mutable state — 0 Prepare
+    cross-entity bleeds."
+    """
+    import re
+    from fastapi import HTTPException
+    from maestro_personal_shell.db_util import get_db_conn, default_sqlite_path
+
+    admin_token = os.environ.get("MAESTRO_PERSONAL_TOKEN", "")
+    if not admin_token or token != admin_token:
+        raise HTTPException(status_code=403, detail="Invalid admin token")
+
+    db_path = default_sqlite_path()
+    conn = get_db_conn(db_path)
+    try:
+        conn.row_factory = sqlite3.Row
+    except Exception:
+        pass
+
+    # Pattern: entity name ending in 7+ digits (timestamp suffix from race test)
+    _NUMERIC_SUFFIX_RE = re.compile(r'\d{7,}$')
+
+    try:
+        all_rows = conn.execute(
+            "SELECT signal_id, entity FROM signals"
+        ).fetchall()
+
+        numeric_entities = []
+        for row in all_rows:
+            entity = row["entity"] if hasattr(row, "keys") else row[1]
+            if entity and _NUMERIC_SUFFIX_RE.search(entity.strip()):
+                numeric_entities.append({
+                    "signal_id": row["signal_id"] if hasattr(row, "keys") else row[0],
+                    "entity": entity,
+                })
+
+        total_before_row = conn.execute("SELECT COUNT(*) AS cnt FROM signals").fetchone()
+        total_before = total_before_row["cnt"] if hasattr(total_before_row, "keys") else total_before_row[0]
+
+        if not dry_run and numeric_entities:
+            signal_ids = [s["signal_id"] for s in numeric_entities]
+            placeholders = ",".join(["%s" if _is_postgres_env() else "?" for _ in signal_ids])
+            conn.execute(f"DELETE FROM signals WHERE signal_id IN ({placeholders})", signal_ids)
+            try:
+                conn.execute(f"DELETE FROM commitments_ledger WHERE signal_id IN ({placeholders})", signal_ids)
+            except Exception:
+                pass
+            try:
+                conn.execute(f"DELETE FROM commitment_events WHERE source_signal_id IN ({placeholders})", signal_ids)
+            except Exception:
+                pass
+            conn.commit()
+
+        total_after_row = conn.execute("SELECT COUNT(*) AS cnt FROM signals").fetchone()
+        total_after = total_after_row["cnt"] if hasattr(total_after_row, "keys") else total_after_row[0]
+
+        return {
+            "action": "dry_run" if dry_run else "purge_numeric_suffix_entities",
+            "numeric_suffix_signals_found": len(numeric_entities),
+            "numeric_suffix_signals_deleted": 0 if dry_run else len(numeric_entities),
+            "total_signals_before": total_before,
+            "total_signals_after": total_after,
+            "sample_entities": list(set(s["entity"] for s in numeric_entities[:20])),
+            "governance": "scoped to entities ending in 7+ digits (race test artifacts)",
+        }
+    finally:
+        conn.close()
