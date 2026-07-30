@@ -59,11 +59,13 @@ TEST_ENTITY_PATTERN = re.compile(
     r'|Ent[_\s][a-zA-Z0-9_]+'             # Ent_Zeta, Ent_Yankee, etc.
     r'|Rap[_\s][a-zA-Z0-9_]+'             # Rap_Alpha, Rap_Bravo, etc.
     r'|Z1[_\s][a-zA-Z0-9_]+'              # Z1_ probe entities
-    r'|W[_]?M[_\s][a-zA-Z0-9_]+'          # W_M* probe entities
+    r'|Z2[_\s]?[a-zA-Z0-9_]*'              # Z2_R1, Z2 probe entities
+    r'|W_M[a-zA-Z0-9_]*'                  # W_M1, W_M2, etc.
     r'|WCTRL[_\s]?[a-zA-Z0-9_]*'          # WCTRL_1
     r'|SEQ[_\s]?[a-zA-Z0-9_]*\d*'          # SEQ_1, SEQ_2, SEQ_3
     r'|Acme[_\s]?[a-zA-Z0-9_]*\d*'         # Acme_1
     r'|NULLPROBE[_\s][a-zA-Z0-9_]*'       # NULLPROBE_1
+    r'|NP2[_\s]?[a-zA-Z0-9_]*'            # NP2_1, NP2_2
     r'|A3[a-zA-Z][a-zA-Z\s]*'             # A3Alice, A3Bob, etc.
     r'|.*Ashworth\s+\d{5,}'                # *Ashworth 1785393308 (race test, anywhere in name)
     r'|.*Thorne\s+\d{5,}'                  # *Thorne 1785394619 (race test, anywhere in name)
