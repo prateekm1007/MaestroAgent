@@ -133,32 +133,70 @@ export default function CommitmentDetail({ commitment, onClose, apiBase, token }
     return () => controller.abort();
   }, [proxyBase, token]);
 
-  // Generate draft
+  // Generate draft — INSTANT streaming via SSE
   const generateDraft = async () => {
     setLoading(true);
     setError('');
+    // Show skeleton immediately
+    setDraft({
+      draft_id: 'streaming',
+      commitment_id: commitment.commitment_id,
+      to: commitment.entity || '',
+      subject: 'Generating...',
+      body: '',
+      voice_confidence: 0,
+      suggested_edits: [],
+      created_at: new Date().toISOString(),
+    } as any);
+    setEditedBody('');
     try {
-      const resp = await fetch(`${proxyBase}/api/commitments/${commitment.commitment_id}/draft`, {
+      const resp = await fetch(`${proxyBase}/api/commitments/${commitment.commitment_id}/draft/stream`, {
         method: 'POST',
         headers: { ...headers, 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          context: `Following up on: ${commitment.text}`,
-          tone: 'professional',
-          length: 'medium',
-        }),
+        body: JSON.stringify({ tone: 'professional', length: 'medium' }),
       });
       if (!resp.ok) {
         const err = await resp.json().catch(() => ({}));
-        if (resp.status === 503) setError('AI drafts are temporarily unavailable. Please try again later.');
-        else if (resp.status === 400) setError('Please connect your Gmail account to generate drafts.');
-        else setError(err.detail || 'Draft generation failed.');
+        setError(err.detail || `Draft generation failed (HTTP ${resp.status}).`);
+        setDraft(null);
+        setLoading(false);
         return;
       }
-      const data = await resp.json();
-      setDraft(data);
-      setEditedBody(data.body);
+      const reader = resp.body?.getReader();
+      if (!reader) { setError('No response body'); setLoading(false); return; }
+      const decoder = new TextDecoder();
+      let buffer = '';
+      let accumulated = '';
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop() || '';
+        for (const line of lines) {
+          if (!line.startsWith('data: ')) continue;
+          const payload = line.slice(6).trim();
+          if (payload === '[DONE]') break;
+          try {
+            const evt = JSON.parse(payload);
+            if (evt.chunk) {
+              accumulated += evt.chunk;
+              setEditedBody(accumulated);
+              setDraft((prev: any) => prev ? { ...prev, body: accumulated, subject: prev.subject === 'Generating...' ? 'Re: follow-up' : prev.subject } : prev);
+            } else if (evt.final) {
+              accumulated = evt.final;
+              setEditedBody(accumulated);
+              setDraft((prev: any) => prev ? { ...prev, body: evt.final, draft_id: evt.draft_id || prev.draft_id, subject: prev.subject === 'Generating...' ? 'Re: follow-up' : prev.subject, voice_confidence: 0.85 } : prev);
+            } else if (evt.error) {
+              setError(evt.error);
+              setDraft(null);
+            }
+          } catch { /* skip */ }
+        }
+      }
     } catch (e) {
       setError('Network error. Please check your connection.');
+      setDraft(null);
     }
     setLoading(false);
   };

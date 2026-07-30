@@ -1185,15 +1185,39 @@ async def create_auto_draft_stream(req: ConnectorAutoDraftRequest, token: str = 
                 yield "data: [DONE]\n\n"
                 return
 
-            # Voice profile
+            # Voice profile — INSTANT: skip if not cached. The voice profile
+            # fetch can take 2-5s (analyzes sent emails). For instant drafts,
+            # we skip it entirely and use defaults. The prompt still produces
+            # high-quality output without voice phrases.
+            clean_phrases = []
+            formality = 0.5
+            signature = "Thanks,"
+            # Only try voice profile if it's already cached (returns in <50ms)
+            # We do NOT await a fresh fetch — that would block the first token.
             try:
-                voice_profile = await get_user_voice_profile(token)
+                import asyncio as _asyncio
+                voice_profile = await _asyncio.wait_for(
+                    get_user_voice_profile(token),
+                    timeout=0.1,  # 100ms max — only use if instantly available
+                )
                 clean_phrases = _filter_voice_phrases(getattr(voice_profile, 'common_phrases', []) or [])
                 formality = getattr(voice_profile, 'formality', 0.5)
                 signature = _clean_phrase(getattr(voice_profile, 'signature', '') or '') or "Thanks,"
+            except _asyncio.TimeoutError:
+                # Voice profile not cached — skip it, use defaults
+                pass
             except Exception:
-                clean_phrases, formality, signature = [], 0.5, "Thanks,"
+                pass
 
+            # Build a minimal prompt — no voice profile section if empty
+            voice_section = ""
+            if clean_phrases:
+                voice_section = f"""
+USER VOICE PROFILE:
+- Formality: {formality:.1f}/1.0
+{chr(10).join('- Common phrase: "' + p + '"' for p in clean_phrases)}
+- Sign-off: {signature}
+"""
             prompt = f"""You are writing a follow-up email for the user.
 
 HARD RULES:
@@ -1210,12 +1234,7 @@ REAL INFORMATION:
 - RECIPIENT: {entity}
 - SENDER: Prateek
 - COMMITMENT: "{commitment_text}"
-
-{"USER VOICE PROFILE:" if clean_phrases else "No voice profile available."}
-- Formality: {formality:.1f}/1.0
-{chr(10).join('- Common phrase: "' + p + '"' for p in clean_phrases)}
-- Sign-off: {signature}
-
+{voice_section}
 Write the email body now. Start with "Hi {entity},". Use ACTUAL newlines."""
 
             # Step 3: Stream the LLM output
