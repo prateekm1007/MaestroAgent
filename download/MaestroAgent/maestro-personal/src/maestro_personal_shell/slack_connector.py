@@ -384,6 +384,12 @@ class SlackIngester:
                     "signal_type": "commitment_made",
                     "timestamp": timestamp,
                     "source": "slack:dm",
+                    # C4 fix (auditor v18): set is_commitment=True so the
+                    # signal is classified correctly when ingested. Without
+                    # this, is_commitment is null and the signal may be
+                    # surfaced to users without classification.
+                    "is_commitment": True,
+                    "commitment_type": "explicit",
                 })
         return commitments[:5]  # max 5 commitments per message
 

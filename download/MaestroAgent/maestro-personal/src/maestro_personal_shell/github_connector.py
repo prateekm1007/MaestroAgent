@@ -319,6 +319,9 @@ class GitHubIngester:
                         "timestamp": timestamp,
                         "source": "github:issue",
                         "metadata": {"repo": repo, "issue_number": issue_number, "url": source_url},
+                        # C4 fix (auditor v18): set is_commitment=True
+                        "is_commitment": True,
+                        "commitment_type": "explicit",
                     })
 
         # Action item detection (reported_statement)
