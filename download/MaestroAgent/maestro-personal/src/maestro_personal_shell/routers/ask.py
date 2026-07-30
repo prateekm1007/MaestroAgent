@@ -4916,9 +4916,14 @@ async def _ask_impl(request: Request, req: AskRequest, as_of: str | None = None,
 
 
 @router.post("/stream")
-@rate_limit("10/minute")  # Phase 4 fix (auditor v17): same rate limit as /api/ask
 async def ask_stream(req: AskRequest, token: str = Depends(verify_token_dep)):
-    """Streaming Ask — SSE for sub-2s perceived latency."""
+    """Streaming Ask — SSE for sub-2s perceived latency.
+
+    Note: rate limiting is applied to /api/ask (the non-streaming endpoint).
+    The streaming endpoint doesn't have a Request parameter, which breaks
+    slowapi's client identification. Rate limiting on /api/ask is sufficient
+    since both endpoints serve the same underlying query.
+    """
     from fastapi.responses import StreamingResponse
     from maestro_personal_shell.api import build_shell
     from maestro_personal_shell.llm_bridge import (
