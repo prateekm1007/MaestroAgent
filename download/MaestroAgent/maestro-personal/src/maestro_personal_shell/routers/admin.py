@@ -1826,7 +1826,10 @@ async def purge_race_test_entities(token: str = "", dry_run: bool = False):
     _RACE_TEST_PATTERNS = [
         re.compile(r'3B87', re.IGNORECASE),
         re.compile(r'A3b', re.IGNORECASE),
+        re.compile(r'^A3', re.IGNORECASE),  # A3Alice, A3Charlie, etc.
         re.compile(r'^B\d+[A-Z]\d+', re.IGNORECASE),  # B5039B1 pattern in entity
+        re.compile(r'\d{3,}'),  # 3+ consecutive digits (1500, 1785371525)
+        re.compile(r'\b[A-Z0-9]{4,}\b', re.IGNORECASE),  # hex codes like 3ECF9
     ]
 
     try:
