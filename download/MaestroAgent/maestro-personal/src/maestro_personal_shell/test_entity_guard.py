@@ -69,6 +69,16 @@ TEST_ENTITY_PATTERN = re.compile(
     r'|A3[a-zA-Z][a-zA-Z\s]*'             # A3Alice, A3Bob, etc.
     r'|.*Ashworth\s+\d{5,}'                # *Ashworth 1785393308 (race test, anywhere in name)
     r'|.*Thorne\s+\d{5,}'                  # *Thorne 1785394619 (race test, anywhere in name)
+    r'|TestProbe[_\s][a-zA-Z0-9_]*'       # TestProbe_x
+    r'|AuditK[_\s][a-zA-Z0-9_]*'          # AuditK_Test
+    r'|Aldon\d{3,}.*'                     # Aldon0562 Peak
+    r'|Bront\d{3,}.*'                     # Bront0562 Peak
+    r'|Sarah\s+Chen\d{3,}.*'               # Sarah Chen0562 A
+    r'|Wells\d{5,}'                       # Wells17853940451
+    r'|Smith\d{5,}'                       # Smith1785394045
+    r'|Quill\s+Sterling\s+\d{5,}'         # Quill Sterling 17853941431
+    r'|Marlow\s+Finch\s+\d{5,}'           # Marlow Finch 17853943881
+    r'|Phrase\d{5,}.*'                    # Phrase1785394489_1
     r')$'
 )
 
