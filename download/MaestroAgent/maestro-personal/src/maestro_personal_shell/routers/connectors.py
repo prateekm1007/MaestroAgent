@@ -1127,14 +1127,15 @@ async def create_auto_draft_stream(req: ConnectorAutoDraftRequest, token: str = 
     import json as _json
 
     async def event_stream():
-        from maestro_personal_shell.connectors import ConnectorStore, ConnectorDraftGenerator
-        from maestro_personal_shell.api import build_shell
+        # Imports must be inside the generator (FastAPI requirement) but
+        # keep them minimal. Do NOT import build_shell — it triggers loading
+        # the entire 2200-line api.py module. We query the DB directly.
+        from maestro_personal_shell.connectors import ConnectorStore
         from maestro_personal_shell.draft_generator import (
             _call_openrouter_stream, _clean_signature, _ban_placeholders,
-            _filter_voice_phrases, _clean_phrase, _has_placeholders,
+            _filter_voice_phrases, _clean_phrase,
             _deterministic_fallback_body,
         )
-        from maestro_personal_shell.voice_analyzer import get_user_voice_profile
         import re as _re
         import os as _os
 
@@ -1235,29 +1236,13 @@ async def create_auto_draft_stream(req: ConnectorAutoDraftRequest, token: str = 
                 yield "data: [DONE]\n\n"
                 return
 
-            # Voice profile — INSTANT: skip if not cached. The voice profile
-            # fetch can take 2-5s (analyzes sent emails). For instant drafts,
-            # we skip it entirely and use defaults. The prompt still produces
-            # high-quality output without voice phrases.
+            # Voice profile — INSTANT: skip entirely for streaming. The voice
+            # profile fetch analyzes sent emails and takes 2-5s. For instant
+            # drafts, we use defaults. The prompt still produces high-quality
+            # output without voice phrases.
             clean_phrases = []
             formality = 0.5
             signature = "Thanks,"
-            # Only try voice profile if it's already cached (returns in <50ms)
-            # We do NOT await a fresh fetch — that would block the first token.
-            try:
-                import asyncio as _asyncio
-                voice_profile = await _asyncio.wait_for(
-                    get_user_voice_profile(token),
-                    timeout=0.1,  # 100ms max — only use if instantly available
-                )
-                clean_phrases = _filter_voice_phrases(getattr(voice_profile, 'common_phrases', []) or [])
-                formality = getattr(voice_profile, 'formality', 0.5)
-                signature = _clean_phrase(getattr(voice_profile, 'signature', '') or '') or "Thanks,"
-            except _asyncio.TimeoutError:
-                # Voice profile not cached — skip it, use defaults
-                pass
-            except Exception:
-                pass
 
             # Build a minimal prompt — no voice profile section if empty
             voice_section = ""
