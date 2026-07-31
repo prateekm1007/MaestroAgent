@@ -390,8 +390,17 @@ export function Connectors() {
         <h3 className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground mb-3">Work Tools</h3>
         <div className="grid gap-3 sm:grid-cols-2">
           {loading ? (
-            <div className="col-span-2 py-8 text-center">
-              <Loader2 className="size-5 animate-spin mx-auto text-muted-foreground" />
+            <div className="col-span-2 space-y-3">
+              {[1,2,3,4].map(i => (
+                <div key={i} className="flex items-center gap-3 py-3">
+                  <div className="h-8 w-8 bg-gray-100" />
+                  <div className="flex-1">
+                    <div className="h-4 w-32 bg-gray-100 mb-1" />
+                    <div className="h-3 w-48 bg-gray-50" />
+                  </div>
+                  <div className="h-7 w-20 bg-gray-50" />
+                </div>
+              ))}
             </div>
           ) : (
             workConnectors.map((connector) => (
