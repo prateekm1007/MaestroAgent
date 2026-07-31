@@ -540,6 +540,7 @@ async def generate_email_draft(
                             "signal_id": row["signal_id"],
                             "entity": row["entity"],
                             "text": row["text"],
+                            "signal_type": row["signal_type"] if "signal_type" in row.keys() else "",
                             "metadata": meta,
                             "recipient": row["entity"],
                         }
@@ -880,7 +881,7 @@ async def stream_email_draft(
                     pass
                 try:
                     row = conn.execute(
-                        "SELECT signal_id, entity, text, metadata FROM signals WHERE signal_id = ? AND user_email = ?",
+                        "SELECT signal_id, entity, text, signal_type, metadata FROM signals WHERE signal_id = ? AND user_email = ?",
                         (commitment_id, user_email)
                     ).fetchone()
                     if row:
@@ -894,6 +895,7 @@ async def stream_email_draft(
                             "signal_id": row["signal_id"],
                             "entity": row["entity"],
                             "text": row["text"],
+                            "signal_type": row["signal_type"] if "signal_type" in row.keys() else "",
                             "metadata": meta,
                             "recipient": row["entity"],
                         }
