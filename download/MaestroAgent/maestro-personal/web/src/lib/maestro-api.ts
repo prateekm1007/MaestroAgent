@@ -221,7 +221,14 @@ async function maestroFetch<T>(
 
   try {
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), timeoutMs ?? 8000);
+    // Audit fix S1-1 (2026-07-31): raised default timeout from 8000ms to 15000ms.
+    // The backend /api/the-moment endpoint has an 8.7s cold-cache latency (build_shell
+    // loads all 555+ signals from SQLite). The prior 8s timeout was shorter than the
+    // cold call, causing the Today page to silently time out and render
+    // "You're clear today. No commitments need attention." — a false negative that
+    // broke trust on every cold page load. 15s matches the login/register timeout
+    // already in use below.
+    const timeout = setTimeout(() => controller.abort(), timeoutMs ?? 15000);
     const res = await fetch(url, { ...options, headers, signal: controller.signal });
     clearTimeout(timeout);
     if (!res.ok) {

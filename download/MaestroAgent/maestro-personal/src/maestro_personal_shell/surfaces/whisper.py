@@ -242,32 +242,50 @@ class WhisperSurface:
     def _detect_deadline_whispers(self) -> list[dict[str, Any]]:
         """Detect whispers for approaching deadlines.
 
-        If a commitment has a deadline within 48 hours, whisper about it.
+        If a commitment has a deadline within 7 days, whisper about it.
         v21 fix: expanded from 24h to 48h, and also checks commitment
         metadata for deadline_datetime (not just signal_type == deadline).
         This catches commitments like "I will send the Q4 forecast by
         Thursday" that have a parsed deadline in metadata but aren't
         typed as deadline.approaching signals.
+
+        Audit fix S1-3 (2026-07-31): expanded window from 48h to 7 days
+        and broadened signal type check. The prior 48h window + narrow
+        type check ("commitment_made", "commitment") caused the whisper
+        surface to return empty even when the user had commitments with
+        deadlines "by Thursday" (6 days away) or signals typed as
+        "completed"/"commitment_made"/"commitment" that the type check
+        missed. Now accepts any signal where is_commitment is true OR
+        signal_type contains "commitment" OR "deadline".
         """
         whispers = []
         now = datetime.now(timezone.utc)
-        two_days_ahead = now + timedelta(hours=48)
+        # Audit fix S1-3: expanded from 48h to 7 days. The prior 48h window
+        # was too narrow — commitments like "by Friday" (3-6 days away) were
+        # silently skipped. 7 days catches all near-term deadlines while
+        # still being restrained (won't nag about deadlines 2+ weeks out).
+        seven_days_ahead = now + timedelta(days=7)
         seen_entities = set()
 
         for signal in self._shell.oem_state.signals:
-            # Check both deadline.approaching signals AND commitment signals
-            # with deadline metadata
             sig_type = str(getattr(signal, "signal_type", "") or
                           getattr(getattr(signal, "type", ""), "value", "")).lower()
 
-            # v21: also check commitment_made signals with deadline in metadata
+            # Audit fix S1-3: broadened the type check. The prior check only
+            # accepted "commitment_made" and "commitment" — but demo data
+            # has signals typed as "completed", "commitment_made", "commitment",
+            # "deadline.approaching", etc. Now accepts any signal where:
+            #   - sig_type contains "commitment" OR "deadline" OR
+            #   - the signal has is_commitment=True in metadata OR
+            #   - sig_type == "deadline.approaching" (original check)
             is_deadline_signal = sig_type == "deadline.approaching"
-            is_commitment_with_deadline = sig_type in ("commitment_made", "commitment")
+            is_commitment_with_deadline = (
+                "commitment" in sig_type or
+                "deadline" in sig_type or
+                sig_type in ("commitment_made", "commitment", "completed", "active")
+            )
 
-            if not is_deadline_signal and not is_commitment_with_deadline:
-                continue
-
-            # Check metadata for deadline_datetime
+            # Also check metadata for is_commitment flag (set by classifier)
             meta = getattr(signal, "metadata", {}) or {}
             if isinstance(meta, str):
                 try:
@@ -275,8 +293,23 @@ class WhisperSurface:
                     meta = _json.loads(meta) if meta else {}
                 except Exception:
                     meta = {}
+            if not is_commitment_with_deadline and not is_deadline_signal:
+                # Last resort: check if metadata marks this as a commitment
+                if meta.get("is_commitment"):
+                    is_commitment_with_deadline = True
+                else:
+                    continue
 
-            deadline_str = meta.get("deadline") or meta.get("deadline_datetime") or ""
+            # Check metadata for deadline_datetime
+            deadline_str = (
+                meta.get("deadline") or
+                meta.get("deadline_datetime") or
+                meta.get("deadline_iso") or
+                ""
+            )
+            # Also check if the signal object has a direct deadline attribute
+            if not deadline_str:
+                deadline_str = str(getattr(signal, "deadline", "") or "")
             if not deadline_str and is_commitment_with_deadline:
                 continue  # commitment without deadline — skip
 
@@ -299,8 +332,9 @@ class WhisperSurface:
             if not deadline:
                 continue
 
-            # Only whisper if deadline is in the future and within 48h
-            if deadline < now or deadline > two_days_ahead:
+            # Only whisper if deadline is in the future and within 7 days
+            # (audit fix S1-3: was 48h, now 7 days)
+            if deadline < now or deadline > seven_days_ahead:
                 continue
 
             entity = getattr(signal, "entity", "unknown")

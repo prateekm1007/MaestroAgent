@@ -353,8 +353,21 @@ import json
 
 
 class RegisterRequest(BaseModel):
-    user_email: EmailStr
+    # Audit fix S3-1 (2026-07-31): accept both `user_email` and `email` as
+    # input fields. The login endpoint already accepts both (via alias merge
+    # at line 158-160), but register only accepted `user_email`. This caused
+    # a 422 for integrators who used the conventional `email` field name.
+    # Now both work. The response always uses `user_email` for consistency.
+    user_email: EmailStr = None
+    email: EmailStr = None  # alias for user_email (accepted on input only)
     password: str
+
+    def model_post_init(self, __context) -> None:
+        """Merge `email` alias into `user_email` if user_email is empty."""
+        if not self.user_email and self.email:
+            self.user_email = self.email
+        if not self.user_email:
+            raise ValueError("Either 'user_email' or 'email' field is required")
 
 
 class RegisterResponse(BaseModel):

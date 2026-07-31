@@ -254,6 +254,14 @@ function TodayView({ onDraft, draftBusy }: { onDraft: (entity: string) => void; 
   const [changes, setChanges] = useState<any[]>([])
   const [commitments, setCommitments] = useState<any[]>([])
   const [error, setError] = useState('')
+  // Audit fix S1-1 (2026-07-31): track whether the headline call (the-moment)
+  // was reachable. The prior code silently treated a timed-out/unreachable
+  // backend as "no commitments need attention" — a false negative that
+  // destroyed trust on every cold page load. Now we distinguish three states:
+  //   loading=true              → spinner
+  //   loading=false, live=false → "Still loading your day…" banner (not "you're clear")
+  //   loading=false, live=true  → genuine "you're clear" or the actual moment
+  const [momentLive, setMomentLive] = useState(false)
 
   useEffect(() => {
     let alive = true
@@ -267,6 +275,10 @@ function TodayView({ onDraft, draftBusy }: { onDraft: (entity: string) => void; 
           maestroApi.getCommitments(),
         ])
         if (!alive) return
+        // Audit fix S1-1: record liveness so we can distinguish "backend
+        // unreachable" from "genuinely no commitments". The prior code
+        // collapsed both into theOne=null → "You're clear today".
+        setMomentLive(!!moment.live)
         if (moment.live && moment.data) setTheOne(moment.data)
         if (shifts.live && shifts.data) setChanges(shifts.data.the_shifts || shifts.data.secondary || [])
         if (commits.live && Array.isArray(commits.data)) setCommitments(commits.data)
@@ -298,9 +310,26 @@ function TodayView({ onDraft, draftBusy }: { onDraft: (entity: string) => void; 
       <div>
         <h1 className="text-3xl font-semibold tracking-tight text-gray-900">{greeting}.</h1>
         <p className="text-gray-400 mt-2 text-base">
-          {theOne ? 'You have one promise that needs attention.' : 'You\'re clear today. No commitments need attention.'}
+          {theOne
+            ? 'You have one promise that needs attention.'
+            : momentLive
+              ? "You're clear today. No commitments need attention."
+              : 'Still loading your day — your commitments will appear here shortly.'}
         </p>
       </div>
+      {/* Audit fix S1-1 (2026-07-31): if the headline call didn't reach the
+          backend (timeout or unreachable), show a visible banner instead of
+          the false-negative "you're clear" message. This is the
+          defense-in-depth layer on top of the raised timeout + extended
+          cache TTL. */}
+      {!momentLive && !theOne && (
+        <div className="bg-amber-50 border border-amber-200 rounded-lg px-4 py-3 flex items-center gap-2">
+          <span className="text-amber-600 text-sm font-medium">⚠ Still loading</span>
+          <span className="text-amber-500 text-xs">
+            The backend is taking longer than usual to build your dashboard. Refresh in a moment.
+          </span>
+        </div>
+      )}
 
       {theOne && theOne.commitment && (
         <div>

@@ -228,6 +228,62 @@ def _ban_placeholders(body: str, entity: str, user_email: str) -> str:
     return body.strip()
 
 
+def _strip_completion_claims(body: str) -> str:
+    """Remove fabricated completion claims from LLM-generated draft bodies.
+
+    Audit fix S2-5 (2026-07-31): the LLM sometimes ignores the prompt rule
+    that forbids claiming completion. It writes phrases like:
+      - "I've completed the Q4 forecast"
+      - "I have completed the report"
+      - "I finished the analysis"
+      - "I already sent the proposal"
+      - "the document is done"
+    These are fabricated — the user is following up on a commitment, not
+    confirming completion. This function rewrites those phrases to
+    non-committal language that doesn't claim completion.
+
+    This is a defense-in-depth layer on top of the prompt rule. If the LLM
+    ignores the rule, this filter catches it before the draft reaches the
+    user.
+    """
+    if not body:
+        return body
+
+    # Map of completion-claim patterns → non-committal replacements.
+    # Order matters: longer/more specific patterns first.
+    replacements = [
+        # "I've completed X" → "I'm working on X"
+        (r'\bI\'?ve completed\b', "I'm working on"),
+        (r'\bI have completed\b', "I'm working on"),
+        (r'\bI\'?ve finished\b', "I'm working on"),
+        (r'\bI have finished\b', "I'm working on"),
+        (r'\bI finished\b', "I'm working on"),
+        (r'\bI completed\b', "I'm working on"),
+        # "I already sent X" → "I wanted to follow up on X"
+        (r'\bI already sent\b', "I wanted to follow up on"),
+        (r'\bI\'?ve already sent\b', "I wanted to follow up on"),
+        (r'\bI have already sent\b', "I wanted to follow up on"),
+        # "the X is done" → "the X is in progress"
+        (r'\bis done\b', "is in progress"),
+        (r'\bis complete\b', "is in progress"),
+        (r'\bis finished\b', "is in progress"),
+        # "just confirming that I completed" → "following up on"
+        (r'\bjust (?:confirming|confirm) that I (?:completed|finished|sent)\b',
+         "following up on"),
+        (r'\bto confirm that I (?:completed|finished|sent)\b',
+         "regarding"),
+        # "as committed" standalone is fine, but "I completed X as committed"
+        # is a fabrication — remove "as committed" from completion contexts
+        (r'\b(?:completed|finished|sent|delivered) as committed\b',
+         "am working on"),
+    ]
+
+    for pattern, replacement in replacements:
+        body = re.sub(pattern, replacement, body, flags=re.IGNORECASE)
+
+    return body
+
+
 def _get_recipient_email(commitment: dict, commitment_id: str, user_email: str) -> str:
     """
     Look up the actual email address for the recipient.
@@ -423,6 +479,11 @@ async def generate_email_draft(
         length_hint = {"short": "2-3 sentences", "medium": "4-6 sentences", "long": "8-12 sentences"}.get(length, "4-6 sentences")
 
         # P-DRAFT-NEWLINE fix: Use actual newlines in prompt, not \\n
+        # Audit fix S2-5 (2026-07-31): added rule 7 forbidding completion claims.
+        # The audit found LLM-generated drafts that said "I've completed the Q4
+        # forecast" when the commitment was just "I will send the Q4 forecast
+        # by Thursday." The LLM was hallucinating completion. This rule
+        # explicitly forbids claiming the commitment has been completed.
         prompt = f"""You are writing a follow-up email for the user.
 
 HARD RULES:
@@ -434,6 +495,13 @@ HARD RULES:
 Thanks,
 Prateek
 6. Length: {length_hint}. Tone: {tone}.
+7. NEVER claim the commitment has been completed. Do NOT write phrases like
+   "I've completed", "I have completed", "I finished", "I already sent",
+   "the report is done", or any variation. The user has NOT completed this
+   commitment — they are following up on it. Write a follow-up that
+   acknowledges the commitment and asks if the recipient needs anything,
+   or offers an update on progress. If you don't know the current status,
+   ask — do not fabricate completion.
 
 REAL INFORMATION:
 - RECIPIENT: {entity}
@@ -478,6 +546,13 @@ Write the email body now. Start with "Hi {entity},". Use ACTUAL newlines (press 
         # the final output. Replace with real values, strip any remaining
         # bracket patterns, and remove empty bullets.
         draft_body = _ban_placeholders(draft_body, entity, user_email)
+
+        # Audit fix S2-5 (2026-07-31): post-process to remove any completion
+        # claims that slipped through despite the prompt rule 7. The LLM
+        # sometimes ignores the "never claim completion" instruction and
+        # writes "I've completed the Q4 forecast" anyway. This filter
+        # catches and rewrites those phrases to non-committal language.
+        draft_body = _strip_completion_claims(draft_body)
 
         # Build subject
         subject_text = commitment_text[:60].rstrip()
