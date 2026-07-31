@@ -84,31 +84,85 @@ _NON_DRAFTABLE_TYPES = frozenset({
 })
 
 
-def _is_non_draftable(metadata: dict | str | None) -> tuple[bool, str]:
-    """Q7 helper: check whether a signal's metadata marks it as non-draftable.
+def _is_non_draftable(metadata_or_commitment: dict | str | None) -> tuple[bool, str]:
+    """Q7 helper: check whether a commitment/markers marks it as non-draftable.
 
-    Returns (is_non_draftable, commitment_type).
-    Shared across all draft paths so the filter logic cannot drift.
+    Accepts EITHER:
+      - a full commitment dict (from the ledger OR the signals table fallback)
+      - a metadata dict / JSON string (back-compat for older callers)
+
+    Checks ALL relevant fields because the commitment dict can come from:
+      - The ledger (top-level `commitment_type` + `state` columns)
+      - The signals table fallback (top-level `signal_type` + `metadata` dict)
+
+    Without checking the top-level fields, a ledger entry with
+    `commitment_type='cancelled'` or `state='cancelled'` would bypass the
+    filter (its `metadata` dict is empty). This was the live P1 failure:
+    the prior filter only read `metadata.commitment_type`, so ledger
+    entries slipped through.
+
+    Returns (is_non_draftable, commitment_type_or_state).
     """
-    if not metadata:
+    if not metadata_or_commitment:
         return False, ""
+
+    # Accept either a metadata dict/string OR a full commitment dict.
+    # If the input has any of these top-level keys, treat it as a commitment dict.
+    if isinstance(metadata_or_commitment, str):
+        try:
+            import json as _json
+            metadata_or_commitment = _json.loads(metadata_or_commitment) if metadata_or_commitment else {}
+        except Exception:
+            metadata_or_commitment = {}
+    if not isinstance(metadata_or_commitment, dict):
+        return False, ""
+
+    # --- Top-level fields (ledger entries OR metadata-style dicts) ---
+    top_level_type = str(metadata_or_commitment.get("commitment_type", "") or "").lower().strip()
+    state = str(metadata_or_commitment.get("state", "") or "").lower().strip()
+    signal_type = str(metadata_or_commitment.get("signal_type", "") or "").lower().strip()
+    # is_commitment can be at top-level (metadata-style input) OR inside
+    # metadata (signals-table-fallback input). Check both.
+    top_level_is_commitment = metadata_or_commitment.get("is_commitment", True)
+
+    # 1. Top-level commitment_type in _NON_DRAFTABLE_TYPES (ledger column
+    #    OR metadata-style input)
+    if top_level_type in _NON_DRAFTABLE_TYPES:
+        return True, top_level_type
+    # 2. State is cancelled / superseded / disputed / tombstoned (ledger lifecycle)
+    if state in ("cancelled", "superseded", "disputed", "tombstoned"):
+        return True, state
+    # 3. signal_type is not_a_commitment (signals table fallback)
+    if signal_type == "not_a_commitment":
+        return True, signal_type
+    # 4. Top-level is_commitment is explicitly False (metadata-style input
+    #    where is_commitment sits at the top level, not inside metadata)
+    if top_level_is_commitment is False or top_level_is_commitment == "false":
+        return True, top_level_type or "not_a_commitment"
+
+    # --- Metadata dict (signals table fallback) ---
+    metadata = metadata_or_commitment.get("metadata", {}) or {}
     if isinstance(metadata, str):
         try:
             import json as _json
             metadata = _json.loads(metadata) if metadata else {}
         except Exception:
             metadata = {}
-    if not isinstance(metadata, dict):
-        return False, ""
-    commitment_type = str(metadata.get("commitment_type", "") or "").lower().strip()
-    is_commitment = metadata.get("is_commitment", True)
-    # Treat explicit is_commitment=False as non-draftable (covers signals that
-    # don't carry a commitment_type but are explicitly marked as non-commitments).
-    if commitment_type in _NON_DRAFTABLE_TYPES:
-        return True, commitment_type
+    if isinstance(metadata, dict):
+        meta_type = str(metadata.get("commitment_type", "") or "").lower().strip()
+        is_commitment = metadata.get("is_commitment", True)
+    else:
+        meta_type = ""
+        is_commitment = True
+
+    # 4. metadata.commitment_type in _NON_DRAFTABLE_TYPES
+    if meta_type in _NON_DRAFTABLE_TYPES:
+        return True, meta_type
+    # 5. metadata.is_commitment is explicitly False
     if is_commitment is False or is_commitment == "false":
-        return True, commitment_type or "not_a_commitment"
-    return False, commitment_type
+        return True, meta_type or "not_a_commitment"
+
+    return False, top_level_type or meta_type
 
 # No-Gemini rule (user directive 2026-07-30): Google Gemini / Gemma is
 # forbidden for any coding or LLM-calling task.
@@ -513,9 +567,13 @@ async def generate_email_draft(
 
 
         # Q7 FIX (P14 — single source of truth): reject non-commitment
-        # signals before drafting. Uses the shared _is_non_draftable helper
-        # so the filter logic cannot drift between draft paths.
-        _non_draftable, _commitment_type = _is_non_draftable(commitment.get('metadata', {}))
+        # signals before drafting. Pass the FULL commitment dict (not just
+        # metadata) so the helper can check top-level ledger fields
+        # (commitment_type, state, signal_type) AND the metadata dict.
+        # The prior filter only read metadata.commitment_type, which meant
+        # ledger entries (whose commitment_type is a top-level column, not
+        # in metadata) bypassed the filter entirely.
+        _non_draftable, _commitment_type = _is_non_draftable(commitment)
         if _non_draftable:
             raise HTTPException(
                 status_code=422,
@@ -860,11 +918,12 @@ async def stream_email_draft(
             return
 
         # Q7 FIX (P14 — streaming path was missing this filter): reject
-        # non-commitment signals before drafting. The non-streaming path
-        # raised HTTPException(422); the streaming path cannot raise (the
-        # SSE headers have already been flushed), so we yield an error
-        # chunk + [DONE] and return.
-        _non_draftable, _commitment_type = _is_non_draftable(commitment.get('metadata', {}))
+        # non-commitment signals before drafting. Pass the FULL commitment
+        # dict so the helper checks top-level ledger fields too. The
+        # non-streaming path raised HTTPException(422); the streaming path
+        # cannot raise (the SSE headers have already been flushed), so we
+        # yield an error chunk + [DONE] and return.
+        _non_draftable, _commitment_type = _is_non_draftable(commitment)
         if _non_draftable:
             yield f'data: {{"error": "non_draftable_signal", "commitment_type": "{_commitment_type}", "reason": "This signal is {_commitment_type} — no follow-up needed."}}\n\n'
             yield "data: [DONE]\n\n"

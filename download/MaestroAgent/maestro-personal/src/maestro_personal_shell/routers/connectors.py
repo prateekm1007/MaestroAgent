@@ -1197,10 +1197,16 @@ async def create_auto_draft_stream(req: ConnectorAutoDraftRequest, token: str = 
                     ts = row["timestamp"] if "timestamp" in row.keys() else ""
                     row_meta = row["metadata"] if "metadata" in row.keys() else "{}"
                     # Q7: skip non-draftable signals (cancelled/question/etc.)
+                    # Pass a dict with BOTH signal_type (if the row has it) and
+                    # metadata so the helper checks all relevant fields.
                     _skip = False
                     if _check_draftable:
                         try:
-                            _skip, _ct = _check_draftable(row_meta)
+                            _row_dict = {
+                                "signal_type": row["signal_type"] if "signal_type" in row.keys() else "",
+                                "metadata": row_meta,
+                            }
+                            _skip, _ct = _check_draftable(_row_dict)
                         except Exception:
                             _skip = False
                     if _skip:
@@ -1221,7 +1227,11 @@ async def create_auto_draft_stream(req: ConnectorAutoDraftRequest, token: str = 
                         _skip = False
                         if _check_draftable:
                             try:
-                                _skip, _ct = _check_draftable(row_meta)
+                                _row_dict = {
+                                    "signal_type": row["signal_type"] if "signal_type" in row.keys() else "",
+                                    "metadata": row_meta,
+                                }
+                                _skip, _ct = _check_draftable(_row_dict)
                             except Exception:
                                 _skip = False
                         if _skip:

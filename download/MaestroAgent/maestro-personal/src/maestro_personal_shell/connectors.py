@@ -1466,24 +1466,40 @@ class ConnectorDraftGenerator:
                 #
                 # Uses the canonical _is_non_draftable helper from
                 # draft_generator.py so the filter set cannot drift.
+                # Pass a dict with BOTH signal_type and metadata so the
+                # helper can check all relevant fields.
                 _non_draftable = False
                 try:
                     from maestro_personal_shell.draft_generator import _is_non_draftable as _check_draftable
-                    _non_draftable, _ = _check_draftable(getattr(sig, "metadata", {}) or {})
+                    _sig_meta = getattr(sig, "metadata", {}) or {}
+                    if isinstance(_sig_meta, str):
+                        import json as _json_sm
+                        try:
+                            _sig_meta = _json_sm.loads(_sig_meta) if _sig_meta else {}
+                        except Exception:
+                            _sig_meta = {}
+                    _sig_dict = {
+                        "signal_type": sig_type,
+                        "metadata": _sig_meta,
+                    }
+                    _non_draftable, _ = _check_draftable(_sig_dict)
                 except Exception:
                     # Import failed (rare) — fall back to inline check
                     try:
-                        _sig_meta = getattr(sig, "metadata", {}) or {}
-                        if isinstance(_sig_meta, str):
+                        _sig_meta_fb = getattr(sig, "metadata", {}) or {}
+                        if isinstance(_sig_meta_fb, str):
                             import json as _json_fb
-                            _sig_meta = _json_fb.loads(_sig_meta) if _sig_meta else {}
-                        _ct = str(_sig_meta.get("commitment_type", "") or "").lower().strip()
+                            _sig_meta_fb = _json_fb.loads(_sig_meta_fb) if _sig_meta_fb else {}
+                        _ct = str(_sig_meta_fb.get("commitment_type", "") or "").lower().strip()
                         _NON_DRAFTABLE_FALLBACK = {
                             "cancelled", "negation", "third_party_report",
                             "not_a_commitment", "question", "tentative",
                             "joke", "request", "aspiration", "proposal", "superseded",
                         }
-                        _non_draftable = _ct in _NON_DRAFTABLE_FALLBACK
+                        _non_draftable = (
+                            _ct in _NON_DRAFTABLE_FALLBACK
+                            or sig_type == "not_a_commitment"
+                        )
                     except Exception:
                         _non_draftable = False
 
