@@ -155,9 +155,15 @@ class WhisperSurface:
         A commitment is stale if no follow-up signal exists for N days.
         The shell's detect_stale_commitments does the detection; this
         method formats the result as a whisper.
+
+        v21 fix: lowered threshold from 3 to 1 day. The user reported
+        whispers being "too passive" — returning 0 when commitments exist.
+        With fresh data (seeded today), nothing is 3+ days stale, so no
+        whispers fire. 1 day is still restrained (won't nag same-day) but
+        catches commitments that haven't been followed up.
         """
         whispers = []
-        stale = self._shell.detect_stale_commitments(days_threshold=3)
+        stale = self._shell.detect_stale_commitments(days_threshold=1)
 
         for item in stale:
             entity = item.get("entity", "someone")
@@ -165,8 +171,8 @@ class WhisperSurface:
             commitment = item.get("commitment", {})
             commitment_text = getattr(commitment, "text", "") or str(commitment.get("text", ""))
 
-            # Only whisper for commitments stale 3+ days (restraint — don't nag)
-            if days < 3:
+            # v21 fix: whisper for commitments stale 1+ days (was 3+)
+            if days < 1:
                 continue
 
             priority = "high" if days >= 7 else "medium"
@@ -236,37 +242,86 @@ class WhisperSurface:
     def _detect_deadline_whispers(self) -> list[dict[str, Any]]:
         """Detect whispers for approaching deadlines.
 
-        If a commitment has a deadline within 24 hours, whisper about it.
+        If a commitment has a deadline within 48 hours, whisper about it.
+        v21 fix: expanded from 24h to 48h, and also checks commitment
+        metadata for deadline_datetime (not just signal_type == deadline).
+        This catches commitments like "I will send the Q4 forecast by
+        Thursday" that have a parsed deadline in metadata but aren't
+        typed as deadline.approaching signals.
         """
         whispers = []
         now = datetime.now(timezone.utc)
-        day_ahead = now + timedelta(hours=24)
+        two_days_ahead = now + timedelta(hours=48)
+        seen_entities = set()
 
         for signal in self._shell.oem_state.signals:
+            # Check both deadline.approaching signals AND commitment signals
+            # with deadline metadata
             sig_type = str(getattr(signal, "signal_type", "") or
                           getattr(getattr(signal, "type", ""), "value", "")).lower()
 
-            if sig_type != "deadline.approaching":
+            # v21: also check commitment_made signals with deadline in metadata
+            is_deadline_signal = sig_type == "deadline.approaching"
+            is_commitment_with_deadline = sig_type in ("commitment_made", "commitment")
+
+            if not is_deadline_signal and not is_commitment_with_deadline:
                 continue
 
-            # Check if the deadline is within 24 hours
-            sig_time = getattr(signal, "timestamp", now)
-            if hasattr(sig_time, "tzinfo") and sig_time.tzinfo is None:
-                sig_time = sig_time.replace(tzinfo=timezone.utc)
+            # Check metadata for deadline_datetime
+            meta = getattr(signal, "metadata", {}) or {}
+            if isinstance(meta, str):
+                try:
+                    import json as _json
+                    meta = _json.loads(meta) if meta else {}
+                except Exception:
+                    meta = {}
 
-            if now <= sig_time <= day_ahead:
-                entity = getattr(signal, "entity", "unknown")
-                text = getattr(signal, "text", "")
-                hours_until = int((sig_time - now).total_seconds() / 3600)
+            deadline_str = meta.get("deadline") or meta.get("deadline_datetime") or ""
+            if not deadline_str and is_commitment_with_deadline:
+                continue  # commitment without deadline — skip
 
-                whispers.append({
-                    "type": "deadline_approaching",
-                    "entity": entity,
-                    "title": f"Deadline in {hours_until}h: {entity}",
-                    "body": text[:100],
-                    "priority": "high" if hours_until <= 4 else "medium",
-                    "action_url": "maestropersonal://commitments",
-                })
+            # Parse the deadline
+            deadline = None
+            if deadline_str:
+                try:
+                    deadline = datetime.fromisoformat(deadline_str.replace("Z", "+00:00"))
+                    if deadline.tzinfo is None:
+                        deadline = deadline.replace(tzinfo=timezone.utc)
+                except Exception:
+                    continue
+
+            # For deadline.approaching signals without metadata, use signal timestamp
+            if not deadline and is_deadline_signal:
+                deadline = getattr(signal, "timestamp", now)
+                if hasattr(deadline, "tzinfo") and deadline.tzinfo is None:
+                    deadline = deadline.replace(tzinfo=timezone.utc)
+
+            if not deadline:
+                continue
+
+            # Only whisper if deadline is in the future and within 48h
+            if deadline < now or deadline > two_days_ahead:
+                continue
+
+            entity = getattr(signal, "entity", "unknown")
+            text = getattr(signal, "text", "")
+
+            # Deduplicate by entity (one deadline whisper per entity)
+            entity_key = entity.lower()
+            if entity_key in seen_entities:
+                continue
+            seen_entities.add(entity_key)
+
+            hours_until = max(1, int((deadline - now).total_seconds() / 3600))
+
+            whispers.append({
+                "type": "deadline_approaching",
+                "entity": entity,
+                "title": f"Deadline in {hours_until}h: {entity}",
+                "body": text[:100],
+                "priority": "high" if hours_until <= 4 else "medium",
+                "action_url": "maestropersonal://commitments",
+            })
 
         return whispers
 

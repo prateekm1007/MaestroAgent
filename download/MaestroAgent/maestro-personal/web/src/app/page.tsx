@@ -337,11 +337,6 @@ function TodayView({ onDraft, draftBusy }: { onDraft: (entity: string) => void; 
           <p className="text-xs font-medium uppercase tracking-wider text-gray-400 mb-4">What Changed</p>
           <div className="space-y-3">
             {changes.slice(0, 5).map((c, i) => {
-              // P18 fix: wrap each "What Changed" item in ClickableCard.
-              // Changes don't have signal_id directly; match by text against
-              // commitments list to find the real commitment_id. If no match,
-              // use a synthetic ID — the modal will show entity/text and
-              // thread fetch will return empty (graceful).
               const match = commitments.find((cm: any) =>
                 cm.text && c.text && cm.text === c.text
               );
@@ -354,9 +349,6 @@ function TodayView({ onDraft, draftBusy }: { onDraft: (entity: string) => void; 
                     entity: c.entity || 'Unknown',
                     text: c.text || c.action || 'Change detected',
                     state: 'active',
-                    // Phase 2.1 fix (auditor v13): use the actual confidence from
-                    // the API, not a hardcoded 0.7. The auditor found "UI 70% vs
-                    // API 0.245" — this hardcoded value was the root cause.
                     confidence: typeof c.confidence === 'number' ? c.confidence : 0.5,
                   }}
                   apiBase={API_BASE}
@@ -373,6 +365,58 @@ function TodayView({ onDraft, draftBusy }: { onDraft: (entity: string) => void; 
                 </ClickableCard>
               );
             })}
+          </div>
+        </div>
+      )}
+
+      {/* v21: Show active commitments list on Today page — user expects to see
+          their commitments, not just "the one" that needs attention. */}
+      {commitments.length > 0 && (
+        <div>
+          <div className="flex items-center justify-between mb-4">
+            <p className="text-xs font-medium uppercase tracking-wider text-gray-400">Your Active Commitments</p>
+            <span className="text-xs text-gray-400">{commitments.length} total</span>
+          </div>
+          <div className="space-y-2">
+            {commitments.slice(0, 10).map((c: any, i: number) => (
+              <ClickableCard
+                key={c.signal_id || i}
+                commitment={{
+                  commitment_id: c.signal_id || `commitment-${i}`,
+                  entity: c.entity || 'Unknown',
+                  text: c.text || c.action || '',
+                  state: c.is_at_risk ? 'at_risk' : 'active',
+                  confidence: typeof c.confidence === 'number' ? c.confidence : 0.5,
+                }}
+                apiBase={API_BASE}
+                token={getToken() || ''}
+              >
+                <div className="flex items-start gap-3 hover:bg-gray-50 transition-colors p-3 rounded-lg border border-gray-100">
+                  <div className={cn('flex-shrink-0 mt-1 h-2 w-2 rounded-full',
+                    c.is_at_risk ? 'bg-red-400' : c.deadline ? 'bg-amber-400' : 'bg-emerald-400')} />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm text-gray-900 leading-snug">{c.text || c.action || ''}</p>
+                    <div className="flex items-center gap-3 mt-1">
+                      <p className="text-xs text-gray-400">{c.entity || ''}</p>
+                      {c.deadline && (
+                        <p className="text-xs text-amber-500">{new Date(c.deadline).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</p>
+                      )}
+                      {c.is_at_risk && (
+                        <span className="text-[10px] font-medium text-red-500 uppercase tracking-wide">at risk</span>
+                      )}
+                    </div>
+                  </div>
+                  <button
+                    onClick={(e) => { e.stopPropagation(); onDraft(c.entity) }}
+                    disabled={draftBusy}
+                    className="flex-shrink-0 text-xs text-gray-400 hover:text-gray-700 disabled:opacity-50 px-2 py-1 rounded hover:bg-gray-100 transition-colors"
+                    title="Draft follow-up"
+                  >
+                    <PenLine className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+              </ClickableCard>
+            ))}
           </div>
         </div>
       )}
