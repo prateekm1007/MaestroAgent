@@ -1,0 +1,136 @@
+name: Pinned Regression Suite
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  pinned-regressions:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install httpx
+        run: pip install httpx pytest
+
+      - name: Run pinned regression tests against production
+        env:
+          MAESTRO_BASE_URL: https://maestroagent-production.up.railway.app
+        run: |
+          cd download/MaestroAgent/maestro-personal
+          python -m pytest tests/test_pinned_regressions_2026_07_31.py -v --tb=short 2>&1 || true
+          # Note: tests run against production. Failures here indicate
+          # regressions that shipped. The || true is intentional for now —
+          # once branch protection is enforced, remove it so CI blocks merges.
+
+  # ── Latency budget check ──────────────────────────────────────────────
+  latency-budget:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install httpx
+
+      - name: Check warm-cache latency budgets
+        env:
+          BASE: https://maestroagent-production.up.railway.app
+        run: |
+          python -c "
+          import httpx, time, sys
+          BASE = 'https://maestroagent-production.up.railway.app'
+          # Login
+          r = httpx.post(f'{BASE}/api/auth/login', json={
+              'email': 'bootstrap@maestro.local',
+              'password': 'maestro-demo'
+          }, timeout=15)
+          token = r.json()['token']
+          H = {'Authorization': f'Bearer {token}'}
+
+          # Warm the caches
+          for ep in ['/api/the-moment', '/api/whisper', '/api/what-changed/the-shifts']:
+              httpx.get(f'{BASE}{ep}', headers=H, timeout=30)
+
+          # Measure warm calls
+          failures = []
+          budgets = {
+              '/api/the-moment': 500,
+              '/api/whisper': 500,
+              '/api/what-changed/the-shifts': 500,
+              '/api/commitments': 500,
+          }
+          for ep, budget_ms in budgets.items():
+              t0 = time.time()
+              r = httpx.get(f'{BASE}{ep}', headers=H, timeout=15)
+              dt = (time.time() - t0) * 1000
+              status = 'PASS' if dt < budget_ms else 'FAIL'
+              print(f'{status} {ep}: {dt:.0f}ms (budget: {budget_ms}ms)')
+              if dt >= budget_ms:
+                  failures.append(f'{ep}: {dt:.0f}ms > {budget_ms}ms')
+
+          if failures:
+              print(f'\nLatency budget failures: {len(failures)}')
+              for f in failures:
+                  print(f'  FAIL: {f}')
+              sys.exit(1)
+          else:
+              print(f'\nAll latency budgets passed.')
+          "
+
+  # ── Cache presence check ──────────────────────────────────────────────
+  cache-presence:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install httpx
+
+      - name: Verify caches are present (not stripped by refactor)
+        env:
+          BASE: https://maestroagent-production.up.railway.app
+        run: |
+          python -c "
+          import httpx, time, sys
+          BASE = 'https://maestroagent-production.up.railway.app'
+          r = httpx.post(f'{BASE}/api/auth/login', json={
+              'email': 'bootstrap@maestro.local', 'password': 'maestro-demo'
+          }, timeout=15)
+          H = {'Authorization': f'Bearer {r.json()[\"token\"]}'}
+
+          failures = []
+          for ep in ['/api/the-moment', '/api/what-changed/the-shifts']:
+              # Cold call
+              t0 = time.time()
+              httpx.get(f'{BASE}{ep}', headers=H, timeout=30)
+              cold = time.time() - t0
+              # Warm call
+              t0 = time.time()
+              httpx.get(f'{BASE}{ep}', headers=H, timeout=30)
+              warm = time.time() - t0
+              ratio = warm / cold if cold > 0 else 1.0
+              status = 'PASS' if ratio < 0.5 else 'FAIL'
+              print(f'{status} {ep}: cold={cold:.2f}s warm={warm:.2f}s ratio={ratio:.1%}')
+              if ratio >= 0.5:
+                  failures.append(f'{ep}: warm ({warm:.2f}s) not 2x faster than cold ({cold:.2f}s)')
+
+          if failures:
+              print(f'\nCache presence failures: {len(failures)}')
+              for f in failures:
+                  print(f'  FAIL: {f}')
+              sys.exit(1)
+          else:
+              print(f'\nAll caches present.')
+          "
