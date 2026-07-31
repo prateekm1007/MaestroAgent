@@ -315,3 +315,154 @@ REMAINING:
     to dispatch a real engineering task — the script's --help and
     Gemini-rejection were verified, but an end-to-end dispatch to
     qwen3-coder / deepseek / hunyuan has not been run
+
+---
+Task ID: 47 (Independent audit: latency reduction commit a9914a7e)
+Agent: Independent External Reviewer (GLM)
+
+GOVERNANCE LOOP READ RECEIPT:
+- GOVERNANCE.md read from disk (Pre/Post-Execution Gate, Mutual Loop)
+- ENTROPY_RECOVERY.md read from disk (P1-P87; P1, P14, P35, P43, P44,
+  P46, P54, P55 specifically applied)
+- governance/FORBIDDEN_ACTIONS.md read from disk (FA1-FA34)
+- governance/ANTI_ENTROPY.md read from disk (Prime Directive, No-Gaming,
+  Live-Claim Rule)
+- governance/INVARIANTS.md read from disk (S0-S6)
+- GOVERNANCE_LOOP.md read from disk
+
+AUDIT SCOPE: Coder claimed three latency fixes in commit a9914a7e:
+  1. DNS preconnect in layout.tsx
+  2. Stale-while-revalidate (SWR) sessionStorage cache in maestro-api.ts
+  3. Shell pre-warm at login in page.tsx
+Coder claimed: the-moment 2.5s → 0.28s (9x), page revisit 2.5s → <0.1s
+(25x), no functionality lost.
+
+VERIFICATION METHOD:
+- Source code review (git show a9914a7e, working tree inspection)
+- Live HTTP fetches (fresh, independent — P1/P46 enforcement)
+- Independent latency measurement script (scripts/latency_audit.py)
+- Adjacent-failure check (P14)
+
+============================================================
+VERDICT: 🟡 PARTIALLY VERIFIED — fixes work, but 3 correctness gaps
+============================================================
+
+WHAT VERIFIED GREEN:
+
+1. Commit + deploy:
+   - origin/main HEAD (submodule): a9914a7e ✓
+   - origin/main HEAD (parent): a9914a7e ✓ (after rebase)
+   - Deployed backend /api/health commit: fb820db (old parent — benign,
+     backend code unchanged; latency work is frontend-only)
+   - Frontend deployed: HTTP 200 in 0.24s ✓
+   - Live HTML contains preconnect + dns-prefetch tags ✓ (P54 PASS)
+
+2. Preconnect (layout.tsx):
+   - Source: <link rel="preconnect"> and <link rel="dns-prefetch"> for
+     https://maestroagent-production.up.railway.app ✓
+   - Live HTML: both tags present in served HTML ✓
+   - Frontend load: 0.24s ✓
+
+3. SWR cache (maestro-api.ts):
+   - Source: sessionStorage cache with 60s TTL, GET-only, background
+     revalidation ✓
+   - Live JS bundle: sessionStorage references present ✓
+   - Cache key includes token prefix (partial user isolation) ✓
+
+4. Shell pre-warm (page.tsx):
+   - Source: useEffect fires maestroApi.getTheMoment() if getToken()
+     exists ✓
+   - Only fires for authenticated users ✓
+
+5. Independent latency measurement (fresh HTTP fetches):
+   | Endpoint | Cold | Warm | Coder claimed |
+   |---|---|---|---|
+   | the-moment | 2.99s | 0.28s | 2.5s→0.28s ✓ |
+   | the-shifts | 0.32s | 0.29s | 0.3s ✓ |
+   | commitments | 0.32s | 0.28s | 0.4s ✓ |
+   | whisper | 1.48s | 0.34s | 0.35s ✓ |
+   | Frontend HTML | 0.24s | — | 0.21s ✓ |
+   The backend shell cache works: the-moment cold 3s → warm 0.28s.
+
+6. No regression (S2-8 + WhisperPostIt still live):
+   - /api/consent/settings: 4 providers, 0 social ✓
+   - /api/connectors: 7 providers, 0 social ✓
+   - WhisperPostIt chevrons in deployed JS bundle ✓ ("Previous whisper"
+     and "Next whisper" aria-labels found in chunk 2z3e-eoa8ul4o)
+
+WHAT FOUND YELLOW (3 correctness gaps):
+
+GAP-1: No mutation cache invalidation (P54 violation — stale data after
+       mutations).
+  The SWR cache caches GET responses for 60s, but NONE of the ~30
+  POST/PUT/DELETE methods invalidate the cache. After a mutation:
+    - User approves a draft → /api/drafts cache shows old "pending"
+      for up to 60s
+    - User connects a connector → /api/connectors cache shows
+      "connected: false" for up to 60s
+    - User toggles consent → /api/consent/settings cache shows old
+      value for up to 60s
+    - User resolves a commitment → /api/commitments cache shows old
+      state for up to 60s
+  This is confusing: the user takes an action, then sees the old state
+  for up to a minute. The fix is to clear relevant cache entries after
+  each mutation (e.g., after setConsentSetting, remove the
+  /api/consent/settings cache entry).
+
+GAP-2: SWR returns live:true even when backend is down (P55 violation —
+       fake readiness).
+  On cache hit, maestroFetch returns {data, live: true} unconditionally.
+  If the backend is unreachable, the background fetch silently fails
+  (maestroFetchBackground catches and swallows all errors), and the UI
+  shows stale data with live:true — no "backend unreachable" warning.
+  The user cannot tell "Maestro is showing fresh data" from "Maestro is
+  showing stale cached data because the backend is down." The live flag
+  should distinguish "served fresh" from "served from cache" — or the
+  UI needs a "showing cached data" indicator when the background fetch
+  fails.
+
+GAP-3: Logout does not clear the SWR cache (minor data hygiene).
+  clearToken() only removes the localStorage token. It does NOT clear
+  sessionStorage. After logout, cached API responses remain in
+  sessionStorage until the tab closes. The cache key includes the token
+  prefix, so a different user logging in won't see the old user's data
+  (different key). But the old user's data persists, which is a minor
+  leak on shared computers. The fix is to call sessionStorage.clear()
+  (or remove maestro:* keys) in clearToken().
+
+GAP-4 (minor): Pre-warm fires on every page load, not just at login.
+  The comment says "immediately after auth" but the code fires in the
+  Home component's useEffect on every mount (every navigation to /).
+  This is idempotent (GET request, SWR deduplicates), so it's not
+  harmful — but it's redundant with the SWR cache. A more precise fix
+  would be to fire the pre-warm only once per session (e.g., in the
+  Login component's onLoggedIn callback, or guarded by a sessionStorage
+  flag).
+
+WHAT NOT MEASURED (honest boundary — P18):
+  The coder's claim of "<0.1s page revisit (25x faster)" refers to the
+  browser sessionStorage SWR cache. This cannot be measured with curl
+  because curl has no sessionStorage. A real browser (or headless
+  browser like Playwright) is required to verify this claim. The
+  source code is structurally correct (cache hit returns in <1ms), but
+  the runtime claim is UNVERIFIED at the browser level.
+
+OVERALL ASSESSMENT:
+  The three fixes are real, deployed, and structurally sound. The
+  preconnect and shell pre-warm are genuine latency wins (verified:
+  the-moment cold 3s → warm 0.28s). The SWR cache is architecturally
+  correct but has three correctness gaps that need fixing before this
+  is "world class":
+    - GAP-1 (mutation invalidation) is the most user-visible — stale
+      data after actions is confusing
+    - GAP-2 (fake live:true) is the most dangerous — hides backend
+      outages
+    - GAP-3 (logout cache clearing) is minor but should be fixed for
+      shared-computer hygiene
+  The work is NOT world class yet, but it's a solid foundation. The
+  gaps are fixable in a single follow-up commit.
+
+COMMITS:
+  - a9914a7e (submodule + parent): fix(LATENCY): preconnect + SWR +
+    shell pre-warm
+  - Audit script: scripts/latency_audit.py (this session)
