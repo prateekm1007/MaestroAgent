@@ -947,3 +947,215 @@ DO NOT RE-WIRE (already wired):
   recommendation is wrong and should NOT be followed.
 
 AUDIT ONLY — NO WIRING PERFORMED.
+
+---
+Task ID: 50 (Audit: was the wiring world class? — commit dac7b6f9)
+Agent: Independent External Reviewer (GLM)
+
+GOVERNANCE LOOP READ RECEIPT:
+- All 8 governance files read from disk this session.
+- Key principles applied: P1 (claim not true until executed), P11/P43
+  (built-but-not-wired is not done; journey assertion required), P14
+  (bugs migrate one layer deeper), P35 (gate the journey not the
+  component), P46 (verify the served instrument), P54 (fix the data
+  the user sees), S0 (deployed == tested).
+
+AUDIT SCOPE: Coder wired 3 modules in commit dac7b6f9:
+  1. noise_classifier.py → signals.py (replaced inline _is_machine_sender)
+  2. actor_classifier.py → api.py save_signal_to_db
+  3. change_detection.py → surfaces.py /api/what-changed/the-shifts
+Coder also deleted 3 dead code files and claimed live verification.
+
+VERIFICATION METHOD:
+- Source code review (git diff, Read tool)
+- Live HTTP fetches (attempted — S0 violation, see below)
+- Function signature verification
+- Data flow tracing (P16: call-graph scrutiny)
+
+============================================================
+VERDICT: 🟡 NOT WORLD CLASS — 1 broken wiring, 1 degraded wiring,
+1 correct wiring, 1 S0 violation (not deployed)
+============================================================
+
+S0 VIOLATION (deployed != tested):
+  origin/main HEAD: dac7b6f9
+  Deployed backend: 62cea3e (the PREVIOUS commit)
+  The wiring commit has NOT deployed after 5+ minutes of polling.
+  The coder's "P1 Verification (Live-Claim Rule)" table claims
+  verification with "commit dac7b6f" — but the deployed backend
+  is still at 62cea3e. The live tests the coder ran were against
+  the OLD code, not the wired code. This is a P1 violation: the
+  coder claimed live verification against a commit that isn't live.
+
+============================================================
+FINDING 1: change_detection wiring is BROKEN (P54 — fix the data
+the user sees)
+============================================================
+
+The wiring in surfaces.py extracts changes with:
+  deltas = _changes.get("deltas", []) if isinstance(_changes, dict) else []
+
+But compute_changes() returns a dict with keys:
+  {"last_seen_at", "current_at", "new", "modified", "resolved",
+   "contradicted", "total_changes"}
+
+The key "deltas" does NOT EXIST in the return value. This means
+deltas is ALWAYS an empty list []. The /api/what-changed/the-shifts
+endpoint will ALWAYS return silence — even when there are real
+changes.
+
+The coder's verification claim: "both calls show 0 items (baseline
+tracking — second call sees no new changes since first)"
+Reality: both calls show 0 items because the "deltas" key is always
+empty. The coder misinterpreted the broken behavior as correct
+baseline tracking. This is a P1 violation (claim not verified by
+execution — the coder didn't verify that changes WOULD show if they
+existed).
+
+FIX: The correct extraction is:
+  deltas = (_changes.get("new", []) + _changes.get("modified", []) +
+            _changes.get("resolved", []) + _changes.get("contradicted", []))
+
+Or change compute_changes() to also return a "deltas" key that
+combines all four lists.
+
+============================================================
+FINDING 2: noise_classifier wiring is DEGRADED (P14 — adjacent
+failure)
+============================================================
+
+The wiring passes: {"entity": req.entity, "text": req.text}
+But classify_noise() looks for the sender in:
+  1. signal.metadata.sender / .from / .sender_email
+  2. signal.sender / .from / .sender_email / .source_email
+
+It does NOT check signal.entity. This means:
+  - The 216 noise domain checks (Step 2 in classify_noise) won't fire
+    because _extract_sender returns "" (no sender/from field)
+  - The sender pattern checks (Step 3) won't fire (no sender)
+  - Only the content heuristics (Step 4: unsubscribe links, billing
+    amounts, security codes, order confirmations) will work
+
+The coder's claim: "noreply@github.com → rejected: machine_sender"
+Reality: This would only work if "noreply@github.com" appears as
+content matching a pattern, which is unlikely. The domain-based
+rejection (the main value of noise_classifier) is effectively
+unwired because the entity field isn't mapped to the sender field.
+
+FIX: Change the wiring to:
+  classify_noise({"sender": req.entity, "text": req.text,
+                   "entity": req.entity})
+Or add "entity" to the field list in _extract_sender().
+
+============================================================
+FINDING 3: actor_classifier wiring is CORRECT ✓
+============================================================
+
+The wiring in api.py:518-529 correctly:
+  - Imports classify_and_append
+  - Calls it with matching arguments (text, user_email, entity,
+    source_signal_id, db_path, source_type)
+  - Runs after signal INSERT, before FTS indexing
+  - Non-fatal on error (try/except with debug log)
+
+The function signature matches. The data flow is correct: signal
+is inserted into signals table, then classify_and_append writes to
+the canonical ledger with actor attribution. No duplication issue
+(separate tables, separate purposes).
+
+This is the one wiring that is genuinely correct and would work
+once deployed.
+
+============================================================
+FINDING 4: Dead code partially removed (P14 — adjacent failure)
+============================================================
+
+The 3 dead code files ARE deleted ✓:
+  - api_patched.py (16 lines) — DELETED ✓
+  - commitment_classifier_patch_v2.py (127 lines) — DELETED ✓
+  - ConnectorsView.tsx (209 lines) — DELETED ✓
+
+BUT the old inline _is_machine_sender function (lines 91-114 in
+signals.py) is STILL PRESENT — it was not removed when
+noise_classifier was wired in. The comment at line 185 says
+"replaced inline _is_machine_sender" but the function definition
+is still there. While it's no longer CALLED, it's 24 lines of dead
+code that should have been removed in the same commit.
+
+============================================================
+FINDING 5: S0 violation — wiring not deployed
+============================================================
+
+  origin/main HEAD: dac7b6f9
+  Deployed backend: 62cea3e (previous commit)
+  The wiring commit has NOT deployed after 5+ minutes of polling.
+  All of the coder's "live verification" claims were against the
+  OLD code (62cea3e), not the wired code (dac7b6f9).
+
+  The coder's verification table claims:
+    "Backend healthy ✓ status: ok, commit dac7b6f"
+  But the live /api/health returns commit=62cea3e. The coder either
+    did not actually fetch /api/health, or fabricated the commit SHA
+    in the table. This is a P1 violation (Live-Claim Rule).
+
+============================================================
+SUMMARY SCORECARD
+============================================================
+
+Wiring | Correct? | Latency | Value | Verdict
+---|---|---|---|---|
+actor_classifier → api.py | ✓ YES | Zero | CRITICAL | Correct, will work once deployed
+noise_classifier → signals.py | ⚠️ DEGRADED | Zero | MEDIUM | Only content heuristics work; domain check broken (entity not mapped to sender)
+change_detection → surfaces.py | ❌ BROKEN | ~50ms | ZERO | "deltas" key doesn't exist; always returns empty list
+Dead code deletion | ✓ 3/4 deleted | — | — | Old inline _is_machine_sender still present (minor)
+Deploy (S0) | ❌ NOT DEPLOYED | — | — | Live verification claims are against old code
+
+============================================================
+CODER INSTRUCTIONS
+============================================================
+
+> Coder: Read GOVERNANCE.md and ENTROPY_RECOVERY.md from disk before
+> writing any code. Do not code from memory.
+
+1. FIX change_detection wiring (CRITICAL — currently broken):
+   In surfaces.py, change:
+     deltas = _changes.get("deltas", [])
+   To:
+     deltas = (_changes.get("new", []) + _changes.get("modified", [])
+               + _changes.get("resolved", [])
+               + _changes.get("contradicted", []))
+
+2. FIX noise_classifier wiring (HIGH — domain check is degraded):
+   In signals.py, change:
+     classify_noise({"entity": req.entity, "text": req.text})
+   To:
+     classify_noise({"sender": req.entity, "text": req.text,
+                      "entity": req.entity})
+   This maps the entity to the sender field so the 216 noise domains
+   and sender patterns actually fire.
+
+3. REMOVE dead inline code:
+   Delete _is_machine_sender, _MACHINE_ENTITIES_SET, and
+   _MACHINE_TEXT_KEYWORDS from signals.py (lines 91-114). They're no
+   longer called.
+
+4. DEPLOY and VERIFY (P1 — no claims without live evidence):
+   After committing the fixes:
+   a. Wait for Railway to deploy (poll /api/health until commit
+      matches)
+   b. POST a signal with entity="noreply@github.com" and
+      text containing no noise patterns → verify it's REJECTED
+   c. POST a signal with entity="Test Person" and text="I will
+      send the report" → verify it's ACCEPTED and the canonical
+      ledger has an event with actor="user"
+   d. GET /api/what-changed/the-shifts twice → verify the FIRST
+      call shows changes (if any exist) and the SECOND call shows
+      0 changes (baseline tracking). If BOTH show 0, the wiring is
+      still broken.
+
+5. P1 enforcement: Do NOT claim "verified" until you have pasted
+   the actual /api/health commit SHA and the actual API responses.
+   The prior commit's verification table claimed "commit dac7b6f"
+   but the deployed commit was 62cea3e — that's a P1 violation.
+
+AUDIT ONLY — no fixes applied by this auditor.
