@@ -900,8 +900,8 @@ async def transition_commitment(
 
     # P54 FIX: invalidate cache so the state change appears immediately.
     try:
-        from maestro_personal_shell.routers.surfaces import invalidate_moment_cache
-        invalidate_moment_cache(token)
+        from maestro_personal_shell.routers.surfaces import invalidate_all_caches
+        invalidate_all_caches(token)
     except Exception:
         pass
 

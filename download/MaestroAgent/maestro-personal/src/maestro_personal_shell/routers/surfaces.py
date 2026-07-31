@@ -27,19 +27,25 @@ _PREPARE_CACHE: dict[str, tuple[float, list]] = {}
 _MOMENT_CACHE: dict[str, tuple[float, Any]] = {}
 
 
-def invalidate_moment_cache(user_email: str) -> None:
-    """Clear all cached entries for a user after a mutation (P54).
+def invalidate_all_caches(user_email: str) -> None:
+    """Clear ALL cached entries for a user after a mutation (P54).
 
     Called after: signal creation, signal correction, commitment transition,
-    draft resolution. Without this, the Today page shows stale data for up
-    to 60 seconds after the user takes an action.
+    draft resolution. Without this, surfaces show stale data for up to 60s.
+
+    Clears all 4 cache dicts:
+    - _MOMENT_CACHE (the-moment + the-shifts + ambient)
+    - _WHISPER_CACHE (whisper list)
+    - _BRIEFING_CACHE (morning/evening briefing)
+    - _PREPARE_CACHE (meeting preparation)
 
     P85: never raises — silently skips if cache unavailable.
     """
     try:
-        _keys_to_del = [k for k in _MOMENT_CACHE if f":{user_email}" in k]
-        for k in _keys_to_del:
-            del _MOMENT_CACHE[k]
+        for cache in [_MOMENT_CACHE, _WHISPER_CACHE, _BRIEFING_CACHE, _PREPARE_CACHE]:
+            _keys_to_del = [k for k in cache if f":{user_email}" in k]
+            for k in _keys_to_del:
+                del cache[k]
     except Exception:
         pass
 
