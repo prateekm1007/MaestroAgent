@@ -454,7 +454,7 @@ async def ask(request: Request, req: AskRequest, as_of: str | None = None, token
         try:
             from maestro_personal_shell.api import load_signals_from_db
             from datetime import datetime, timezone as _tz, timedelta as _td
-            _all_sigs_t = load_signals_from_db(user_email=token, limit=500)
+            _all_sigs_t = load_signals_from_db(user_email=token, limit=200)
             # Determine the time boundary from the query
             _now_t = datetime.now(_tz.utc)
             _cutoff_t = _now_t - _td(hours=24)  # default: last 24 hours
@@ -559,7 +559,7 @@ async def ask(request: Request, req: AskRequest, as_of: str | None = None, token
             from maestro_personal_shell.commitment_ledger import get_ledger_entries, init_ledger_table
             _db_fast = default_sqlite_path()
             init_ledger_table(_db_fast)
-            _fast_sigs = load_signals_from_db(user_email=token, limit=500)
+            _fast_sigs = load_signals_from_db(user_email=token, limit=200)
             # Extract entity from query using known entities
             _fast_known = set()
             for sig in _fast_sigs:
@@ -1010,7 +1010,7 @@ async def _ask_impl(request: Request, req: AskRequest, as_of: str | None = None,
         if not _all_signals:
             try:
                 from maestro_personal_shell.api import load_signals_from_db
-                _db_sigs = load_signals_from_db(user_email=token, limit=500)
+                _db_sigs = load_signals_from_db(user_email=token, limit=200)
                 _all_signals = _db_sigs if _db_sigs else []
             except Exception:
                 pass
@@ -1412,7 +1412,7 @@ async def _ask_impl(request: Request, req: AskRequest, as_of: str | None = None,
                         ]
                         try:
                             from maestro_personal_shell.api import load_signals_from_db
-                            _all_sigs = load_signals_from_db(user_email=token, limit=500)
+                            _all_sigs = load_signals_from_db(user_email=token, limit=200)
                             _entity_lower = {e.lower() for e in _queried_entities}
                             _COUNTER_KEYWORDS = [
                                 "received", "delivered", "completed", "sent",
@@ -1902,7 +1902,7 @@ async def _ask_impl(request: Request, req: AskRequest, as_of: str | None = None,
         # which may not be populated yet at this point in the request lifecycle.
         known_entities_lower = set()
         try:
-            all_sigs = load_signals_from_db(user_email=token, limit=500)
+            all_sigs = load_signals_from_db(user_email=token, limit=200)
             for sig in all_sigs:
                 if isinstance(sig, dict):
                     sig_entity = str(sig.get("entity", "")).strip()
@@ -1996,7 +1996,7 @@ async def _ask_impl(request: Request, req: AskRequest, as_of: str | None = None,
             _topic_word_match = False
             if _topic_words:
                 try:
-                    _all_sigs_for_topic = load_signals_from_db(user_email=token, limit=500)
+                    _all_sigs_for_topic = load_signals_from_db(user_email=token, limit=200)
                     for sig in _all_sigs_for_topic:
                         if isinstance(sig, dict):
                             _sig_text = (sig.get("text", "") or "").lower()

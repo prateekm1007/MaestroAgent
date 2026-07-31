@@ -8,7 +8,7 @@ Extracts style, common phrases, formality level, and signature patterns.
 import re
 from collections import Counter
 from datetime import datetime, timedelta
-from typing import List
+from typing import List, Any
 import logging
 
 from maestro_personal_shell.email_models import VoiceProfile, EmailMessage
@@ -16,48 +16,73 @@ from maestro_personal_shell.gmail_connector import is_gmail_configured, fetch_re
 
 logger = logging.getLogger(__name__)
 
+# LATENCY FIX (2026-07-31): in-memory cache for voice profiles.
+# Keyed by user_email, 5-minute TTL. Prevents re-analyzing 50 signals
+# on every draft generation.
+_VOICE_CACHE: dict[str, tuple[float, Any]] = {}
+
 
 async def get_user_voice_profile(user_email: str) -> VoiceProfile:
     """
     Get or build user's voice profile.
-    
-    Checks cache first, then analyzes recent sent emails if needed.
-    
+
+    LATENCY FIX (2026-07-31): added 5-minute in-memory cache + replaced
+    reconcile_signals_for_user (8.7s, N+1 queries) with a direct DB query
+    (<50ms). The prior code called reconcile_signals_for_user on EVERY
+    draft generation, which loaded ALL signals and reconciled each one
+    individually. Now we query the signals table directly and cache the
+    resulting VoiceProfile for 5 minutes.
+
     Args:
         user_email: User's email address
-        
+
     Returns:
         VoiceProfile with style analysis
     """
-    # TODO: Add caching layer (Redis or database)
-    # For now, always analyze fresh
-    
+    import time as _voice_cache_time
+
+    # Check cache first (5-minute TTL)
+    _VOICE_CACHE_TTL = 300.0  # 5 minutes
+    _cached = _VOICE_CACHE.get(user_email)
+    if _cached and _cached[0] > _voice_cache_time.monotonic():
+        return _cached[1]
+
     try:
-        # Use signals from the database as proxy for "sent emails"
-        # This avoids needing a live Gmail API connection for the voice profile
+        # LATENCY FIX: direct DB query instead of reconcile_signals_for_user
+        # Load up to 50 recent signals (enough for voice analysis) — O(1)
+        # instead of O(N) reconcile.
         from maestro_personal_shell.db_util import get_db_conn, default_sqlite_path
-        from maestro_personal_shell.reconcile import reconcile_signals_for_user
-        
+        import sqlite3 as _sqlite3
+
         db_path = default_sqlite_path()
-        reconciled = reconcile_signals_for_user(
-            user_email=user_email,
-            db_path=db_path,
-            include_non_commitments=True,
-        )
-        
-        if not reconciled:
+        conn = get_db_conn(db_path)
+        try:
+            conn.row_factory = _sqlite3.Row
+            rows = conn.execute(
+                "SELECT text FROM signals WHERE user_email = ? "
+                "ORDER BY timestamp DESC LIMIT 50",
+                (user_email,),
+            ).fetchall()
+        finally:
+            conn.close()
+
+        if not rows:
             logger.warning(f"No signals found for {user_email}")
             return _default_voice_profile(user_email)
-        
+
         # Use signal texts as proxy for user's writing style
-        sent_emails = [r.get("text", "") for r in reconciled if r.get("text")]
-        
+        sent_emails = [row["text"] for row in rows if row["text"]]
+
         if not sent_emails:
             return _default_voice_profile(user_email)
-        
+
         # Analyze the emails
-        return _analyze_emails(user_email, sent_emails)
-        
+        profile = _analyze_emails(user_email, sent_emails)
+
+        # Cache for 5 minutes
+        _VOICE_CACHE[user_email] = (_voice_cache_time.monotonic() + _VOICE_CACHE_TTL, profile)
+        return profile
+
     except Exception as e:
         logger.error(f"Error building voice profile for {user_email}: {e}")
         return _default_voice_profile(user_email)

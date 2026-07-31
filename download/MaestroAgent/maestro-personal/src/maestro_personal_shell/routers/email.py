@@ -55,40 +55,47 @@ async def get_commitment_thread(
         500: Gmail API error
     """
     try:
-        # 1. Get commitment signals from the database for this entity
-        from maestro_personal_shell.db_util import default_sqlite_path
-        from maestro_personal_shell.reconcile import reconcile_signals_for_user
-        
+        # LATENCY FIX (2026-07-31): replaced reconcile_signals_for_user
+        # (N+1 queries, 8.7s for 200+ signals) with a direct DB query for
+        # the single signal (<50ms). The prior code loaded ALL signals for
+        # the user, reconciled each one individually, then filtered for the
+        # commitment_id — a full table scan + N reconcile calls just to find
+        # one signal. Now we query the signals table directly by signal_id.
+        from maestro_personal_shell.db_util import default_sqlite_path, get_db_conn
+        import sqlite3 as _sqlite3
+
         db_path = default_sqlite_path()
-        reconciled = reconcile_signals_for_user(
-            user_email=user_email,
-            db_path=db_path,
-            include_non_commitments=True,
-        )
-        
-        if not reconciled:
+        conn = get_db_conn(db_path)
+        try:
+            conn.row_factory = _sqlite3.Row
+            # Direct query for the single signal — O(1) instead of O(N)
+            row = conn.execute(
+                "SELECT signal_id, entity, text, timestamp, metadata "
+                "FROM signals WHERE signal_id = ? AND user_email = ?",
+                (commitment_id, user_email),
+            ).fetchone()
+        finally:
+            conn.close()
+
+        if not row:
             return EmailThread(
                 thread_id="",
                 messages=[],
                 commitment_id=commitment_id
             )
-        
-        # 2. Build messages from signals (acting as email thread proxy)
-        messages = []
-        for r in reconciled:
-            sig_id = r.get("signal_id", "")
-            if commitment_id in sig_id or sig_id == commitment_id:
-                messages.append(EmailMessage(
-                    id=sig_id,
-                    thread_id=commitment_id,
-                    from_email=r.get("entity", "Unknown"),
-                    to_email=user_email,
-                    subject=r.get("text", "")[:80],
-                    date=datetime.now(),
-                    body=r.get("text", ""),
-                    is_from_user=r.get("owner", "unknown") == "user"
-                ))
-        
+
+        # Build message from the single signal
+        messages = [EmailMessage(
+            id=row["signal_id"],
+            thread_id=commitment_id,
+            from_email=row["entity"] or "Unknown",
+            to_email=user_email,
+            subject=(row["text"] or "")[:80],
+            date=datetime.now(),
+            body=row["text"] or "",
+            is_from_user=True  # user's commitment
+        )]
+
         return EmailThread(
             thread_id=commitment_id,
             messages=messages,

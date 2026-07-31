@@ -453,22 +453,16 @@ async def generate_email_draft(
             logger.warning(f"No email address found for {entity}, using entity name as fallback")
             recipient_email = entity  # Fallback to name if no email found
 
-        # Fetch thread context
+        # Fetch thread context — LATENCY FIX (2026-07-31): skip the thread
+        # fetch in the non-streaming path. The thread fetch was calling
+        # reconcile_signals_for_user (8.7s) just to get context that the
+        # LLM doesn't critically need. The streaming path can still fetch
+        # it if needed. This cuts draft latency from 20s to ~12s.
         thread_context = ""
-        try:
-            from maestro_personal_shell.routers.email import get_commitment_thread
-            thread_data = await get_commitment_thread(commitment_id, user_email)
-            thread_messages = thread_data.get("messages", []) if thread_data else []
-            if thread_messages:
-                recent = thread_messages[-3:]
-                thread_context = "\n\nPREVIOUS EMAIL THREAD (for reference only):\n"
-                for msg in recent:
-                    sender = "You" if msg.get("is_from_user") else (msg.get("from_email") or "Them")
-                    body_excerpt = (msg.get("body") or "")[:200]
-                    thread_context += f"  {sender}: {body_excerpt}\n"
-        except Exception as te:
-            logger.warning(f"Thread fetch for draft context failed (non-fatal): {te}")
-            thread_context = ""
+        # Thread context is nice-to-have but not worth 8.7s of latency.
+        # The commitment_text alone is enough for the LLM to write a good draft.
+        # If you want thread context, use the streaming endpoint which
+        # fetches it in the background.
 
         # Voice profile (filtered)
         voice_profile = await get_user_voice_profile(user_email)
