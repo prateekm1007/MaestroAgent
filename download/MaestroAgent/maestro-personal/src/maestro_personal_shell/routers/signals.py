@@ -1205,8 +1205,8 @@ async def correct_signal(
 
     # P54 FIX: invalidate cache so the correction appears immediately.
     try:
-        from maestro_personal_shell.routers.surfaces import invalidate_moment_cache
-        invalidate_moment_cache(token)
+        from maestro_personal_shell.routers.surfaces import invalidate_all_caches
+        invalidate_all_caches(token)
     except Exception:
         pass
 

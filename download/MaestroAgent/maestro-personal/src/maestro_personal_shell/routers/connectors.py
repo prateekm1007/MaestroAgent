@@ -1374,8 +1374,8 @@ async def resolve_draft(draft_id: str, req: DraftResolutionRequest, token: str =
 
     # P54 FIX: invalidate cache so the draft resolution appears immediately.
     try:
-        from maestro_personal_shell.routers.surfaces import invalidate_moment_cache
-        invalidate_moment_cache(token)
+        from maestro_personal_shell.routers.surfaces import invalidate_all_caches
+        invalidate_all_caches(token)
     except Exception:
         pass
 
