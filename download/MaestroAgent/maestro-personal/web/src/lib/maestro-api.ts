@@ -1238,23 +1238,23 @@ export function confidenceTier(c: number): "high" | "medium" | "low" {
 
 export function confidenceColor(c: number): string {
   const tier = confidenceTier(c);
-  if (tier === "high") return "bg-emerald-500";
-  if (tier === "medium") return "bg-amber-500";
-  return "bg-rose-500";
+  if (tier === "high") return "bg-black";
+  if (tier === "medium") return "bg-gray-500";
+  return "border border-gray-300";
 }
 
 export function confidenceTextColor(c: number): string {
   const tier = confidenceTier(c);
-  if (tier === "high") return "text-emerald-400";
-  if (tier === "medium") return "text-amber-400";
-  return "text-rose-400";
+  if (tier === "high") return "text-black font-semibold";
+  if (tier === "medium") return "text-gray-600";
+  return "text-gray-400";
 }
 
 export function llmDotColor(status: LlmStatus | null): string {
-  if (!status) return "bg-zinc-500";
-  if (status.active) return "bg-emerald-500";
-  if (status.configured) return "bg-amber-500";
-  return "bg-zinc-500";
+  if (!status) return "border border-gray-300";
+  if (status.active) return "bg-black";
+  if (status.configured) return "bg-gray-500";
+  return "border border-gray-300";
 }
 
 export function llmLabel(status: LlmStatus | null): string {
