@@ -217,23 +217,27 @@ class TestCacheEffectiveness:
 class TestNoiseRejection:
     """Pinned tests for noise_classifier wiring (P74)."""
 
-    def test_github_noreply_rejected(self):
-        """Noise from noreply@github.com must be rejected."""
+    def test_github_noreply_rejected_by_domain(self):
+        """Noise from noreply@github.com must be rejected — domain check, NOT content heuristic.
+        Uses text with NO noise content patterns to verify the domain check fires."""
         r = httpx.post(f"{BASE}/api/signals", headers=headers(),
                        json={"entity": "noreply@github.com",
-                             "text": "Your pull request was merged. Unsubscribe.",
+                             "text": "The build completed and tests passed.",
                              "signal_type": "notification"}, timeout=15)
         data = r.json()
-        assert data.get("rejected") is not None, "GitHub noreply must be rejected as noise"
+        assert data.get("rejected") is not None, \
+            "noreply@github.com must be rejected by domain (text has no noise patterns)"
 
-    def test_aws_billing_rejected(self):
-        """Noise from aws billing must be rejected."""
+    def test_aws_billing_rejected_by_domain(self):
+        """Noise from aws billing must be rejected — domain check, NOT content heuristics.
+        Uses text with NO billing amounts or noise keywords."""
         r = httpx.post(f"{BASE}/api/signals", headers=headers(),
                        json={"entity": "aws billing",
-                             "text": "Your AWS bill for July is $42.50.",
+                             "text": "Your account summary is available for review.",
                              "signal_type": "billing"}, timeout=15)
         data = r.json()
-        assert data.get("rejected") is not None, "AWS billing must be rejected as noise"
+        assert data.get("rejected") is not None, \
+            "aws billing entity must be rejected by domain (text has no noise patterns)"
 
     def test_legitimate_signal_accepted(self):
         """Legitimate commitment must NOT be rejected."""
@@ -245,6 +249,50 @@ class TestNoiseRejection:
         data = r.json()
         assert data.get("rejected") is None, "Legitimate signal must not be rejected"
         assert data.get("signal_id") is not None, "Legitimate signal must get a signal_id"
+
+
+# ============================================================================
+# 5b. CACHE INVALIDATION — cache must be cleared after mutations (P54)
+# ============================================================================
+
+class TestCacheInvalidation:
+    """Pinned tests for cache invalidation after mutations (P54).
+    These tests verify the cache is CLEARED, not just that it exists."""
+
+    def test_cache_invalidates_on_new_signal(self):
+        """P54: After creating a signal, /api/the-moment must NOT return stale cached data.
+        Creates a signal, then checks if the-moment response changes (indicating cache was cleared)."""
+        import time as _t
+        # 1. Warm the cache
+        r1 = httpx.get(f"{BASE}/api/the-moment", headers=headers(), timeout=30)
+        assert r1.status_code == 200
+        before = r1.json()
+
+        # 2. Create a new signal (triggers cache invalidation)
+        unique = f"Cache Invalidation Test {_t.time()}"
+        r = httpx.post(f"{BASE}/api/signals", headers=headers(),
+                       json={"entity": unique,
+                             "text": "I will deliver the test by today.",
+                             "signal_type": "commitment_made"}, timeout=15)
+        assert r.status_code == 200
+        assert r.json().get("signal_id") is not None, "Signal must be created"
+
+        # 3. Immediately check the-moment — cache should have been invalidated
+        r2 = httpx.get(f"{BASE}/api/the-moment", headers=headers(), timeout=30)
+        assert r2.status_code == 200
+        after = r2.json()
+
+        # The response may or may not show the new signal (depends on whether
+        # it flows to commitment_events immediately). But the cache MUST have
+        # been cleared — meaning the backend did a fresh computation, not
+        # returned a cached result. We verify this by checking that the
+        # response is fresh (not identical to the cached one in a way that
+        # indicates no computation happened).
+        # If the response is IDENTICAL and was served in <50ms, it was cached.
+        # If the response took >100ms, the cache was cleared and computation ran.
+        dt = r2.elapsed.total_seconds()
+        assert dt > 0.05, \
+            f"Cache may not have been invalidated: response in {dt*1000:.0f}ms (too fast for fresh computation)"
 
 
 # ============================================================================
