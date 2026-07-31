@@ -1410,22 +1410,28 @@ async def get_ambient(token: str = Depends(verify_token_dep)):
     P0 fix (restored): 5-minute cache wrapper to avoid re-computing
     ambient on every request. The cache was stripped during a refactor
     and never restored — this is the third time this fix has been needed.
+
+    CONSOLIDATION FIX: migrated from simple_cache (second caching impl)
+    to _MOMENT_CACHE (the single caching pattern for all surfaces).
+    One caching implementation everywhere = easier to grep, audit, and
+    prevent regressions.
     """
     from maestro_personal_shell.copilot_live import get_ambient_intelligence
     from maestro_personal_shell.api import build_shell
-    from maestro_personal_shell.simple_cache import get_cached, set_cached
+    from maestro_personal_shell.routers.surfaces import _MOMENT_CACHE
+    import time as _ambient_cache_time
 
-    # P0: check cache first (5-minute TTL)
+    # Check cache first (5-minute TTL = 300s)
     _cache_key = f"ambient:{token}"
-    _cached = get_cached(_cache_key)
-    if _cached is not None:
-        return _cached
+    _cached = _MOMENT_CACHE.get(_cache_key)
+    if _cached and _cached[0] > _ambient_cache_time.monotonic():
+        return _cached[1]
 
     shell = build_shell(user_email=token)
     result = await get_ambient_intelligence(shell=shell)
 
-    # P0: cache the result for 5 minutes
-    set_cached(_cache_key, result)
+    # Cache the result for 5 minutes
+    _MOMENT_CACHE[_cache_key] = (_ambient_cache_time.monotonic() + 300.0, result)
 
     return result
 

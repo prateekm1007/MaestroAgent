@@ -26,10 +26,11 @@ jobs:
           MAESTRO_BASE_URL: https://maestroagent-production.up.railway.app
         run: |
           cd download/MaestroAgent/maestro-personal
-          python -m pytest tests/test_pinned_regressions_2026_07_31.py -v --tb=short 2>&1 || true
-          # Note: tests run against production. Failures here indicate
-          # regressions that shipped. The || true is intentional for now —
-          # once branch protection is enforced, remove it so CI blocks merges.
+          python -m pytest tests/test_pinned_regressions_2026_07_31.py -v --tb=short
+          # CRITICAL FIX: removed || true — CI must actually FAIL on test failures.
+          # The || true was "intentional for now" but "now" was 3 commits ago.
+          # Branch protection requires this check to pass — if it always passes,
+          # the gate is always open. That's security theater.
 
   # ── Latency budget check ──────────────────────────────────────────────
   latency-budget:
