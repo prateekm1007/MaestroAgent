@@ -34,6 +34,11 @@ from contextlib import asynccontextmanager
 
 logger = logging.getLogger(__name__)
 
+# Shell cache — shared across all endpoints that call build_shell.
+# 30-second TTL. Without this, every page load fires 4+ build_shell calls
+# (the-moment, briefing, whisper, ambient), each taking 3-8s.
+_SHELL_CACHE: dict[str, tuple[float, Any]] = {}
+
 # ---------------------------------------------------------------------------
 # Configuration
 # ---------------------------------------------------------------------------
@@ -693,9 +698,24 @@ async def build_shell_async(user_email: str | None = None, as_of: str | None = N
 
 def build_shell(user_email: str | None = None, as_of: str | None = None,
                 signal_limit: int | None = None, from_date: str | None = None):
-    """Build a PersonalShell with signals loaded from SQLite."""
+    """Build a PersonalShell with signals loaded from SQLite.
+
+    Performance fix (2026-07-31): added 30-second shell cache. build_shell
+    loads ALL signals from the DB (555 rows for the demo user) and builds
+    the full OEM state. This takes 3-8s on cold calls. Multiple endpoints
+    (the-moment, briefing, whisper, ambient) all call build_shell — without
+    caching, every page load fires 4+ build_shell calls in parallel, each
+    taking 5-8s. The cache reduces repeat calls within 30s to <1ms.
+    """
     import sys
     import pathlib
+    import time as _shell_cache_time
+
+    # Shell cache — 30-second TTL, per user+as_of
+    _shell_cache_key = f"shell:{user_email or 'default'}:{as_of or 'now'}"
+    _cached_shell = _SHELL_CACHE.get(_shell_cache_key)
+    if _cached_shell and _cached_shell[0] > _shell_cache_time.monotonic():
+        return _cached_shell[1]
 
     # Ensure paths are set
     personal_src = pathlib.Path(__file__).resolve().parents[1]
@@ -703,11 +723,6 @@ def build_shell(user_email: str | None = None, as_of: str | None = None,
         sys.path.insert(0, str(personal_src))
 
     # Find backend dir — robust to both source-repo and Docker layouts.
-    # Source repo: /repo/download/MaestroAgent/maestro-personal/src/maestro_personal_shell/api.py
-    #   parents[3] = download → parents[3]/backend = download/backend ✓
-    # Docker: /app/maestro_personal_shell/api.py
-    #   parents[1] = /app → parents[1]/backend = /app/backend ✓
-    #   (parents[3] would IndexError because Docker layout is flat)
     _file_path = pathlib.Path(__file__).resolve()
     if len(_file_path.parents) > 3:
         backend_dir = _file_path.parents[3] / "backend"
@@ -720,7 +735,6 @@ def build_shell(user_email: str | None = None, as_of: str | None = None,
     from maestro_personal_shell.shell import PersonalShell
 
     # Load signals from DB — filtered by user_email for per-user isolation
-    # Audit fix #5: pass signal_limit to cap O(n) latency
     db_signals = load_signals_from_db(user_email=user_email, limit=signal_limit)
 
     # Temporal filtering: if as_of is provided, filter out future signals
@@ -822,7 +836,12 @@ def build_shell(user_email: str | None = None, as_of: str | None = None,
         personal_signals.append(sig)
 
     state = PersonalOemState(signals=personal_signals)
-    return PersonalShell(oem_state=state)
+    shell = PersonalShell(oem_state=state)
+
+    # Cache the shell for 30 seconds — multiple endpoints share the same shell
+    _SHELL_CACHE[_shell_cache_key] = (_shell_cache_time.monotonic() + 30.0, shell)
+
+    return shell
 
 
 # ---------------------------------------------------------------------------
