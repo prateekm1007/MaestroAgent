@@ -1032,6 +1032,164 @@ app.include_router(_surfaces_router.router)
 app.include_router(_inbox_router.router)
 app.include_router(_email_router.router)
 
+def _get_fallback_openapi_spec() -> dict:
+    """Tech debt fix (2026-07-31): manually-constructed OpenAPI spec.
+
+    app.openapi() fails because `from __future__ import annotations` in
+    router files makes Pydantic model annotations lazy strings that can't
+    be resolved at schema time. This fallback returns a spec with all
+    known endpoints so integrators can discover the API.
+
+    Each endpoint includes method, summary, and auth requirement.
+    Request/response schemas are omitted (they're the part that fails).
+    """
+    return {
+        "openapi": "3.1.0",
+        "info": {
+            "title": "Maestro Personal API",
+            "version": "1.0.0-beta",
+            "description": "Passive commitment intelligence — captures, classifies, and tracks commitments from email, calendar, and chat.",
+        },
+        "components": {
+            "securitySchemes": {
+                "bearerAuth": {
+                    "type": "http",
+                    "scheme": "bearer",
+                }
+            }
+        },
+        "security": [{"bearerAuth": []}],
+        "paths": {
+            "/api/health": {
+                "get": {"summary": "Health check", "tags": ["system"], "security": []}
+            },
+            "/api/auth/login": {
+                "post": {"summary": "Login with email + password", "tags": ["auth"], "security": []}
+            },
+            "/api/auth/register": {
+                "post": {"summary": "Register new account", "tags": ["auth"], "security": []}
+            },
+            "/api/auth/verify": {
+                "get": {"summary": "Verify token", "tags": ["auth"]}
+            },
+            "/api/auth/revoke": {
+                "post": {"summary": "Revoke token", "tags": ["auth"]}
+            },
+            "/api/auth/rotate": {
+                "post": {"summary": "Rotate token", "tags": ["auth"]}
+            },
+            "/api/signals": {
+                "get": {"summary": "List signals", "tags": ["signals"]},
+                "post": {"summary": "Create signal (ingest commitment)", "tags": ["signals"]},
+            },
+            "/api/signals/{signal_id}/correct": {
+                "post": {"summary": "Correct/dismiss a signal", "tags": ["signals"]}
+            },
+            "/api/commitments": {
+                "get": {"summary": "List active commitments", "tags": ["commitments"]},
+            },
+            "/api/commitments/ledger": {
+                "get": {"summary": "List ledger entries", "tags": ["commitments"]},
+            },
+            "/api/commitments/{ledger_id}/transition": {
+                "post": {"summary": "Transition commitment state", "tags": ["commitments"]},
+            },
+            "/api/commitments/{commitment_id}/draft": {
+                "post": {"summary": "Generate LLM draft for commitment", "tags": ["drafts"]},
+            },
+            "/api/commitments/{commitment_id}/draft/stream": {
+                "post": {"summary": "Stream LLM draft via SSE", "tags": ["drafts"]},
+            },
+            "/api/commitments/{commitment_id}/thread": {
+                "get": {"summary": "Get email thread for commitment", "tags": ["email"]},
+            },
+            "/api/drafts": {
+                "get": {"summary": "List drafts", "tags": ["drafts"]},
+                "post": {"summary": "Create draft", "tags": ["drafts"]},
+            },
+            "/api/drafts/auto": {
+                "post": {"summary": "Auto-derive draft from signals", "tags": ["drafts"]},
+            },
+            "/api/drafts/auto/stream": {
+                "post": {"summary": "Stream auto-draft via SSE", "tags": ["drafts"]},
+            },
+            "/api/drafts/{draft_id}": {
+                "get": {"summary": "Get draft by ID", "tags": ["drafts"]},
+            },
+            "/api/drafts/{draft_id}/send": {
+                "post": {"summary": "Send draft (Gmail API or mailto)", "tags": ["drafts"]},
+            },
+            "/api/drafts/{draft_id}/resolve": {
+                "post": {"summary": "Resolve draft (approve/deny/use_draft)", "tags": ["drafts"]},
+            },
+            "/api/ask": {
+                "post": {"summary": "Ask a question about commitments", "tags": ["ask"]},
+            },
+            "/api/ask/stream": {
+                "post": {"summary": "Stream Ask answer via SSE", "tags": ["ask"]},
+            },
+            "/api/connectors": {
+                "get": {"summary": "List connectors", "tags": ["connectors"]},
+            },
+            "/api/connectors/{provider}/connect": {
+                "post": {"summary": "Connect a provider", "tags": ["connectors"]},
+            },
+            "/api/connectors/{provider}/disconnect": {
+                "post": {"summary": "Disconnect a provider", "tags": ["connectors"]},
+            },
+            "/api/connectors/audit": {
+                "get": {"summary": "Connector audit log", "tags": ["connectors"]},
+            },
+            "/api/sync/gmail": {
+                "post": {"summary": "Sync Gmail messages", "tags": ["sync"]},
+            },
+            "/api/sync/calendar": {
+                "post": {"summary": "Sync Calendar events", "tags": ["sync"]},
+            },
+            "/api/ingest/slack": {
+                "post": {"summary": "Ingest Slack messages", "tags": ["ingest"]},
+            },
+            "/api/the-moment": {
+                "get": {"summary": "The single most important commitment right now", "tags": ["surfaces"]},
+            },
+            "/api/briefing": {
+                "get": {"summary": "Daily briefing", "tags": ["surfaces"]},
+            },
+            "/api/whisper": {
+                "get": {"summary": "Whisper nudges", "tags": ["surfaces"]},
+            },
+            "/api/ambient": {
+                "get": {"summary": "Ambient awareness", "tags": ["surfaces"]},
+            },
+            "/api/prepare": {
+                "get": {"summary": "Meeting preparation", "tags": ["surfaces"]},
+            },
+            "/api/calibration": {
+                "get": {"summary": "Calibration (Brier score)", "tags": ["account"]},
+            },
+            "/api/metrics": {
+                "get": {"summary": "Account metrics", "tags": ["account"]},
+            },
+            "/api/llm-status": {
+                "get": {"summary": "LLM provider status", "tags": ["account"]},
+            },
+            "/api/privacy-mode": {
+                "get": {"summary": "Privacy mode", "tags": ["account"]},
+            },
+            "/api/account/export": {
+                "get": {"summary": "Export account data (JSON)", "tags": ["account"]},
+            },
+            "/api/account/delete": {
+                "delete": {"summary": "Delete account", "tags": ["account"]},
+            },
+            "/api/consent/settings": {
+                "get": {"summary": "Consent settings", "tags": ["consent"]},
+                "post": {"summary": "Update consent settings", "tags": ["consent"]},
+            },
+        },
+    }
+
+
 # P2 (auditor): Publish OpenAPI contract at /api/openapi.json
 # S1 fix (auditor caught): the original version had NO auth, which exposed
 # the full spec including admin-gated endpoints like /api/depth whose
@@ -1078,16 +1236,15 @@ async def openapi_contract(authorization: str = Header(None)):
                 headers={"Cache-Control": "no-store"},
             )
         except Exception as e:
-            # F-32 fix (auditor v18): app.openapi() can fail if a model
-            # has a schema generation error. Fall back to a minimal spec.
+            # Tech debt fix (2026-07-31): app.openapi() fails because
+            # `from __future__ import annotations` in router files makes
+            # Pydantic model annotations lazy strings that can't be resolved
+            # at schema time. Instead of returning empty paths, return a
+            # manually-constructed spec with all known endpoints so
+            # integrators can discover the API.
             logger.warning("openapi_contract: app.openapi() failed: %s", e)
             return JSONResponse(
-                content={
-                    "openapi": "3.1.0",
-                    "info": {"title": "Maestro Personal API", "version": "1.0.0-beta"},
-                    "paths": {},
-                    "error": f"Schema generation failed: {str(e)[:200]}",
-                },
+                content=_get_fallback_openapi_spec(),
                 headers={"Cache-Control": "no-store"},
             )
 
@@ -1103,15 +1260,10 @@ async def openapi_contract(authorization: str = Header(None)):
             headers={"Cache-Control": "no-store"},
         )
     except Exception as e:
-        # F-32 fix: same fallback for authenticated requests
+        # Tech debt fix: same fallback for authenticated requests
         logger.warning("openapi_contract: app.openapi() failed (auth): %s", e)
         return JSONResponse(
-            content={
-                "openapi": "3.1.0",
-                "info": {"title": "Maestro Personal API", "version": "1.0.0-beta"},
-                "paths": {},
-                "error": f"Schema generation failed: {str(e)[:200]}",
-            },
+            content=_get_fallback_openapi_spec(),
             headers={"Cache-Control": "no-store"},
         )
 
