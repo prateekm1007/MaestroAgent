@@ -1,5 +1,10 @@
 """Auth router — login, revoke, rotate."""
-from __future__ import annotations
+# Tech debt fix (2026-07-31): removed `from __future__ import annotations`
+# because it makes ALL type annotations lazy strings, which breaks Pydantic
+# schema generation for models with forward references (SCIMName → SCIMUserRequest).
+# This was the root cause of /openapi.json returning empty paths for 3 audits.
+# Removing it forces annotations to be evaluated at definition time, so
+# Pydantic can resolve SCIMName when building SCIMUserRequest's schema.
 
 import os
 import logging
