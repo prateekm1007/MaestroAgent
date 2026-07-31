@@ -45,7 +45,7 @@ logger = logging.getLogger(__name__)
 # call. Cache is keyed per user_email + as_of, so different users and
 # time-travel queries get their own cache entries.
 _SHELL_CACHE: dict[str, tuple[float, Any]] = {}
-_SHELL_CACHE_TTL_SECONDS: float = 300.0
+_SHELL_CACHE_TTL_SECONDS: float = 0.0  # DISABLED — was causing OOM crashes on Railway
 
 # ---------------------------------------------------------------------------
 # Configuration
