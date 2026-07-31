@@ -512,6 +512,22 @@ def save_signal_to_db(signal: dict[str, Any], db_path: str | None = None, user_e
         conn.commit()
         conn.close()
 
+    # P11 WIRING FIX: actor_classifier (P82/FA33) — classify the actor
+    # attribution (my_promise / their_promise / quoted / third_party) at
+    # ingestion time so Ask can filter correctly. Pure rules, zero latency.
+    try:
+        from maestro_personal_shell.actor_classifier import classify_and_append
+        classify_and_append(
+            text=signal.get("text", ""),
+            user_email=user_email,
+            entity=signal.get("entity", ""),
+            source_signal_id=signal.get("signal_id", ""),
+            db_path=db_path,
+            source_type=signal.get("source_type", "personal_email"),
+        )
+    except Exception as e:
+        logger.debug("actor_classifier failed (non-fatal): %s", e)
+
     # Phase 1.3: index signal in FTS5 for semantic retrieval
     try:
         from maestro_personal_shell.semantic_retrieval import index_signal

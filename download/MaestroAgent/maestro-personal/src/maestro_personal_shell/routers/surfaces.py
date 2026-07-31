@@ -296,16 +296,26 @@ async def get_the_shifts(token: str = Depends(verify_token_dep)):
     from maestro_personal_shell.surfaces._snapshot import reconcile_snapshot
     recon = reconcile_snapshot(shell, user_email=token)
     surface = WhatChangedSurface(shell=shell)
-    # Phase 3.4 fix (auditor v12): "detect change, don't summarise."
-    # The prior code looked back 30 days, which meant "what changed" always
-    # returned results — even on a no-change day. The auditor wants:
-    #   - no-change day → silence (empty the_shifts + silence_message)
-    #   - one critical change → surfaced alone
-    # Fix: look back 24 hours (the natural "since you last looked" window).
-    # If nothing changed in 24h, return silence. If something changed,
-    # surface it — even if it's just one item.
-    since = datetime.now(timezone.utc) - timedelta(hours=24)
-    deltas = surface.get_recent_deltas(since_timestamp=since)
+    # P11 WIRING FIX: change_detection (P78) — use baseline tracking instead
+    # of a fixed 24h window. The prior code always looked back 24h, so a user
+    # who checked twice in 10 minutes saw the same "changes" both times.
+    # The change_detection module tracks last_seen_at per user and computes
+    # actual deltas (new, modified, resolved, contradicted since last read).
+    # Latency: ~50ms (one DB query for baseline + one for deltas).
+    try:
+        from maestro_personal_shell.change_detection import compute_changes, update_last_seen
+        from maestro_personal_shell.db_util import default_sqlite_path
+        _db = default_sqlite_path()
+        _changes = compute_changes(user_email=token, db_path=_db)
+        deltas = _changes.get("deltas", []) if isinstance(_changes, dict) else []
+        # Update the baseline so the next call shows only new changes
+        update_last_seen(user_email=token, db_path=_db)
+    except Exception as _cd_err:
+        logger.warning("change_detection failed (non-fatal, falling back to 24h window): %s", _cd_err)
+        # Fallback: original 24h window approach
+        since = datetime.now(timezone.utc) - timedelta(hours=24)
+        deltas = surface.get_recent_deltas(since_timestamp=since)
+
     meaningful = [d for d in deltas if d.get("is_meaningful")]
     if not meaningful:
         return WhatChangedMasterpieceResponse(

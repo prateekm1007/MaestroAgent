@@ -182,13 +182,14 @@ async def create_signal(req: SignalCreate, token: str = Depends(verify_token_dep
     from maestro_personal_shell.llm_bridge import sanitize_for_llm as _regex_sanitize
     from maestro_personal_shell.signal_adapters.gmail import sanitize_email_text
 
-    # Phase 3.2 (roadmap): Machine sender classifier — reject automated
-    # content before the commitment classifier runs. AWS Billing, GitHub
-    # notifications, LinkedIn, etc. must never become commitments.
-    # 66% of ambient alerts were noise across six audits.
+    # P11 WIRING FIX: replaced inline _is_machine_sender with the comprehensive
+    # noise_classifier module (P74). The inline version covered ~20 patterns;
+    # the module covers 216 noise domains + sender patterns + content heuristics.
+    # Latency: zero — pure regex/keyword matching, no LLM, no DB.
     try:
-        _sender_result = {"should_skip": _is_machine_sender(req.entity, req.text), "reason": "machine sender"}
-        # (replaced by inline check above)
+        from maestro_personal_shell.noise_classifier import classify_noise
+        _noise_result = classify_noise({"entity": req.entity, "text": req.text})
+        _sender_result = {"should_skip": _noise_result.get("is_noise", False), "reason": _noise_result.get("reason", "noise")}
         if _sender_result["should_skip"]:
             logger.info("Phase 3.2: rejecting machine sender: %s — %s",
                         req.entity[:50], _sender_result["reason"])
