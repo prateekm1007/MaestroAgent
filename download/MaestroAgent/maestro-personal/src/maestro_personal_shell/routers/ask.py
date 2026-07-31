@@ -1839,6 +1839,20 @@ async def _ask_impl(request: Request, req: AskRequest, as_of: str | None = None,
                 "anyone", "someone", "everyone", "nobody",
                 # question words (already lowercased in query_lower)
                 "what", "which", "who", "whom", "whose", "where", "when", "why", "how",
+                # Audit fix S1-2 followup (2026-07-31): additional filler words
+                # that were causing false entity detection. "right" appeared
+                # in "What commitments do I have right now?" and was treated as
+                # an entity name. "currently", "currently active", "exactly",
+                # "please", "kindly" are all filler that should not trigger
+                # entity-specific retrieval.
+                "right", "currently", "exactly", "please", "kindly",
+                "just", "only", "even", "also", "too",
+                "as", "or", "and", "but", "not", "if", "then", "else",
+                "so", "than", "such", "both", "either", "neither",
+                "up", "down", "out", "off", "over", "under", "again",
+                "further", "once", "here", "how", "more", "most", "other",
+                "some", "such", "no", "nor", "not", "only", "own", "same",
+                "s", "t", "don", "now", "ve", "ll", "re", "m",
             }
             after_words = [w for w in after_pattern.split() if w and w not in _stopwords]
             if after_words:

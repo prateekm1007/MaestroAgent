@@ -358,16 +358,26 @@ class RegisterRequest(BaseModel):
     # at line 158-160), but register only accepted `user_email`. This caused
     # a 422 for integrators who used the conventional `email` field name.
     # Now both work. The response always uses `user_email` for consistency.
+    #
+    # Followup fix: the prior model_post_init approach broke Pydantic schema
+    # generation (OpenAPI showed RegisterRequest: {}). Using a field_validator
+    # instead, which is the Pydantic v2 way to handle alias merging.
     user_email: EmailStr = None
     email: EmailStr = None  # alias for user_email (accepted on input only)
     password: str
 
-    def model_post_init(self, __context) -> None:
-        """Merge `email` alias into `user_email` if user_email is empty."""
-        if not self.user_email and self.email:
-            self.user_email = self.email
-        if not self.user_email:
+    from pydantic import field_validator
+
+    @field_validator("user_email", mode="after")
+    @classmethod
+    def _merge_email_alias(cls, v, info):
+        """If user_email is empty, use the email field as fallback."""
+        if not v:
+            email_val = info.data.get("email") if info.data else None
+            if email_val:
+                return email_val
             raise ValueError("Either 'user_email' or 'email' field is required")
+        return v
 
 
 class RegisterResponse(BaseModel):
