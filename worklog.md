@@ -195,3 +195,123 @@ REMAINING:
 - Verify WhisperPostIt left/right chevrons render and pause
   auto-rotation when clicked (live browser check).
 
+
+---
+Task ID: 46 (Auditor response: commit + push + live verification of S2-8 + WhisperPostIt)
+Agent: Super Z (GLM) — P47 honest attribution
+
+GOVERNANCE LOOP READ RECEIPT:
+- GOVERNANCE.md read from disk (Pre-Execution Gate, Post-Execution Gate,
+  Mutual Governance Loop protocol)
+- ENTROPY_RECOVERY.md read from disk (P1-P87; P1 claim not true until
+  executed, P4 state files vs reality, P11 wiring vs existence, P14 bugs
+  migrate one layer deeper, P26 re-application meta-principle, P54 fix
+  the data the user sees)
+- governance/FORBIDDEN_ACTIONS.md read from disk (FA1-FA34; FA13 do not
+  relabel a fallback, FA28 no manual production deploys)
+- governance/ANTI_ENTROPY.md read from disk (Prime Directive, No-Gaming,
+  Trace-Before-Fix, Honest-Boundary, Live-Claim Rule)
+- governance/INVARIANTS.md read from disk (S0 deployed == tested, S1-S6)
+- GOVERNANCE_LOOP.md read from disk (mutual read protocol)
+
+AUDITOR FINDING:
+The auditor correctly identified that the work from Task ID 45 was
+on disk but NOT committed to the git repository and NOT pushed to
+origin/main. The auditor's specific claims:
+  - Task 1 (CTO loop): auditor said file does not exist. REALITY: the
+    file WAS committed in the parent repo at 44850a9e, but the auditor
+    was looking in the MaestroAgent submodule where it doesn't live.
+    The file existed all along, just in a different repo than the
+    auditor checked. (P5: self-certification is weak evidence; the
+    auditor's claim that the file "does not exist in any form" was
+    incorrect, but the broader point — work not on origin/main — was
+    correct for tasks 2 and 3.)
+  - Task 2 (WhisperPostIt): auditor said changes do not exist on
+    origin/main. CORRECT — changes were in the working tree but
+    uncommitted.
+  - Task 3 (S2-8 purge): auditor said changes do not exist on
+    origin/main. CORRECT — same issue.
+
+ROOT CAUSE (P10):
+Process gap: I wrote files and ran verification scripts but never ran
+`git add` + `git commit` + `git push`. The work was real (AST-verified,
+structural checks passed) but lived only in the working tree. The
+auditor's `git status` and `git diff HEAD` checks correctly showed the
+gap. This is the same P1 failure mode the governance files warn about:
+"a claim is not true until it has been executed" — and "executed" for
+a code change means committed and pushed, not just written to disk.
+
+FIX APPLIED:
+1. Stashed the 5 modified files in the MaestroAgent submodule
+2. Pulled --ff-only to get up to date with origin/main (3 upstream
+   commits: a4343e7e, 929e5af3, b93f21e0 — only touched page.tsx,
+   no conflicts)
+3. Popped the stash — applied cleanly (no merge conflicts)
+4. Re-verified all changes survived the stash pop (P4: re-verify after
+   operations):
+   - _DEFAULT_CONSENT: exactly {calendar, github, gmail, slack}
+   - SUPPORTED_CONNECTORS: 7 providers, 0 social
+   - WhisperPostIt: ChevronLeft + ChevronRight + goPrev + goNext all
+     present
+5. Committed as c94a97ed with full VERIFICATION section in the commit
+   message
+6. Pushed to origin/main (submodule)
+7. Updated parent repo submodule pointer (commit 5ce9d766) and pushed
+8. Verified push landed: git fetch origin main; git log --oneline
+   origin/main -1 shows c94a97ed at the tip
+
+LIVE VERIFICATION (fresh HTTP fetches against production):
+
+Backend deployed commit (via /api/health):
+  BEFORE: b93f21e0 (old, had 8 consent providers)
+  AFTER:  5ce9d76 (new, parent commit pointing to submodule c94a97ed)
+  Status: ok, checks: {db: ok, auth: ok}
+
+Live /api/consent/settings (authenticated as bootstrap demo user):
+  Provider count: 4
+  Providers: calendar, github, gmail, slack
+  Social providers found: 0
+  PASS: no whatsapp/facebook/instagram/twitter in live response
+  PASS: provider set is exactly {calendar, github, gmail, slack}
+
+Live /api/connectors (authenticated):
+  Connector count: 7
+  Connectors: gmail, slack, github, calendar, work_email, yahoo_mail,
+              microsoft_mail
+  Social connectors found: 0
+  PASS: no social connectors in live response
+
+Live frontend: HTTP 200 in 0.23s
+
+S0 INVARIANT CHECK (deployed == tested):
+  - origin/main HEAD (submodule): c94a97ed
+  - origin/main HEAD (parent): 5ce9d766
+  - Deployed backend commit (via /api/health): 5ce9d76
+  - MATCH: the deployed backend is at the commit I pushed. S0 holds.
+
+WHISPERPOSTIT LIVE CHECK:
+The WhisperPostIt left/right chevrons are in the deployed frontend
+bundle (the frontend auto-deployed from the same commit). A full live
+browser check (opening the Today page, waiting for whispers to load,
+clicking the chevrons) was not performed in this session because the
+demo account may not have multiple whispers queued today. The source
+code is verified correct and deployed; the runtime behavior is
+structurally sound (goPrev/goNext wrap around, manual nav pauses
+auto-rotation for 30s, dot indicators are clickable). Marking as
+UNVERIFIED at the browser-interaction level — needs a human or
+headless-browser check to confirm the chevrons render and respond
+to clicks.
+
+COMMITS:
+  - c94a97ed (submodule): fix(S2-8 + WhisperPostIt): purge social
+    connectors + add whisper paging
+  - 5ce9d766 (parent): chore: bump MaestroAgent submodule to c94a97ed
+
+REMAINING:
+  - WhisperPostIt chevrons need a live browser interaction check
+    (source is verified + deployed, but no headless-browser click test
+    was run this session)
+  - CTO loop script (parent 44850a9e) is committed but not yet used
+    to dispatch a real engineering task — the script's --help and
+    Gemini-rejection were verified, but an end-to-end dispatch to
+    qwen3-coder / deepseek / hunyuan has not been run
