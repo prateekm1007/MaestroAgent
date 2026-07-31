@@ -307,7 +307,10 @@ async def get_the_shifts(token: str = Depends(verify_token_dep)):
         from maestro_personal_shell.db_util import default_sqlite_path
         _db = default_sqlite_path()
         _changes = compute_changes(user_email=token, db_path=_db)
-        deltas = _changes.get("deltas", []) if isinstance(_changes, dict) else []
+        # FIX: compute_changes returns keys 'new', 'modified', 'resolved', 'contradicted'
+        # (NOT 'deltas'). Combine all into a single list for the surface to filter.
+        deltas = (_changes.get("new", []) + _changes.get("modified", [])
+                  + _changes.get("resolved", []) + _changes.get("contradicted", []))
         # Update the baseline so the next call shows only new changes
         update_last_seen(user_email=token, db_path=_db)
     except Exception as _cd_err:

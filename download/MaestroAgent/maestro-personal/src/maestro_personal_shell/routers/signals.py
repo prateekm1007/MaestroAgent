@@ -87,33 +87,9 @@ async def get_situations(token: str = Depends(verify_token_dep)):
 # /api/signals — POST (create) and GET (list)
 # ---------------------------------------------------------------------------
 
-# Phase 3.2: Inline machine sender classifier (defined before create_signal)
-_MACHINE_ENTITIES_SET = {
-    "aws billing", "aws", "github", "linkedin", "product hunt", "producthunt",
-    "vercel", "railway", "spotify", "kotak", "zerodha", "polsia",
-    "notion", "slack", "discord", "stripe", "google cloud", "google",
-    "microsoft", "azure", "digitalocean", "heroku", "netlify",
-    "cloudflare", "the athletic", "washington post", "dalal street",
-    "communications", "noreply", "no-reply",
-}
-_MACHINE_TEXT_KEYWORDS = [
-    "processed automatically", "no action needed", "do not reply",
-    "unsubscribe", "your bill", "invoice #", "receipt",
-    "verification code", "security alert", "was successfully",
-    "thank you for your payment", "privacy policy", "terms of service",
-]
-
-def _is_machine_sender(entity: str, text: str) -> bool:
-    """Check if this is a machine sender. Returns True if should reject."""
-    entity_lower = (entity or "").lower().strip()
-    for me in _MACHINE_ENTITIES_SET:
-        if me in entity_lower:
-            return True
-    text_lower = (text or "").lower()
-    for kw in _MACHINE_TEXT_KEYWORDS:
-        if kw in text_lower:
-            return True
-    return False
+# Dead code removed: _MACHINE_ENTITIES_SET, _MACHINE_TEXT_KEYWORDS,
+# _is_machine_sender — replaced by noise_classifier.classify_noise (P74).
+# The inline version covered ~20 patterns; the module covers 216 noise domains.
 
 
 @router.post("/signals", response_model=SignalResponse)
@@ -188,7 +164,10 @@ async def create_signal(req: SignalCreate, token: str = Depends(verify_token_dep
     # Latency: zero — pure regex/keyword matching, no LLM, no DB.
     try:
         from maestro_personal_shell.noise_classifier import classify_noise
-        _noise_result = classify_noise({"entity": req.entity, "text": req.text})
+        # FIX: classify_noise looks for 'sender'/'from'/'sender_email' fields
+        # (NOT 'entity'). Pass the entity as 'sender' so the 216 noise domain
+        # checks actually fire.
+        _noise_result = classify_noise({"sender": req.entity, "entity": req.entity, "text": req.text})
         _sender_result = {"should_skip": _noise_result.get("is_noise", False), "reason": _noise_result.get("reason", "noise")}
         if _sender_result["should_skip"]:
             logger.info("Phase 3.2: rejecting machine sender: %s — %s",
