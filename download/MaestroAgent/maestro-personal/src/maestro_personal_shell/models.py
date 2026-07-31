@@ -607,7 +607,10 @@ class NegotiationRequest(BaseModel):
 
 
 class ConnectorConnectRequest(BaseModel):
-    provider: str  # gmail | slack | github | calendar | whatsapp | facebook | instagram | twitter
+    # Audit fix S2-8 (2026-08-01): social providers removed from inventory.
+    # The valid provider set is now: gmail | calendar | slack | github
+    # (plus the IMAP-based work_email flow which doesn't use this model).
+    provider: str  # gmail | slack | github | calendar | microsoft_mail | yahoo_mail | work_email
     oauth_token: str = ""  # empty in demo mode
 
 

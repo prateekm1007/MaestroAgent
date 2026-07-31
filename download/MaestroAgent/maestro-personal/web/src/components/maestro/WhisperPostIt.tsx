@@ -1,12 +1,12 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Zap, X, Mail, Sparkles } from "lucide-react";
+import { Zap, X, Mail, ChevronLeft, ChevronRight } from "lucide-react";
 import { maestroApi } from "@/lib/maestro-api";
 
 /**
- * WhisperPostIt — a post-it note overlay that appears on the Today page.
+ * WhisperPostIt -- a post-it note overlay that appears on the Today page.
  *
  * Instead of whispers being a separate tab with 0 results, this component
  * fetches whispers in the background and displays them as a sticky note
@@ -19,14 +19,30 @@ import { maestroApi } from "@/lib/maestro-api";
  *  - The whisper title + body
  *  - A "Draft follow-up" button if the whisper has an entity
  *  - A dismiss (X) button
- *  - Auto-dismiss after 30 seconds
+ *  - Left / right chevron buttons to manually page through whispers.
+ *    Manual paging pauses the auto-rotation for 30s so the user has time
+ *    to read the whisper they navigated to.
+ *  - Dot indicators at the bottom reflect the current position and are
+ *    clickable to jump directly to a whisper.
+ *  - Auto-dismiss after 45 seconds of inactivity (resets on manual nav).
  */
+
+// When the user manually pages, pause auto-rotation for this long so
+// they have time to read the whisper they navigated to.
+const MANUAL_NAV_PAUSE_MS = 30_000;
+// Auto-rotate interval when the user has not touched the controls.
+const AUTO_ROTATE_MS = 15_000;
+// Auto-dismiss the entire post-it after this long (resets on manual nav).
+const AUTO_DISMISS_MS = 45_000;
 
 export function WhisperPostIt({ onDraft }: { onDraft?: (entity: string) => void }) {
   const [whispers, setWhispers] = useState<any[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [dismissed, setDismissed] = useState(false);
   const [loading, setLoading] = useState(true);
+  // Wall-clock time at which the user last manually paged. While
+  // Date.now() < manualNavUntilRef.current, auto-rotation is paused.
+  const manualNavUntilRef = useRef<number>(0);
 
   useEffect(() => {
     let alive = true;
@@ -39,7 +55,7 @@ export function WhisperPostIt({ onDraft }: { onDraft?: (entity: string) => void 
           setWhispers(list);
         }
       } catch {
-        // Non-fatal — whispers are a nice-to-have
+        // Non-fatal -- whispers are a nice-to-have
       } finally {
         if (alive) setLoading(false);
       }
@@ -47,21 +63,39 @@ export function WhisperPostIt({ onDraft }: { onDraft?: (entity: string) => void 
     return () => { alive = false; };
   }, []);
 
-  // Auto-rotate through whispers every 15 seconds
+  // Auto-rotate through whispers every AUTO_ROTATE_MS, but only when the
+  // user has not manually paged within the last MANUAL_NAV_PAUSE_MS.
   useEffect(() => {
     if (whispers.length <= 1 || dismissed) return;
     const interval = setInterval(() => {
+      if (Date.now() < manualNavUntilRef.current) return; // paused
       setCurrentIndex(prev => (prev + 1) % whispers.length);
-    }, 15000);
+    }, AUTO_ROTATE_MS);
     return () => clearInterval(interval);
   }, [whispers.length, dismissed]);
 
-  // Auto-dismiss after 45 seconds
+  // Auto-dismiss after AUTO_DISMISS_MS of inactivity. Resets whenever
+  // the user manually pages (currentIndex changes via goPrev/goNext),
+  // so an actively-used post-it never dismisses out from under them.
   useEffect(() => {
     if (whispers.length === 0 || dismissed) return;
-    const timeout = setTimeout(() => setDismissed(true), 45000);
+    const timeout = setTimeout(() => setDismissed(true), AUTO_DISMISS_MS);
     return () => clearTimeout(timeout);
-  }, [whispers.length, dismissed]);
+  }, [whispers.length, dismissed, currentIndex]);
+
+  // Manual paging -- left / right. Pauses auto-rotation for
+  // MANUAL_NAV_PAUSE_MS so the user has time to read the whisper they
+  // navigated to. Wraps around at the ends.
+  const goPrev = () => {
+    if (whispers.length <= 1) return;
+    manualNavUntilRef.current = Date.now() + MANUAL_NAV_PAUSE_MS;
+    setCurrentIndex(prev => (prev - 1 + whispers.length) % whispers.length);
+  };
+  const goNext = () => {
+    if (whispers.length <= 1) return;
+    manualNavUntilRef.current = Date.now() + MANUAL_NAV_PAUSE_MS;
+    setCurrentIndex(prev => (prev + 1) % whispers.length);
+  };
 
   if (loading || dismissed || whispers.length === 0) return null;
 
@@ -111,6 +145,11 @@ export function WhisperPostIt({ onDraft }: { onDraft?: (entity: string) => void 
               <span className="text-[10px] font-bold uppercase tracking-wider text-amber-800">
                 Whisper
               </span>
+              {whispers.length > 1 && (
+                <span className="text-[10px] text-amber-800/70 ml-1">
+                  {currentIndex + 1} / {whispers.length}
+                </span>
+              )}
             </div>
             <button
               onClick={() => setDismissed(true)}
@@ -133,28 +172,58 @@ export function WhisperPostIt({ onDraft }: { onDraft?: (entity: string) => void 
             </p>
           )}
 
-          {/* Action buttons */}
-          {entity && onDraft && (
-            <button
-              onClick={() => {
-                onDraft(entity);
-                setDismissed(true);
-              }}
-              className="inline-flex items-center gap-1.5 text-xs font-medium text-white bg-amber-700 hover:bg-amber-800 px-3 py-1.5  transition-colors "
-            >
-              <Mail className="h-3 w-3" />
-              Draft follow-up
-            </button>
-          )}
+          {/* Action buttons + left/right paging controls */}
+          <div className="flex items-center justify-between gap-2">
+            {entity && onDraft ? (
+              <button
+                onClick={() => {
+                  onDraft(entity);
+                  setDismissed(true);
+                }}
+                className="inline-flex items-center gap-1.5 text-xs font-medium text-white bg-amber-700 hover:bg-amber-800 px-3 py-1.5  transition-colors "
+              >
+                <Mail className="h-3 w-3" />
+                Draft follow-up
+              </button>
+            ) : (
+              <span /> // keep layout stable when there's no draft action
+            )}
 
-          {/* Rotation indicator */}
+            {whispers.length > 1 && (
+              <div className="flex items-center gap-1">
+                <button
+                  onClick={goPrev}
+                  className="inline-flex items-center justify-center h-6 w-6 text-amber-800 hover:bg-amber-800/10 transition-colors"
+                  aria-label="Previous whisper"
+                  title="Previous whisper"
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                </button>
+                <button
+                  onClick={goNext}
+                  className="inline-flex items-center justify-center h-6 w-6 text-amber-800 hover:bg-amber-800/10 transition-colors"
+                  aria-label="Next whisper"
+                  title="Next whisper"
+                >
+                  <ChevronRight className="h-4 w-4" />
+                </button>
+              </div>
+            )}
+          </div>
+
+          {/* Rotation indicator -- clickable dots */}
           {whispers.length > 1 && (
-            <div className="flex gap-1 mt-3">
+            <div className="flex gap-1 mt-3 justify-center">
               {whispers.map((_, i) => (
-                <div
+                <button
                   key={i}
-                  className={`h-1  transition-all ${
-                    i === currentIndex ? "w-6 bg-amber-700" : "w-2 bg-amber-700/30"
+                  onClick={() => {
+                    manualNavUntilRef.current = Date.now() + MANUAL_NAV_PAUSE_MS;
+                    setCurrentIndex(i);
+                  }}
+                  aria-label={`Go to whisper ${i + 1}`}
+                  className={`h-1.5  transition-all ${
+                    i === currentIndex ? "w-6 bg-amber-700" : "w-1.5 bg-amber-700/30 hover:bg-amber-700/50"
                   }`}
                 />
               ))}

@@ -667,15 +667,19 @@ async def get_retention_status(token: str = Depends(verify_token_dep)):
 # defaults). The _reset_unsafe_write_consents() function below runs at
 # startup and resets any stored write-operation consent to False,
 # forcing users to explicitly re-enable write operations.
+# Audit fix S2-8 (2026-08-01): removed whatsapp / facebook / instagram /
+# twitter from the consent defaults. The corresponding connector code was
+# already removed from the backend and frontend in a prior pass, but the
+# _DEFAULT_CONSENT table still carried the four social providers, which
+# caused them to render in the Per-connector consent UI (Settings) even
+# though no such connector exists in the product. Per P54 (fix the data
+# the user sees, not just the path), the table must reflect the real
+# connector inventory: gmail, calendar, slack, github -- nothing else.
 _DEFAULT_CONSENT: dict[str, dict[str, bool]] = {
     "gmail": {"read_emails": True, "create_drafts": True, "send_emails": False},
     "calendar": {"read_events": True, "create_events": False},
     "slack": {"read_messages": True, "post_messages": False},
     "github": {"read_issues": True, "read_prs": True, "create_issues": False},
-    "whatsapp": {"read_messages": True},
-    "facebook": {"read_posts": True},
-    "instagram": {"read_posts": True},
-    "twitter": {"read_tweets": True},
 }
 
 # Write-operation scopes that must ALWAYS be opt-in. If any of these are

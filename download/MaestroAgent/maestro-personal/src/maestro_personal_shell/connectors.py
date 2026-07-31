@@ -122,46 +122,14 @@ SUPPORTED_CONNECTORS: dict[str, dict[str, Any]] = {
         "phase": 5,
         "advanced": False,
     },
-    "whatsapp": {
-        "name": "WhatsApp",
-        "icon": "chat",
-        "category": "social",
-        "scopes": ["messages"],
-        "ingest_description": "Ingest WhatsApp conversations (requires WhatsApp Business API approval)",
-        "write_description": "Draft and send WhatsApp messages (with approval)",
-        "oauth_configured": False,
-        "phase": 6,
-    },
-    "facebook": {
-        "name": "Facebook",
-        "icon": "social",
-        "category": "social",
-        "scopes": ["pages_messaging"],
-        "ingest_description": "Ingest Facebook messages (requires Meta app review)",
-        "write_description": "Draft and send Facebook messages (with approval)",
-        "oauth_configured": False,
-        "phase": 6,
-    },
-    "instagram": {
-        "name": "Instagram",
-        "icon": "social",
-        "category": "social",
-        "scopes": ["instagram_basic", "instagram_manage_messages"],
-        "ingest_description": "Ingest Instagram DMs (requires Meta app review)",
-        "write_description": "Draft and send Instagram messages (with approval)",
-        "oauth_configured": False,
-        "phase": 6,
-    },
-    "twitter": {
-        "name": "Twitter / X",
-        "icon": "social",
-        "category": "social",
-        "scopes": ["tweet.read", "dm.read", "dm.write"],
-        "ingest_description": "Ingest Twitter DMs (API access restricted since 2023)",
-        "write_description": "Draft and send Twitter DMs (with approval)",
-        "oauth_configured": False,
-        "phase": 6,
-    },
+    # Audit fix S2-8 (2026-08-01): removed whatsapp / facebook / instagram /
+    # twitter definitions. The product does not ship these connectors and
+    # they were rendering in the Connectors page (Social Platforms section)
+    # and the Per-connector consent UI despite having no real backing
+    # implementation. Per P54, the connector inventory the user sees must
+    # match the connector inventory that actually exists. Phase 6 social
+    # connectors can be re-added here when there is real OAuth wiring for
+    # them; until then, defining them here is theatre (P43).
 }
 
 # Mock message data for demo mode (when OAuth not configured)
@@ -900,8 +868,12 @@ class ConnectorStore:
                 logger.warning(f"Microsoft Mail ingestion failed: {e}")
                 return []
 
-        # Other providers — not yet implemented (Phase F: WhatsApp, etc.)
+        # Other providers — not yet implemented.
         # P0 honesty: return empty, NOT fabricated mock data.
+        # Audit fix S2-8 (2026-08-01): the social providers (whatsapp,
+        # facebook, instagram, twitter) were removed from
+        # SUPPORTED_CONNECTORS; this branch now only catches truly
+        # unknown providers, which should never happen in practice.
         return []
 
     # --- Draft management ---------------------------------------------------
@@ -1542,10 +1514,6 @@ class ConnectorDraftGenerator:
             result = self._generate_slack(recipient, entity, commitment_text, evidence_refs)
         elif provider == "github":
             result = self._generate_github(recipient, entity, commitment_text, evidence_refs)
-        elif provider == "whatsapp":
-            result = self._generate_whatsapp(recipient, entity, commitment_text, evidence_refs)
-        elif provider in ("facebook", "instagram", "twitter"):
-            result = self._generate_social(provider, recipient, entity, commitment_text, evidence_refs)
         else:
             result = self._generate_email(recipient, entity, commitment_text, evidence_refs)
             result["provider"] = provider
@@ -1641,41 +1609,8 @@ class ConnectorDraftGenerator:
             "evidence_refs": evidence_refs,
         }
 
-    def _generate_whatsapp(
-        self,
-        recipient: str,
-        entity: str,
-        commitment_text: str,
-        evidence_refs: list[dict],
-    ) -> dict[str, Any]:
-        """Generate a WhatsApp message draft."""
-        body = f"Hi {recipient} 👋 Just following up on our chat — I'll get you: {commitment_text}. Talk soon!"
-
-        return {
-            "provider": "whatsapp",
-            "recipient": recipient,
-            "subject": "",
-            "body": body,
-            "commitment_ref": commitment_text,
-            "evidence_refs": evidence_refs,
-        }
-
-    def _generate_social(
-        self,
-        provider: str,
-        recipient: str,
-        entity: str,
-        commitment_text: str,
-        evidence_refs: list[dict],
-    ) -> dict[str, Any]:
-        """Generate a social media DM draft."""
-        body = f"Hi {recipient} — following up on our conversation. I committed to: {commitment_text}. Will have that to you soon!"
-
-        return {
-            "provider": provider,
-            "recipient": recipient,
-            "subject": "",
-            "body": body,
-            "commitment_ref": commitment_text,
-            "evidence_refs": evidence_refs,
-        }
+    # Audit fix S2-8 (2026-08-01): _generate_whatsapp and _generate_social
+    # removed. The four social providers (whatsapp, facebook, instagram,
+    # twitter) are no longer in SUPPORTED_CONNECTORS, so generate_draft
+    # never routes to them. Re-add when real OAuth wiring exists (P43:
+    # built-but-not-wired is theatre).

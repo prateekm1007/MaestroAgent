@@ -5,8 +5,6 @@ import {
   Calendar,
   Code,
   Database,
-  Facebook,
-  Instagram,
   Link2,
   Loader2,
   Mail,
@@ -15,7 +13,6 @@ import {
   Send,
   ShieldCheck,
   Sparkles,
-  Twitter,
   Unlink,
   Zap,
   Briefcase,
@@ -68,7 +65,6 @@ const PROVIDER_ICONS: Record<string, React.ComponentType<{ className?: string }>
   code: Code,
   calendar: Calendar,
   chat: MessageSquare,
-  social: Facebook,
   briefcase: Briefcase,
 };
 
@@ -373,7 +369,11 @@ export function Connectors() {
       const bAdvanced = b.provider === "work_email" ? 1 : 0;
       return aAdvanced - bAdvanced;
     });
-  const socialConnectors = connectors.filter((c) => c.category === "social");
+  // socialConnectors filter removed (audit fix S2-8, 2026-08-01): the
+  // backend no longer returns any connector with category === "social",
+  // so the filter always returned []. The Social Connectors UI section
+  // that consumed it is also removed. See the comment where the section
+  // used to live for the full rationale.
 
   return (
     <div className="space-y-6">
@@ -509,24 +509,14 @@ export function Connectors() {
         </Card>
       )}
 
-      {/* Social Connectors */}
-      <div>
-        <h3 className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground mb-3">
-          Social Platforms — Phase 6 (coming later)
-        </h3>
-        <div className="grid gap-3 sm:grid-cols-2">
-          {socialConnectors.map((connector) => (
-            <ConnectorCard
-              key={connector.provider}
-              connector={connector}
-              busy={busyProvider === connector.provider}
-              onConnect={() => handleConnect(connector.provider)}
-              onDisconnect={() => handleDisconnect(connector.provider)}
-              onIngest={() => handleIngest(connector.provider)}
-            />
-          ))}
-        </div>
-      </div>
+      {/* Social Connectors section REMOVED (2026-08-01, audit fix S2-8):
+          whatsapp / facebook / instagram / twitter were removed from the
+          backend SUPPORTED_CONNECTORS table and from _DEFAULT_CONSENT.
+          The section header "Social Platforms -- Phase 6 (coming later)"
+          was rendering with zero cards underneath, which is worse than
+          not having the section at all (P54: fix the data the user sees).
+          When real OAuth wiring for a social provider lands, re-add the
+          section header + map here. Until then, defining it is theatre. */}
 
       {/* Trust + Privacy notice */}
       <Card className="border-border/60 bg-muted/30">
