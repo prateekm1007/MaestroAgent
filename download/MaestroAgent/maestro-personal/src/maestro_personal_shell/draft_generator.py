@@ -460,6 +460,55 @@ async def generate_email_draft(
                 detail="Commitment has no text to follow up on."
             )
 
+        # Q7 FIX (S1 — user-harming): reject non-commitment signals before
+        # drafting. The classifier correctly types cancellations, negations,
+        # third-party reports, questions, and tentative statements — but the
+        # draft generator never read the label. This produced follow-up emails
+        # asking colleagues to deliver on CANCELLED commitments.
+        #
+        # "Producer correct, consumer never swept" — the classifier has typed
+        # these correctly since Audit #2. The generator has never read the type.
+        #
+        # Fix: read commitment_type from metadata and reject non-commitment
+        # types with a 422 error. The frontend can show "This signal is a
+        # [cancellation/question/etc.] — no follow-up needed."
+        _meta = commitment.get('metadata', {}) or {}
+        if isinstance(_meta, str):
+            try:
+                import json as _json_meta
+                _meta = _json_meta.loads(_meta) if _meta else {}
+            except Exception:
+                _meta = {}
+        _commitment_type = _meta.get('commitment_type', '')
+        _is_commitment = _meta.get('is_commitment', True)
+        _NON_DRAFTABLE_TYPES = {
+            'cancelled', 'negation', 'third_party_report', 'not_a_commitment',
+            'question', 'tentative', 'joke', 'request', 'aspiration',
+            'proposal', 'superseded',
+        }
+        if _commitment_type in _NON_DRAFTABLE_TYPES or _is_commitment is False:
+            _reason = {
+                'cancelled': 'This signal is a cancellation — no follow-up needed.',
+                'negation': 'This signal is a negation — the commitment was withdrawn.',
+                'third_party_report': 'This is someone else\'s commitment, not yours.',
+                'not_a_commitment': 'This signal was classified as not a commitment.',
+                'question': 'This is a question, not a commitment.',
+                'tentative': 'This is a tentative statement, not a firm commitment.',
+                'joke': 'This was classified as a joke.',
+                'request': 'This is a request, not your commitment.',
+                'aspiration': 'This is an aspiration, not a commitment.',
+                'proposal': 'This is a proposal, not a commitment.',
+                'superseded': 'This commitment was superseded.',
+            }.get(_commitment_type, 'This signal is not a draftable commitment.')
+            raise HTTPException(
+                status_code=422,
+                detail={
+                    'error': 'non_draftable_signal',
+                    'commitment_type': _commitment_type,
+                    'reason': _reason,
+                }
+            )
+
         # Look up actual email address (P-DRAFT-EMAIL-ADDRESS fix)
         recipient_email = _get_recipient_email(commitment, commitment_id, user_email)
         if not recipient_email:
@@ -790,6 +839,33 @@ async def stream_email_draft(
         commitment_text = commitment.get('text') or commitment.get('action') or ''
         if not commitment_text:
             yield f'data: {{"error": "Commitment has no text to follow up on."}}\n\n'
+            yield "data: [DONE]\n\n"
+            return
+
+        # Q7 FIX (streaming path): reject non-commitment signals before drafting
+        _meta = commitment.get('metadata', {}) or {}
+        if isinstance(_meta, str):
+            try:
+                _meta = _json.loads(_meta) if _meta else {}
+            except Exception:
+                _meta = {}
+        _commitment_type = _meta.get('commitment_type', '')
+        _is_commitment = _meta.get('is_commitment', True)
+        _NON_DRAFTABLE_TYPES = {
+            'cancelled', 'negation', 'third_party_report', 'not_a_commitment',
+            'question', 'tentative', 'joke', 'request', 'aspiration',
+            'proposal', 'superseded',
+        }
+        if _commitment_type in _NON_DRAFTABLE_TYPES or _is_commitment is False:
+            _reason = {
+                'cancelled': 'This signal is a cancellation — no follow-up needed.',
+                'negation': 'This signal is a negation — the commitment was withdrawn.',
+                'third_party_report': 'This is someone else\'s commitment, not yours.',
+                'not_a_commitment': 'This signal was classified as not a commitment.',
+                'question': 'This is a question, not a commitment.',
+                'tentative': 'This is a tentative statement, not a firm commitment.',
+            }.get(_commitment_type, 'This signal is not a draftable commitment.')
+            yield f'data: {{"error": "non_draftable_signal", "commitment_type": "{_commitment_type}", "reason": "{_reason}"}}\n\n'
             yield "data: [DONE]\n\n"
             return
 

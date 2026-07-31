@@ -48,6 +48,9 @@ export default function Home() {
   const [draftForReview, setDraftForReview] = useState<DraftWithMeta | null>(null)
   const [draftResolving, setDraftResolving] = useState(false)
   const [draftBusy, setDraftBusy] = useState(false)
+  // D1 FIX: track send result so DraftApprovalModal can render inline
+  // recovery UI (Reconnect Gmail / Open in mail client buttons).
+  const [sendResult, setSendResult] = useState<{ status: string; error: string; messageId: string } | null>(null)
 
   useEffect(() => {
     setAuthed(!!getToken())
@@ -94,10 +97,11 @@ export default function Home() {
   // so the user believed the email was sent when it wasn't.
   const handleResolveDraft = async (draft: DraftWithMeta, resolution: 'approve' | 'deny' | 'use_draft') => {
     setDraftResolving(true)
+    setSendResult(null) // clear previous result
     try {
       const { data, live } = await maestroApi.resolveDraft(draft.draft_id, resolution)
       if (!live) {
-        alert('Backend unreachable. Could not resolve draft.')
+        setSendResult({ status: 'error', error: 'Backend unreachable', messageId: '' })
         return
       }
 
@@ -107,27 +111,17 @@ export default function Home() {
         const sentMessageId = data?.sent_message_id || ''
 
         if (status === 'send_failed') {
-          // Do NOT close the modal
-          alert(`Send failed: ${sendError}. Check that Gmail is connected.`)
-          // Fallback: log mailto URL to console
-          if (draft.recipient) {
-            const subject = encodeURIComponent(draft.subject || '')
-            const body = encodeURIComponent(draft.body || '')
-            console.warn(
-              `Send failed. Use this mailto link: mailto:${draft.recipient}?subject=${subject}&body=${body}`
-            )
-          }
-          return  // Keep modal open so user can retry or copy
+          // D1 FIX: set sendResult so the modal renders inline recovery UI
+          // (Reconnect Gmail / Open in mail client buttons) instead of a
+          // bare alert(). Modal stays open.
+          setSendResult({ status: 'send_failed', error: sendError, messageId: '' })
+          return
         } else if (status === 'approved') {
-          if (sentMessageId) {
-            alert(`Sent. Message ID: ${sentMessageId}`)
-          } else {
-            alert('Sent (no message ID returned)')
-          }
-          setDraftForReview(null)
+          setSendResult({ status: 'sent', error: '', messageId: sentMessageId })
+          // Auto-close after short delay so user sees the success state
+          setTimeout(() => { setDraftForReview(null); setSendResult(null) }, 2000)
         } else {
-          // Unexpected status
-          alert(`Unexpected response. Status: ${status}`)
+          setSendResult({ status: 'error', error: `Unexpected status: ${status}`, messageId: '' })
         }
       } else if (resolution === 'use_draft') {
         try {
@@ -138,10 +132,8 @@ export default function Home() {
           const body = encodeURIComponent(draft.body || '')
           window.open(`mailto:${draft.recipient}?subject=${subject}&body=${body}`, '_blank')
         }
-        alert('Opened in mail app. Body copied to clipboard as backup.')
         setDraftForReview(null)
       } else {
-        alert('Discarded')
         setDraftForReview(null)
       }
     } catch (e: any) {
@@ -247,9 +239,18 @@ export default function Home() {
       <DraftApprovalModal
         draft={draftForReview}
         open={!!draftForReview}
-        onOpenChange={(o) => { if (!o) setDraftForReview(null) }}
+        onOpenChange={(o) => { if (!o) { setDraftForReview(null); setSendResult(null) } }}
         onResolve={handleResolveDraft}
         resolving={draftResolving}
+        sendResult={sendResult}
+        onReconnectGmail={() => { setTab('connectors') }}
+        onOpenMailClient={(draft) => {
+          if (draft?.recipient) {
+            const subject = encodeURIComponent(draft.subject || '')
+            const body = encodeURIComponent(draft.body || '')
+            window.open(`mailto:${draft.recipient}?subject=${subject}&body=${body}`, '_blank')
+          }
+        }}
       />
     </div>
   )
