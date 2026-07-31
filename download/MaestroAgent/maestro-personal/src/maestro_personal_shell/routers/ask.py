@@ -2136,10 +2136,11 @@ async def _ask_impl(request: Request, req: AskRequest, as_of: str | None = None,
                             ledger_lines.append(f"Active commitments ({len(active)}):")
                             for e in active[:5]:
                                 action = e.get("text", "") or e.get("action", "") or ""
-                                ledger_lines.append(f"  • {e.get('entity', '?')}: {action[:80]}")
+                                _clean_ent = _clean_entity_name(e.get('entity', '?'))
+                                ledger_lines.append(f"  • {_clean_ent}: {action[:80]}")
                                 ledger_evidence.append({
                                     "text": e.get("text", ""),
-                                    "entity": e.get("entity", ""),
+                                    "entity": _clean_ent,
                                     "timestamp": str(e.get("timestamp", "")),
                                     "signal_id": e.get("signal_id", ""),
                                     "source_type": "commitment",
@@ -2148,12 +2149,12 @@ async def _ask_impl(request: Request, req: AskRequest, as_of: str | None = None,
                             ledger_lines.append(f"\nCompleted ({len(completed)}):")
                             for e in completed[:3]:
                                 action = e.get("action", "") or e.get("evidence_quote", "")[:80]
-                                ledger_lines.append(f"  • {e.get('entity', '?')}: {action[:80]}")
+                                ledger_lines.append(f"  • {_clean_entity_name(e.get('entity', '?'))}: {action[:80]}")
                         if cancelled:
                             ledger_lines.append(f"\nCancelled ({len(cancelled)}):")
                             for e in cancelled[:3]:
                                 action = e.get("action", "") or e.get("evidence_quote", "")[:80]
-                                ledger_lines.append(f"  • {e.get('entity', '?')}: {action[:80]}")
+                                ledger_lines.append(f"  • {_clean_entity_name(e.get('entity', '?'))}: {action[:80]}")
 
                         answer = "\n".join(ledger_lines)
                         logger.info("F-06: broad commitment query answered from ledger (%d active, %d completed, %d cancelled)",
