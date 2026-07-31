@@ -604,6 +604,56 @@ async def ask(request: Request, req: AskRequest, as_of: str | None = None, token
                         consequence_paths=[], llm_active=False, llm_provider='none',
                         intelligence_source='fast_entity_lookup',
                     )
+                # Audit fix S1-2 (2026-07-31): if the entity IS known (matched
+                # by name) but both ledger and signal lookups returned empty,
+                # do a broader signal search. The prior code fell through to
+                # _ask_impl (the LLM path) which takes 3-45s and often
+                # abstains anyway. This fallback scans signal TEXT (not just
+                # entity field) for the entity name, catches the case where
+                # the entity is stored differently in signals vs ledger, and
+                # returns immediately if any signal mentions the entity.
+                if not _fast_evidence and _fast_queried:
+                    for ent in _fast_queried:
+                        ent_lower = ent.lower()
+                        for sig in _fast_sigs:
+                            if not isinstance(sig, dict):
+                                continue
+                            _sig_text = (sig.get('text', '') or '').lower()
+                            _sig_entity = (sig.get('entity', '') or '').lower()
+                            # Match if entity name appears in signal text OR
+                            # signal entity field (catches "Bob" stored as
+                            # entity vs mentioned in text)
+                            if ent_lower in _sig_text or ent_lower in _sig_entity:
+                                _fast_lines.append(f'• [{sig.get("entity", ent)}] {sig.get("text", "")[:80]}')
+                                _fast_evidence.append({
+                                    'text': sig.get('text', ''),
+                                    'entity': sig.get('entity', ent),
+                                    'timestamp': sig.get('timestamp', ''),
+                                    'signal_id': sig.get('signal_id', ''),
+                                    'source_type': 'signal_text_match',
+                                })
+                        if len(_fast_evidence) >= 5:
+                            break
+                    if _fast_evidence:
+                        _fast_answer = f'Based on your stored signals mentioning {", ".join(_fast_queried)}:\n' + '\n'.join(_fast_lines[:5])
+                        logger.info(
+                            'Audit S1-2: entity fast-path fallback found %d '
+                            'signals via text match for entity %s',
+                            len(_fast_evidence), list(_fast_queried),
+                        )
+                        return AskResponse(
+                            answer=_fast_answer, query=req.query,
+                            source_sentence=_fast_evidence[0].get('text', ''),
+                            source_entity=_fast_evidence[0].get('entity', ''),
+                            source_timestamp=_fast_evidence[0].get('timestamp', ''),
+                            situation_state='', evidence_refs=_fast_evidence[:5],
+                            confidence=0.7, counterevidence=[], unknowns=[],
+                            as_of=str(as_of or ''), decision_boundary='', perspectives=[],
+                            reasoning_chain=[f'Query: {req.query[:80]}', f'Text-match fallback: found {len(_fast_evidence)} signals'],
+                            calibration_note='Answered from signal text search (S1-2 fallback, no LLM).',
+                            consequence_paths=[], llm_active=False, llm_provider='none',
+                            intelligence_source='signal_text_fallback',
+                        )
         except Exception as _fast_err:
             logger.warning('Phase 3.3 fast entity lookup failed: %s', _fast_err)
 
@@ -1746,13 +1796,50 @@ async def _ask_impl(request: Request, req: AskRequest, as_of: str | None = None,
     # have additional entity-like words after them. If the query is exactly
     # "what did i promise?" (no entity), it's broad. If it's "what did i
     # promise elon musk?", the "elon musk" part makes it specific.
-    _ENTITY_REQUIRING_PATTERNS = ["what did i promise", "what do i owe", "what commitments"]
+    #
+    # Audit fix S1-2 (2026-07-31): the prior _stopwords set was missing
+    # basic pronouns and auxiliaries ("do", "i", "have", "does", "did",
+    # "my", "we", "our", etc.). This caused "What commitments do I have?"
+    # to be misclassified as a specific query (after_words=["do","i","have"]
+    # was non-empty), which then hit the entity gate and abstained with
+    # "No matching signals were found" — even though the user had 574
+    # commitments in the ledger. The fix expands the stopword set to
+    # cover all common pronouns, auxiliaries, and generic temporal/quantity
+    # words that should NOT trigger entity-specific retrieval.
+    _ENTITY_REQUIRING_PATTERNS = ["what did i promise", "what do i owe", "what commitments", "what promises", "what obligations"]
     for pattern in _ENTITY_REQUIRING_PATTERNS:
         if pattern in query_lower:
             # Check if there are additional words after the pattern
             after_pattern = query_lower.split(pattern, 1)[-1].strip().rstrip("?.,!")
-            # Remove common stopwords
-            _stopwords = {"me", "to", "for", "by", "the", "a", "an", "is", "are", "was", "were", "this", "that", "today", "this week", "this month", "now", "still", "already", "ever", "anyone", "someone"}
+            # Remove common stopwords — expanded to include pronouns,
+            # auxiliaries, and generic words that don't name a specific
+            # entity. Without this, "What commitments do I have?" was
+            # treated as specific (after_words=["do","i","have"]).
+            _stopwords = {
+                # pronouns
+                "me", "my", "mine", "i", "we", "us", "our", "ours", "you",
+                "your", "yours", "they", "them", "their", "theirs",
+                "he", "him", "his", "she", "her", "hers", "it", "its",
+                # auxiliaries
+                "do", "does", "did", "have", "has", "had", "am", "is",
+                "are", "was", "were", "be", "been", "being", "will",
+                "would", "should", "could", "can", "may", "might", "must",
+                # articles
+                "the", "a", "an",
+                # common query filler
+                "to", "for", "by", "of", "in", "on", "at", "with", "from",
+                "about", "this", "that", "these", "those", "there", "here",
+                # temporal generics (these don't name a specific entity)
+                "today", "tomorrow", "yesterday", "now", "soon", "later",
+                "this week", "this month", "this year", "last week",
+                "last month", "next week", "next month",
+                "still", "already", "ever", "never", "yet",
+                # quantity generics
+                "all", "any", "some", "every", "each", "many", "much",
+                "anyone", "someone", "everyone", "nobody",
+                # question words (already lowercased in query_lower)
+                "what", "which", "who", "whom", "whose", "where", "when", "why", "how",
+            }
             after_words = [w for w in after_pattern.split() if w and w not in _stopwords]
             if after_words:
                 # There are specific words after the pattern — treat as specific query
