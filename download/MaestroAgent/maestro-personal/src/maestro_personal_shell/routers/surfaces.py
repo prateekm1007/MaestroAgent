@@ -33,11 +33,17 @@ def invalidate_all_caches(user_email: str) -> None:
     Called after: signal creation, signal correction, commitment transition,
     draft resolution. Without this, surfaces show stale data for up to 60s.
 
-    Clears all 4 cache dicts:
+    Clears all 5 cache dicts:
     - _MOMENT_CACHE (the-moment + the-shifts + ambient)
     - _WHISPER_CACHE (whisper list)
     - _BRIEFING_CACHE (morning/evening briefing)
     - _PREPARE_CACHE (meeting preparation)
+    - _SHELL_CACHE (build_shell — the signal list that ALL surfaces read from)
+
+    CRITICAL: _SHELL_CACHE must be invalidated too, otherwise build_shell
+    returns the old signals list even after _MOMENT_CACHE is cleared.
+    This was the root cause of "new signal doesn't appear in the-moment
+    immediately" — the shell cache served stale signals.
 
     P85: never raises — silently skips if cache unavailable.
     """
@@ -46,6 +52,12 @@ def invalidate_all_caches(user_email: str) -> None:
             _keys_to_del = [k for k in cache if f":{user_email}" in k]
             for k in _keys_to_del:
                 del cache[k]
+        # Also invalidate _SHELL_CACHE (lives in api.py, not surfaces.py)
+        # Key format: "shell:{user_email}:{as_of}"
+        from maestro_personal_shell.api import _SHELL_CACHE
+        _shell_keys = [k for k in _SHELL_CACHE if f":{user_email}" in k]
+        for k in _shell_keys:
+            del _SHELL_CACHE[k]
     except Exception:
         pass
 
