@@ -31,7 +31,7 @@ function formatRelativeTime(iso: string): string {
   return new Date(iso).toLocaleDateString();
 }
 
-type Tab = 'today' | 'ask' | 'commitments' | 'whisper' | 'connectors'
+type Tab = 'today' | 'ask' | 'commitments' | 'connectors'
 
 const API_BASE = typeof window !== 'undefined'
   ? (window.location.origin === 'https://web-production-d5c26.up.railway.app'
@@ -157,7 +157,6 @@ export default function Home() {
     { id: 'today', label: 'Today', icon: <Sun className="h-4 w-4" /> },
     { id: 'ask', label: 'Ask', icon: <Search className="h-4 w-4" /> },
     { id: 'commitments', label: 'Commitments', icon: <Calendar className="h-4 w-4" /> },
-    { id: 'whisper', label: 'Whisper', icon: <Zap className="h-4 w-4" /> },
     { id: 'connectors', label: 'Connectors', icon: <Unplug className="h-4 w-4" /> },
   ]
 
@@ -209,13 +208,13 @@ export default function Home() {
           </div>
         </header>
 
-        <main className="flex-1 max-w-2xl w-full mx-auto px-6 lg:px-10 py-8 lg:py-10 pb-24 lg:pb-10">
+        <main className={cn('flex-1 w-full mx-auto px-6 lg:px-10 py-8 lg:py-10 pb-24 lg:pb-10',
+          tab === 'commitments' ? 'max-w-5xl' : 'max-w-2xl')}>
           {/* Tufte: no motion animations — content appears immediately */}
           {tab === 'today' && <TodayView onDraft={handleGenerateDraft} draftBusy={draftBusy} />}
           {tab === 'today' && <WhisperPostIt onDraft={handleGenerateDraft} />}
           {tab === 'ask' && <AskView />}
-          {tab === 'commitments' && <CommitmentsViewReal onDraft={handleGenerateDraft} draftBusy={draftBusy} />}
-          {tab === 'whisper' && <WhisperViewReal onDraft={handleGenerateDraft} draftBusy={draftBusy} />}
+          {tab === 'commitments' && <CommitmentsWhisperView onDraft={handleGenerateDraft} draftBusy={draftBusy} />}
           {tab === 'connectors' && <Connectors />}
         </main>
       </div>
@@ -548,6 +547,8 @@ function AskView() {
   return (
     <div className="flex flex-col items-center w-full">
       <div className="w-full max-w-2xl">
+        {/* Heading — matches Today/Whispers/Connectors pattern */}
+        <h1 className="text-2xl font-bold tracking-tight text-black mb-6">Ask.</h1>
         {/* Tufte: input with hairline border, no rounded corners */}
         <form onSubmit={(e) => { e.preventDefault(); handleAsk(query) }}>
           <div className="flex items-center gap-2 border-b border-gray-300 pb-2">
@@ -623,6 +624,35 @@ function AskView() {
   )
 }
 
+// === COMMITMENTS + WHISPER — merged split view ===
+// Tufte Step 1: Essential info = commitments list (left) + whispers (right)
+// Bertin Step 2: Position (left/right split) + Value (font weight for priority) + Shape (whisper type)
+// Gestalt Step 3: Proximity (each column grouped) + Continuity (aligned rows) + Figure-Ground (h1 is figure)
+function CommitmentsWhisperView({ onDraft, draftBusy }: { onDraft: (entity: string) => void; draftBusy: boolean }) {
+  return (
+    <div className="space-y-8">
+      {/* Shared heading — matches Today/Ask/Connectors pattern */}
+      <h1 className="text-2xl font-bold tracking-tight text-black">Commitments.</h1>
+
+      {/* Split layout: left=commitments, right=whispers
+          Gestalt: Proximity — each column is visually grouped
+          Gestalt: Continuity — aligned baselines, consistent column widths
+          On mobile, stacks vertically (commitments first, whispers second) */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 lg:gap-16">
+        {/* Left column: Commitments */}
+        <div>
+          <CommitmentsViewReal onDraft={onDraft} draftBusy={draftBusy} />
+        </div>
+
+        {/* Right column: Whispers */}
+        <div>
+          <WhisperViewReal onDraft={onDraft} draftBusy={draftBusy} />
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // === COMMITMENTS — real API ===
 function CommitmentsViewReal({ onDraft, draftBusy }: { onDraft: (entity: string) => void; draftBusy: boolean }) {
   const [loading, setLoading] = useState(true)
@@ -656,7 +686,9 @@ function CommitmentsViewReal({ onDraft, draftBusy }: { onDraft: (entity: string)
   const rest = sorted.slice(1)
 
   return (
-    <div className="space-y-12">
+    <div className="space-y-8">
+      {/* Section label — Gestalt: Similarity with whispers column */}
+      <p className="text-xs font-semibold uppercase tracking-wide text-gray-400">Active</p>
       {/* The One — Tufte: clean text block, no card chrome */}
       {theOne && (
         <div>
@@ -738,11 +770,8 @@ function WhisperViewReal({ onDraft, draftBusy }: { onDraft: (entity: string) => 
   }, [])
 
   if (loading) return (
-    <div className="space-y-12">
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight text-black">Whispers.</h1>
-        <p className="text-gray-500 mt-1 text-sm">Loading your insights…</p>
-      </div>
+    <div className="space-y-8">
+      <p className="text-xs font-semibold uppercase tracking-wide text-gray-400">Whispers</p>
       <p className="text-sm text-gray-300 italic">Loading…</p>
     </div>
   )
@@ -759,10 +788,10 @@ function WhisperViewReal({ onDraft, draftBusy }: { onDraft: (entity: string) => 
   const lowPriority = whispers.filter(w => w.priority === 'low')
 
   return (
-    <div className="space-y-12">
-      {/* Header — Tufte: strong typographic hierarchy */}
+    <div className="space-y-8">
+      {/* Section label — Gestalt: Similarity with commitments column */}
       <div>
-        <h1 className="text-2xl font-bold tracking-tight text-black">Whispers.</h1>
+        <p className="text-xs font-semibold uppercase tracking-wide text-gray-400">Whispers</p>
         <p className="text-gray-500 mt-1 text-sm">
           {whispers.length > 0
             ? `${whispers.length} ${whispers.length === 1 ? 'insight needs' : 'insights need'} attention.`
