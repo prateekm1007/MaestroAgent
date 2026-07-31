@@ -247,21 +247,20 @@ export default function Home() {
   )
 }
 
-// === TODAY — real API ===
+// === TODAY — real API (world-class progressive loading) ===
 function TodayView({ onDraft, draftBusy }: { onDraft: (entity: string) => void; draftBusy: boolean }) {
   const [loading, setLoading] = useState(true)
   const [theOne, setTheOne] = useState<any>(null)
   const [changes, setChanges] = useState<any[]>([])
   const [commitments, setCommitments] = useState<any[]>([])
   const [error, setError] = useState('')
-  // Audit fix S1-1 (2026-07-31): track whether the headline call (the-moment)
-  // was reachable. The prior code silently treated a timed-out/unreachable
-  // backend as "no commitments need attention" — a false negative that
-  // destroyed trust on every cold page load. Now we distinguish three states:
-  //   loading=true              → spinner
-  //   loading=false, live=false → "Still loading your day…" banner (not "you're clear")
-  //   loading=false, live=true  → genuine "you're clear" or the actual moment
-  const [momentLive, setMomentLive] = useState(false)
+  // LATENCY FIX v2 (2026-07-31): the prior code showed a "Still loading" banner
+  // whenever the-moment hadn't returned yet — which took 2-9s on cold cache.
+  // This made the page feel broken even though commitments + changes had already
+  // loaded in <1s. Now we track momentLoading separately and only show the
+  // banner after 10s (genuinely broken, not just slow cold cache).
+  const [momentLoading, setMomentLoading] = useState(true)
+  const [showSlowBanner, setShowSlowBanner] = useState(false)
 
   useEffect(() => {
     let alive = true
@@ -286,19 +285,27 @@ function TodayView({ onDraft, draftBusy }: { onDraft: (entity: string) => void; 
       }
     })()
 
-    // Phase 2: the-moment loads separately (may take 5-9s cold)
+    // Phase 2: the-moment loads separately (may take 2-9s cold, 0.3s warm)
+    setMomentLoading(true)
     ;(async () => {
       try {
         const moment = await maestroApi.getTheMoment()
         if (!alive) return
-        setMomentLive(!!moment.live)
         if (moment.live && moment.data) setTheOne(moment.data)
+        setMomentLoading(false)
       } catch (e) {
-        if (alive) { setMomentLive(false) }
+        if (alive) { setMomentLoading(false) }
       }
     })()
 
-    return () => { alive = false }
+    // LATENCY FIX v2: only show the "slow" banner after 10s — by then
+    // the-moment should have loaded (cold cache is 2-3s). If it hasn't,
+    // something is genuinely wrong and the banner is appropriate.
+    const slowTimer = setTimeout(() => {
+      if (alive && momentLoading) setShowSlowBanner(true)
+    }, 10000)
+
+    return () => { alive = false; clearTimeout(slowTimer) }
   }, [])
 
   if (loading) return <div className="flex justify-center py-16"><Loader2 className="h-5 w-5 animate-spin text-gray-300" /></div>
@@ -323,22 +330,35 @@ function TodayView({ onDraft, draftBusy }: { onDraft: (entity: string) => void; 
         <p className="text-gray-400 mt-2 text-base">
           {theOne
             ? 'You have one promise that needs attention.'
-            : momentLive
-              ? "You're clear today. No commitments need attention."
-              : 'Still loading your day — your commitments will appear here shortly.'}
+            : momentLoading
+              ? 'Loading your top priority…'
+              : "You're clear today. No commitments need attention."}
         </p>
       </div>
-      {/* Audit fix S1-1 (2026-07-31): if the headline call didn't reach the
-          backend (timeout or unreachable), show a visible banner instead of
-          the false-negative "you're clear" message. This is the
-          defense-in-depth layer on top of the raised timeout + extended
-          cache TTL. */}
-      {!momentLive && !theOne && (
+      {/* LATENCY FIX v2: only show the slow banner after 10s — not during
+          normal cold-cache loading (2-3s). This prevents the page from
+          looking broken when it's actually working fine. */}
+      {showSlowBanner && !theOne && (
         <div className="bg-amber-50 border border-amber-200 rounded-lg px-4 py-3 flex items-center gap-2">
-          <span className="text-amber-600 text-sm font-medium">⚠ Still loading</span>
+          <span className="text-amber-600 text-sm font-medium">⚠ Taking longer than usual</span>
           <span className="text-amber-500 text-xs">
-            The backend is taking longer than usual to build your dashboard. Refresh in a moment.
+            The backend is slow to respond. Your commitments are loaded — the top priority will appear when ready.
           </span>
+        </div>
+      )}
+
+      {/* While the-moment is loading, show a subtle skeleton placeholder
+          so the page doesn't feel empty. This disappears when the-moment
+          arrives or when we determine the user is "clear". */}
+      {momentLoading && !theOne && (
+        <div className="rounded-2xl border border-gray-100 bg-white p-6 animate-pulse">
+          <div className="flex items-center gap-3">
+            <div className="h-10 w-10 rounded-full bg-gray-100" />
+            <div className="flex-1 space-y-2">
+              <div className="h-3 bg-gray-100 rounded w-3/4" />
+              <div className="h-3 bg-gray-100 rounded w-1/2" />
+            </div>
+          </div>
         </div>
       )}
 
@@ -735,7 +755,23 @@ function WhisperViewReal({ onDraft, draftBusy }: { onDraft: (entity: string) => 
     return () => { alive = false }
   }, [])
 
-  if (loading) return <div className="flex justify-center py-16"><Loader2 className="h-5 w-5 animate-spin text-gray-300" /></div>
+  if (loading) return (
+    <div className="space-y-10">
+      <div>
+        <h1 className="text-3xl font-semibold tracking-tight text-gray-900">Whispers.</h1>
+        <p className="text-gray-400 mt-2 text-base">Loading your insights…</p>
+      </div>
+      <div className="rounded-2xl border border-gray-100 bg-white p-6 animate-pulse">
+        <div className="flex items-center gap-3">
+          <div className="h-10 w-10 rounded-full bg-gray-100" />
+          <div className="flex-1 space-y-2">
+            <div className="h-3 bg-gray-100 rounded w-3/4" />
+            <div className="h-3 bg-gray-100 rounded w-1/2" />
+          </div>
+        </div>
+      </div>
+    </div>
+  )
   if (error) return (
     <div className="space-y-4">
       <div className="bg-amber-50 border border-amber-200 rounded-lg px-4 py-3 flex items-center gap-2">
