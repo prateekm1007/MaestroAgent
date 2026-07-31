@@ -466,3 +466,273 @@ COMMITS:
   - a9914a7e (submodule + parent): fix(LATENCY): preconnect + SWR +
     shell pre-warm
   - Audit script: scripts/latency_audit.py (this session)
+
+---
+Task ID: 48 (Deep audit: unwired modules — P11/P43 inventory + value/latency assessment)
+Agent: Independent External Reviewer (GLM)
+
+GOVERNANCE LOOP READ RECEIPT:
+- GOVERNANCE.md, ENTROPY_RECOVERY.md (P1-P87), FORBIDDEN_ACTIONS.md,
+  ANTI_ENTROPY.md, INVARIANTS.md, GOVERNANCE_LOOP.md,
+  QUALITY_BARS.md, AUTONOMY_LADDER.md — all read from disk this session.
+- Key principles applied: P11 (built-but-not-wired is not done), P14
+  (bugs migrate one layer deeper), P15 (three states: exists /
+  unit-tested / wired), P43 (journey assertion required), P54 (fix the
+  data the user sees), P60 (four-bucket ownership model), P35 (gate the
+  journey not the component).
+
+AUDIT SCOPE: Deep audit of ALL modules in the codebase to find unwired
+capabilities. For each, assess: (1) is it truly unwired in the DEPLOYED
+product? (2) would wiring it add latency? (3) would it add user value?
+AUDIT ONLY — no wiring performed.
+
+METHODOLOGY:
+1. Enumerated all .py modules in backend/maestro_oem/ and
+   maestro-personal/src/maestro_personal_shell/ (excluding tests).
+2. Built an import graph and computed transitive closure from the
+   production entry point (maestro_personal_shell.api:app, confirmed
+   via Procfile + Dockerfile).
+3. For each module not in the transitive closure, grepped for
+   references in the deployed codebase to confirm zero wiring.
+4. Distinguished between modules referenced only by the UNDEPLOYED
+   maestro_api package (not in the Docker image) vs truly orphaned.
+5. For each unwired module, read the docstring and assessed latency
+   impact (LLM calls? DB queries? pure rules?).
+
+CRITICAL CONTEXT — TWO BACKENDS:
+The codebase has TWO backend packages:
+  - maestro_personal_shell/ — the DEPLOYED backend (Procfile:
+    `uvicorn maestro_personal_shell.api:app`)
+  - maestro_api/ — an UNDEPLOYED backend (NOT in the Dockerfile COPY
+    list, NOT in the Procfile). It has its own routes/oem.py with ~50
+    endpoints that import maestro_oem modules.
+This means maestro_oem modules that appear "wired" via maestro_api
+are actually 0% wired in the deployed product. The Dockerfile only
+copies: maestro-personal/src/, maestro_oem/, maestro_cognitive_council/,
+maestro_llm/, maestro_db/, maestro_nerve/. NOT maestro_api.
+
+============================================================
+TIER 1: HIGH-VALUE, ZERO-LATENCY UNWIRED MODULES (rules-only)
+============================================================
+
+These 3 modules are pure regex/keyword rules (no LLM, no DB, no network).
+Wiring them would add microsecond-scale latency and significant user value.
+
+1. noise_classifier.py (254 lines) — P74
+   WHAT: Rejects newsletters, billing notices, security alerts, and
+   automated notifications at ingestion (66% of ambient alerts are noise).
+   WHY BUILT: "80% dismissal rate because no noise filter at ingestion.
+   Every newsletter became a signal the user had to dismiss manually."
+   WIRED?: NO — 0 production references. The function is_noise() is
+   defined but never called from any ingestion path.
+   LATENCY IMPACT: Zero — pure rules (regex + domain matching).
+   USER VALUE: HIGH — would eliminate the #1 source of signal noise.
+     The product currently has an 80% dismissal rate; this module was
+     built specifically to fix that.
+   ADJACENT FAILURE (P14): signals.py has its OWN inline _is_machine_sender()
+   function (line 106) that duplicates a SUBSET of this logic. The
+   unwired module is more comprehensive (216 noise domains by category).
+   This is a P11/P54 violation: the better implementation exists but
+   the production path uses the worse one.
+
+2. sender_classifier.py (164 lines) — Phase 3.2
+   WHAT: Classifies senders as machine vs human at ingestion time.
+   WHY BUILT: "66% of ambient alerts are noise (AWS, GitHub, LinkedIn).
+   Machine senders must never become commitments."
+   WIRED?: NO — 0 production references. signals.py has an inline
+   _is_machine_sender() that duplicates part of this.
+   LATENCY IMPACT: Zero — pure rules.
+   USER VALUE: MEDIUM — overlaps with noise_classifier but is more
+     focused on sender identity (entity-based) vs content-based.
+   RECOMMENDATION: Merge into noise_classifier (they do complementary
+   things) and wire the combined module into the ingestion path.
+
+3. actor_classifier.py (240 lines) — P82 / FA33
+   WHAT: Distinguishes "I will..." (user commitment) from "Can you...?"
+   (request) from "Nora: I will..." (third-party) from "I will not..."
+   (cancellation). Implements the P60 four-bucket ownership model:
+   my_promise, their_promise, quoted, third_party.
+   WHY BUILT: "Without this module, ingestion had no way to distinguish
+   'I will' from 'Can you?' from 'Nora: I will' — every sentence
+   collapsed into a user commitment. That was the audit's smoking gun."
+   WIRED?: NO — 0 production references.
+   LATENCY IMPACT: Zero — pure rules.
+   USER VALUE: CRITICAL — this is the P60/P82/FA33 fix. The commitment_classifier
+     handles third_party_report classification, but NOT the full 4-bucket
+     ownership model. "What did I promise Maria?" can still return
+     Maria's promises (false positive) or nothing (false negative)
+     because the ownership filter can't distinguish my_promise from
+     their_promise. This module was built to fix exactly that.
+   ADJACENT FAILURE (P14): This is the deepest gap in the product. The
+     module exists, is unit-tested, and was authored via the CTO↔K3 loop
+     (P46 verified), but was never wired into the ingestion path. Every
+     Ask query that asks "what did I promise X?" is affected.
+
+============================================================
+TIER 2: HIGH-VALUE, MINIMAL-LATENCY UNWIRED MODULES (DB-only)
+============================================================
+
+These modules make DB queries but no LLM calls. Wiring them would add
+~50-200ms (one indexed DB query) and significant user value.
+
+4. change_detection.py (195 lines) — P78
+   WHAT: Tracks last_seen_at baseline and computes actual deltas (new,
+   modified, resolved, contradicted since last read).
+   WHY BUILT: "/api/what-changed was listing current commitments instead
+   of computing actual changes. The user can't tell 'what's new' from
+   'what exists' without a baseline."
+   WIRED?: NO — 0 production references. The live /api/what-changed
+     endpoint uses surfaces/what_changed.py with a simple 24h window
+     instead of baseline tracking.
+   LATENCY IMPACT: ~50ms (one DB query for last_seen_at + one for
+     deltas since that timestamp).
+   USER VALUE: HIGH — the current implementation shows "everything in
+     the last 24 hours" which is NOT the same as "what changed since
+     you last looked." A user who checks twice in 10 minutes sees the
+     same list both times. The unwired module would show 0 changes on
+     the second read (correct behavior).
+
+5. confidence_system.py (354 lines) — P77
+   WHAT: Multi-factor confidence computation (5 factors: evidence count,
+     recency, source authority, classification confidence, contradiction
+     count). Replaces the legacy uniform 0.85-0.9 confidence.
+   WHY BUILT: "Legacy confidence was uniform (0.85-0.9) because every
+     value came from a single rule-based pattern. This module derives
+     confidence from five independent factors so the value tracks
+     actual evidence quality."
+   WIRED?: NO — 0 production references. /api/confidence returns 404.
+   LATENCY IMPACT: ~100-200ms (reads the ledger + computes 5 factors
+     per entry).
+   USER VALUE: HIGH — the P25 "confidence display gate" principle says
+     confidence must be honest. The current uniform 0.85-0.9 is
+     decorative precision (P25 violation). This module would make
+     confidence a real measurement.
+   ADJACENT FAILURE (P14): P25 (confidence display gate) was codified
+     but the module that enforces it was never wired. The Today page
+     still shows uniform confidence values.
+
+6. behavior_change.py (206 lines) — Phase 9
+   WHAT: Tracks entity track records — did this entity keep promises
+   before? Did they deliver late? Uses past outcomes to inform future
+     interactions.
+   WIRED?: NO — 0 production references. /api/behavior-change returns 404.
+   LATENCY IMPACT: ~50-100ms (one DB query for entity history).
+   USER VALUE: MEDIUM — would let the Whisper engine say "Maria has
+     delivered on 3 of 4 past commitments" instead of just "Maria has
+     an open commitment." Adds context but isn't the core thesis.
+   RECOMMENDATION: Defer until the core ingestion quality (Tier 1) is
+     fixed. This is a "nice to have" layer on top of a working system.
+
+7. material_transitions.py (411 lines) — Phase 6
+   WHAT: Ranks material transitions (new high-consequence commitment,
+     state change, contradiction, etc.) by consequence weight.
+   WIRED?: NO — 0 production references. /api/material-transitions
+     returns 404.
+   LATENCY IMPACT: ~50ms (in-memory ranking, no DB).
+   USER VALUE: MEDIUM — would let the Today page prioritize what to
+     show first. Currently the Today page shows commitments in
+     creation order, not by materiality.
+   RECOMMENDATION: Wire after change_detection (they're complementary —
+     change_detection finds what's new, material_transitions ranks it).
+
+============================================================
+TIER 3: UNWIRED OEM MODULES (only in undeployed maestro_api)
+============================================================
+
+These 14 modules exist in backend/maestro_oem/ but are ONLY imported
+by backend/maestro_api/routes/oem.py — which is NOT in the Docker
+image and NOT deployed. They are 0% wired in the deployed product.
+
+Module | Value if wired | Latency impact
+---|---|---
+coordination | LOW (org coordination viz) | MEDIUM (model build)
+curiosity | LOW (asks probing questions) | HIGH (LLM call)
+decision_intelligence_loop | MEDIUM (decision tracking) | MEDIUM
+digital_twin | HIGH ("what if?" scenario sim) | HIGH (clone + sim)
+gps | HIGH (personalized nav) | MEDIUM (per-user query)
+intent | MEDIUM (infer user intent) | HIGH (LLM call)
+meeting_intelligence_loop | MEDIUM (meeting patterns) | MEDIUM
+pulse | LOW (org health metrics) | MEDIUM
+canvas | LOW (visualization) | LOW
+consciousness | LOW (state vector) | MEDIUM
+executive_function | LOW (cognitive control) | MEDIUM
+mcp_server | MEDIUM (external agent tools) | LOW (read-only)
+prediction_market | LOW (prediction trading) | MEDIUM
+workplace_signal_fusion | MEDIUM (cross-source fusion) | MEDIUM
+
+VERDICT ON TIER 3: These are ENTERPRISE features built for the
+undeployed maestro_api backend. Wiring them into maestro_personal_shell
+would be a significant integration effort (they expect the full OEM
+model, not the personal shell's simplified state). Most add latency
+(model building, LLM calls). None are appropriate for the personal
+product's current stage. They should be documented as "enterprise
+roadmap, not for personal shell" rather than wired.
+
+The ONE exception is mcp_server — it's read-only and low-latency and
+could expose the personal shell's data to external agents (Claude,
+GPT, etc.) via MCP. But that's a Phase 5+ enterprise feature.
+
+============================================================
+TIER 4: UNWIRED PERSONAL SHELL MODULES (niche/deferred)
+============================================================
+
+audio_transcription.py — pluggable speech-to-text for the Copilot.
+  Copilot is not deployed (the /api/copilot/* routes are commented out
+  in api.py). Wiring this is blocked by the Copilot feature itself.
+  ZERO latency impact on the core product.
+
+copilot_enterprise.py — enterprise Copilot features (SSO, audit).
+  Not relevant to the personal product. Enterprise roadmap only.
+
+copilot_postcall_features.py — post-call analysis features.
+  Same as above — Copilot is not deployed.
+
+============================================================
+SUMMARY: WHAT TO WIRE (in priority order)
+============================================================
+
+IMMEDIATE (zero latency, high value):
+1. actor_classifier.py → wire into ingestion path (signals.py + gmail_connector.py)
+   Fixes: P60 (4-bucket ownership), P82 (actor attribution), FA33
+   Latency: +0ms (pure regex rules)
+   Risk: LOW — rules hold a veto, can't make things worse
+
+2. noise_classifier.py → wire into ingestion path, REPLACE the inline
+   _is_machine_sender in signals.py
+   Fixes: P74 (noise rejection), reduces 80% dismissal rate
+   Latency: +0ms (pure rules)
+   Risk: LOW — more comprehensive than the inline version
+
+3. sender_classifier.py → merge into noise_classifier (they're
+   complementary) and wire the combined module
+   Latency: +0ms
+   Risk: LOW
+
+NEXT (minimal latency, high value):
+4. change_detection.py → wire into /api/what-changed (replace the
+   24h-window approach with baseline tracking)
+   Fixes: P78 (baseline deltas), P54 (user sees real changes)
+   Latency: +50ms (one DB query)
+   Risk: MEDIUM — changes the semantics of /api/what-changed
+
+5. confidence_system.py → wire into the commitment ledger read path
+   Fixes: P25 (honest confidence), P77 (confidence variance)
+   Latency: +100-200ms (5-factor computation per entry)
+   Risk: MEDIUM — confidence values will change, need to verify the
+   UI doesn't break
+
+DEFER (higher latency, lower immediate value):
+6. material_transitions.py — wire after #4 (they're complementary)
+7. behavior_change.py — wire after core quality is fixed
+
+DO NOT WIRE (enterprise, high latency, wrong product stage):
+- All Tier 3 OEM modules (coordination, curiosity, digital_twin, gps,
+  intent, meeting_intelligence_loop, pulse, canvas, consciousness,
+  executive_function, prediction_market, workplace_signal_fusion)
+- All Tier 4 Copilot modules (audio_transcription, copilot_enterprise,
+  copilot_postcall_features)
+
+AUDIT ONLY — NO WIRING PERFORMED. This is a recommendation list, not
+a work log. The coder should evaluate each recommendation, trace the
+call graph themselves (P16), and wire in priority order with journey
+assertions (P43) for each.
