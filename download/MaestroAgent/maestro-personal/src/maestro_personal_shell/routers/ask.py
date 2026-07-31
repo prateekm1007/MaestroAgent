@@ -583,7 +583,7 @@ async def ask(request: Request, req: AskRequest, as_of: str | None = None, token
                     if _current:
                         for e in _current[:5]:
                             _action = e.get('action', '') or e.get('evidence_quote', '') or 'Unknown'
-                            _fast_lines.append(f'• [{ent}] {_action[:80]}')
+                            _fast_lines.append(f'• [{_clean_entity_name(ent)}] {_action[:80]}')
                             _fast_evidence.append({
                                 'text': e.get('evidence_quote', '') or _action,
                                 'entity': ent,
@@ -641,7 +641,7 @@ async def ask(request: Request, req: AskRequest, as_of: str | None = None, token
                             # signal entity field (catches "Bob" stored as
                             # entity vs mentioned in text)
                             if ent_lower in _sig_text or ent_lower in _sig_entity:
-                                _fast_lines.append(f'• [{sig.get("entity", ent)}] {sig.get("text", "")[:80]}')
+                                _fast_lines.append(f'• [{_clean_entity_name(sig.get("entity", ent))}] {sig.get("text", "")[:80]}')
                                 _fast_evidence.append({
                                     'text': sig.get('text', ''),
                                     'entity': sig.get('entity', ent),
@@ -1184,7 +1184,7 @@ async def _ask_impl(request: Request, req: AskRequest, as_of: str | None = None,
                                 _answer_lines = []  # rebuild answer lines
                                 _has_active = bool(_ledger_evidence)
                                 for ev in _ledger_evidence:
-                                    _answer_lines.append(f"• [{ev.get('entity','')}] {ev.get('text','')[:80]}")
+                                    _answer_lines.append(f"• [{_clean_entity_name(ev.get('entity',''))}] {ev.get('text','')[:80]}")
                                 if not _ledger_evidence:
                                     # All evidence was user-owned — third party made no promises
                                     _answer_lines = [
@@ -1261,7 +1261,7 @@ async def _ask_impl(request: Request, req: AskRequest, as_of: str | None = None,
                             for _le in _ledger_evidence:
                                 _le_text = _le.get("text", "")
                                 _le_entity = _le.get("entity", "")
-                                _answer_lines.append(f"• [{_le_entity}] {_le_text[:80]}")
+                                _answer_lines.append(f"• [{_clean_entity_name(_le_entity)}] {_le_text[:80]}")
                         except Exception as _reconcile_err:
                             # FAIL LOUDLY — do not silently fall back to the old
                             # 5-layer filter. If reconcile fails, the ledger fast
