@@ -288,6 +288,16 @@ async def get_what_changed(as_of: str | None = None, token: str = Depends(verify
 @router.get("/what-changed/the-shifts", response_model=WhatChangedMasterpieceResponse)
 async def get_the_shifts(token: str = Depends(verify_token_dep)):
     """The 2 things that materially shifted — not a feed."""
+    # RESTORE CACHE: 60s TTL, same pattern as /api/the-moment.
+    # The-shifts calls build_shell + change_detection + reconcile_snapshot
+    # — expensive on cold cache. Without this, every Today page load
+    # pays the full cost even if nothing changed in the last 60s.
+    import time as _shifts_cache_time
+    _shifts_key = f"the-shifts:{token}"
+    _cached_shifts = _MOMENT_CACHE.get(_shifts_key)
+    if _cached_shifts and _cached_shifts[0] > _shifts_cache_time.monotonic():
+        return _cached_shifts[1]
+
     from maestro_personal_shell.api import build_shell
     shell = build_shell(user_email=token)
     from maestro_personal_shell.surfaces.what_changed import WhatChangedSurface
@@ -321,16 +331,18 @@ async def get_the_shifts(token: str = Depends(verify_token_dep)):
 
     meaningful = [d for d in deltas if d.get("is_meaningful")]
     if not meaningful:
-        return WhatChangedMasterpieceResponse(
+        _result_empty = WhatChangedMasterpieceResponse(
             the_shifts=[],
             silence_message="Nothing material changed in the last 24 hours.",
             reconciliation=recon,
         )
+        _MOMENT_CACHE[_shifts_key] = (_shifts_cache_time.monotonic() + 60.0, _result_empty)
+        return _result_empty
     # Phase 3.4: if only ONE meaningful change, surface it alone (not padded
     # to 2 with less-important items). The auditor wants "one critical change
     # → surfaced alone."
     the_shifts = meaningful[:2] if len(meaningful) > 1 else meaningful
-    return WhatChangedMasterpieceResponse(
+    _result = WhatChangedMasterpieceResponse(
         the_shifts=[
             WhatChangedResponse(
                 entity=d["entity"], text=d["text"], type=d["type"],
@@ -341,6 +353,8 @@ async def get_the_shifts(token: str = Depends(verify_token_dep)):
         silence_message="",
         reconciliation=recon,
     )
+    _MOMENT_CACHE[_shifts_key] = (_shifts_cache_time.monotonic() + 60.0, _result)
+    return _result
 
 
 # ---------------------------------------------------------------------------
