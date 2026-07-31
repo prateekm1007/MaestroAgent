@@ -4,19 +4,23 @@
  * Shared Draft Approval Modal — extracted from Connectors.tsx for reuse
  * across Dashboard (The Moment), Whisper cards, and Commitments list.
  *
- * Actions per the mobile DraftApprovalModal.tsx:
- *  - Approve & Send  → resolveDraft(draft_id, "approve")
- *  - Use as Draft    → resolveDraft(draft_id, "use_draft") (web: also copies to clipboard)
- *  - Discard         → resolveDraft(draft_id, "deny")
- *
- * Shows: subject, body, evidence_refs (provenance — the moat), llm_generated
- * flag, derived flag, and a warning when evidence_refs is empty (P25).
+ * Phase 1 (audit v21): send outcome is now rendered INLINE in the modal.
+ * Every click produces a visible, persistent result:
+ *   - approved + sent_message_id → green "Sent ✓" + message ID + close
+ *   - send_failed → red "Not sent" + error + "Open in mail client" + "Reconnect Gmail"
+ *   - ready_to_send (mailto) → "Open in mail client" button + toast
+ *   - 409 → "Reconnect Gmail" CTA
+ *   - invalid recipient → inline address prompt
+ * No click produces no visible outcome.
  */
 
 import {
   AlertTriangle,
   Check,
+  ExternalLink,
   Loader2,
+  Mail,
+  RefreshCw,
   Send,
   Sparkles,
   X,
@@ -40,20 +44,38 @@ export type DraftWithMeta = Draft & {
   style_applied?: boolean;
 };
 
+export type SendResult = {
+  status: "idle" | "sending" | "sent" | "send_failed" | "ready_to_send" | "error";
+  message_id?: string;
+  error?: string;
+  mailto_link?: string;
+  needs_gmail?: boolean;
+  needs_recipient?: boolean;
+};
+
 export function DraftApprovalModal({
   draft,
   open,
   onOpenChange,
   onResolve,
   resolving,
+  sendResult,
+  onOpenMailClient,
+  onReconnectGmail,
 }: {
   draft: DraftWithMeta | null;
   open: boolean;
   onOpenChange: (o: boolean) => void;
   onResolve: (draft: DraftWithMeta, resolution: "approve" | "deny" | "use_draft") => void;
   resolving: boolean;
+  sendResult?: SendResult;
+  onOpenMailClient?: () => void;
+  onReconnectGmail?: () => void;
 }) {
   if (!draft) return null;
+
+  const result = sendResult || { status: "idle" as const };
+  const isTerminal = result.status === "sent" || result.status === "send_failed" || result.status === "ready_to_send" || result.status === "error";
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -131,34 +153,122 @@ export function DraftApprovalModal({
               <strong className="text-foreground">Commitment:</strong> {draft.commitment_ref}
             </div>
           )}
+
+          {/* Phase 1: Send outcome rendered INLINE — persistent, actionable */}
+          {result.status === "sent" && (
+            <div className="rounded-md border border-emerald-500/40 bg-emerald-500/10 p-4 space-y-2">
+              <div className="flex items-center gap-2 text-emerald-700 dark:text-emerald-400">
+                <Check className="size-5" />
+                <span className="font-semibold">Email sent successfully</span>
+              </div>
+              {result.message_id && (
+                <p className="text-xs text-muted-foreground">Message ID: <code className="text-foreground">{result.message_id}</code></p>
+              )}
+              <p className="text-xs text-muted-foreground">The recipient will see this in their inbox shortly.</p>
+            </div>
+          )}
+
+          {result.status === "send_failed" && (
+            <div className="rounded-md border border-red-500/40 bg-red-500/10 p-4 space-y-3">
+              <div className="flex items-center gap-2 text-red-700 dark:text-red-400">
+                <X className="size-5" />
+                <span className="font-semibold">Not sent</span>
+              </div>
+              <p className="text-sm text-foreground/80">{result.error || "Unknown error"}</p>
+              {result.needs_gmail && (
+                <div className="space-y-2">
+                  <p className="text-xs text-muted-foreground">Gmail is not connected. You can:</p>
+                  <div className="flex flex-wrap gap-2">
+                    {onReconnectGmail && (
+                      <Button size="sm" variant="default" onClick={onReconnectGmail}>
+                        <RefreshCw className="size-3.5" />
+                        Reconnect Gmail
+                      </Button>
+                    )}
+                    {onOpenMailClient && (
+                      <Button size="sm" variant="outline" onClick={onOpenMailClient}>
+                        <ExternalLink className="size-3.5" />
+                        Open in mail client
+                      </Button>
+                    )}
+                  </div>
+                </div>
+              )}
+              {result.needs_recipient && (
+                <p className="text-xs text-muted-foreground">
+                  The recipient &ldquo;{draft.recipient}&rdquo; doesn&rsquo;t have a valid email address. Add one in the To field above.
+                </p>
+              )}
+            </div>
+          )}
+
+          {result.status === "ready_to_send" && (
+            <div className="rounded-md border border-blue-500/40 bg-blue-500/10 p-4 space-y-3">
+              <div className="flex items-center gap-2 text-blue-700 dark:text-blue-400">
+                <Mail className="size-5" />
+                <span className="font-semibold">Ready to send</span>
+              </div>
+              <p className="text-sm text-foreground/80">
+                Maestro prepared your email. Click below to open it in your mail client — review and send from there.
+              </p>
+              {onOpenMailClient && (
+                <Button size="sm" variant="default" onClick={onOpenMailClient}>
+                  <ExternalLink className="size-3.5" />
+                  Open in mail client
+                </Button>
+              )}
+            </div>
+          )}
+
+          {result.status === "error" && (
+            <div className="rounded-md border border-red-500/40 bg-red-500/10 p-4 space-y-2">
+              <div className="flex items-center gap-2 text-red-700 dark:text-red-400">
+                <AlertTriangle className="size-5" />
+                <span className="font-semibold">Error</span>
+              </div>
+              <p className="text-sm text-foreground/80">{result.error || "Something went wrong."}</p>
+            </div>
+          )}
         </div>
 
         <DialogFooter className="flex-col sm:flex-row gap-2">
-          <Button
-            variant="ghost"
-            onClick={() => onResolve(draft, "deny")}
-            disabled={resolving}
-            className="text-destructive hover:text-destructive"
-          >
-            <X className="size-4" />
-            Discard
-          </Button>
-          <Button
-            variant="outline"
-            onClick={() => onResolve(draft, "use_draft")}
-            disabled={resolving}
-          >
-            {resolving ? <Loader2 className="size-4 animate-spin" /> : <Check className="size-4" />}
-            Use as Draft
-          </Button>
-          <Button
-            className="bg-primary text-primary-foreground hover:bg-primary/90"
-            onClick={() => onResolve(draft, "approve")}
-            disabled={resolving}
-          >
-            {resolving ? <Loader2 className="size-4 animate-spin" /> : <Send className="size-4" />}
-            Approve & Send
-          </Button>
+          {/* When terminal, show Done button instead of action buttons */}
+          {isTerminal ? (
+            <Button
+              className="bg-primary text-primary-foreground hover:bg-primary/90 w-full sm:w-auto"
+              onClick={() => onOpenChange(false)}
+            >
+              Done
+            </Button>
+          ) : (
+            <>
+              <Button
+                variant="ghost"
+                onClick={() => onResolve(draft, "deny")}
+                disabled={resolving}
+                className="text-destructive hover:text-destructive"
+              >
+                <X className="size-4" />
+                Discard
+              </Button>
+              <Button
+                variant="outline"
+                onClick={() => onResolve(draft, "use_draft")}
+                disabled={resolving}
+              >
+                {resolving ? <Loader2 className="size-4 animate-spin" /> : <Check className="size-4" />}
+                Use as Draft
+              </Button>
+              <Button
+                className="bg-primary text-primary-foreground hover:bg-primary/90"
+                onClick={() => onResolve(draft, "approve")}
+                disabled={resolving}
+              >
+                {resolving ? <Loader2 className="size-4 animate-spin" /> : <Send className="size-4" />}
+                Approve & Send
+              </Button>
+            </>
+          )}
         </DialogFooter>
       </DialogContent>
     </Dialog>

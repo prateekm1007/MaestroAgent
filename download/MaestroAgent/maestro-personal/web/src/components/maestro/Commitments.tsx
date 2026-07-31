@@ -67,6 +67,7 @@ import {
 import {
   DraftApprovalModal,
   type DraftWithMeta,
+  type SendResult,
 } from "./DraftApprovalModal";
 import { CorrectionButton } from "./CorrectionButton";
 
@@ -104,6 +105,7 @@ export function Commitments({
   // P0-6: Draft button state
   const [draftForReview, setDraftForReview] = useState<DraftWithMeta | null>(null);
   const [draftResolving, setDraftResolving] = useState(false);
+  const [sendResult, setSendResult] = useState<SendResult>({ status: "idle" });
   const [draftBusyEntity, setDraftBusyEntity] = useState<string | null>(null);
 
   // P1-12: Segmented control — Commitments | Signals
@@ -270,10 +272,11 @@ export function Commitments({
 
   async function handleResolveDraft(draft: DraftWithMeta, resolution: "approve" | "deny" | "use_draft") {
     setDraftResolving(true);
+    setSendResult({ status: "sending" });
     try {
       const { data, live } = await maestroApi.resolveDraft(draft.draft_id, resolution);
       if (!live) {
-        toast({ title: "Backend unreachable", description: "Could not reach the API.", variant: "destructive" });
+        setSendResult({ status: "error", error: "Could not reach the API." });
         return;
       }
 
@@ -283,58 +286,31 @@ export function Commitments({
         const sentMessageId = data?.sent_message_id || "";
 
         if (status === "send_failed") {
-          // Do NOT close the modal
-          toast({
-            title: "Send failed",
-            description: sendError,
-            variant: "destructive",
-          });
-          // Fallback: log mailto URL to console
-          if (draft.recipient) {
-            const subject = encodeURIComponent(draft.subject || "");
-            const body = encodeURIComponent(draft.body || "");
-            console.warn(
-              `Send failed. Use this mailto link: mailto:${draft.recipient}?subject=${subject}&body=${body}`
-            );
-          }
+          const needsGmail = sendError.toLowerCase().includes("gmail") || sendError.toLowerCase().includes("not connected");
+          const needsRecipient = !draft.recipient || !draft.recipient.includes("@");
+          const mailtoLink = draft.recipient
+            ? `mailto:${draft.recipient}?subject=${encodeURIComponent(draft.subject || "")}&body=${encodeURIComponent(draft.body || "")}`
+            : "";
+          setSendResult({ status: "send_failed", error: sendError, needs_gmail: needsGmail, needs_recipient: needsRecipient, mailto_link: mailtoLink });
         } else if (status === "approved") {
-          if (sentMessageId) {
-            toast({
-              title: "Sent",
-              description: `Message ID: ${sentMessageId}`,
-            });
-          } else {
-            toast({
-              title: "Sent",
-              description: "Sent (no message ID returned)",
-            });
-          }
-          setDraftForReview(null);
+          setSendResult({ status: "sent", message_id: sentMessageId || undefined });
         } else {
-          // Unexpected status
-          toast({
-            title: "Unexpected response",
-            description: `Status: ${status}`,
-            variant: "destructive",
-          });
+          setSendResult({ status: "error", error: `Unexpected status: ${status}` });
         }
       } else if (resolution === "use_draft") {
-        try {
-          await navigator.clipboard?.writeText(draft.body || "");
-        } catch { /* clipboard may be blocked */ }
+        try { await navigator.clipboard?.writeText(draft.body || ""); } catch {}
         if (draft.recipient) {
           const subject = encodeURIComponent(draft.subject || "");
           const body = encodeURIComponent(draft.body || "");
           window.open(`mailto:${draft.recipient}?subject=${subject}&body=${body}`, "_blank");
         }
-        toast({ title: "Opened in mail app", description: "Body copied to clipboard as backup." });
-        setDraftForReview(null);
+        setSendResult({ status: "ready_to_send", mailto_link: `mailto:${draft.recipient}` });
       } else {
-        toast({ title: "Discarded", description: "Draft denied." });
         setDraftForReview(null);
+        setSendResult({ status: "idle" });
       }
     } catch (e: any) {
-      toast({ title: "Failed", description: e?.message || "Unknown error", variant: "destructive" });
+      setSendResult({ status: "error", error: e?.message || "Unknown error" });
     } finally {
       setDraftResolving(false);
     }
@@ -690,9 +666,17 @@ export function Commitments({
       <DraftApprovalModal
         draft={draftForReview}
         open={!!draftForReview}
-        onOpenChange={(o) => !o && setDraftForReview(null)}
+        onOpenChange={(o) => { if (!o) { setDraftForReview(null); setSendResult({ status: "idle" }); } }}
         onResolve={handleResolveDraft}
         resolving={draftResolving}
+        sendResult={sendResult}
+        onOpenMailClient={() => {
+          if (draftForReview?.recipient) {
+            const s = encodeURIComponent(draftForReview.subject || "");
+            const b = encodeURIComponent(draftForReview.body || "");
+            window.open(`mailto:${draftForReview.recipient}?subject=${s}&body=${b}`, "_blank");
+          }
+        }}
       />
 
       {/* P1-#4 fix (2026-07-20): Threads-for-Entity modal — calls getThreadsForEntity */}
