@@ -3,8 +3,10 @@ from __future__ import annotations
 
 import os
 import logging
+from typing import Optional
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Request
+from pydantic import BaseModel, EmailStr, model_validator
 
 from maestro_personal_shell.models import LoginRequest, LoginResponse
 from maestro_personal_shell.db_util import default_sqlite_path
@@ -358,16 +360,25 @@ class RegisterRequest(BaseModel):
     # at line 158-160), but register only accepted `user_email`. This caused
     # a 422 for integrators who used the conventional `email` field name.
     # Now both work. The response always uses `user_email` for consistency.
-    user_email: EmailStr = None
-    email: EmailStr = None  # alias for user_email (accepted on input only)
+    #
+    # Followup fix 3: moved imports to module level. The prior approach put
+    # `from typing import Optional` and `from pydantic import model_validator`
+    # INSIDE the class body, which made Pydantic think `Optional` and
+    # `model_validator` were model fields. This crashed the app at startup,
+    # causing every Railway deploy to fail at the health check.
+    user_email: Optional[EmailStr] = None
+    email: Optional[EmailStr] = None  # alias for user_email (accepted on input only)
     password: str
 
-    def model_post_init(self, __context) -> None:
-        """Merge `email` alias into `user_email` if user_email is empty."""
-        if not self.user_email and self.email:
-            self.user_email = self.email
+    @model_validator(mode="after")
+    def _merge_email_alias(self):
+        """If user_email is empty, use the email field as fallback."""
         if not self.user_email:
-            raise ValueError("Either 'user_email' or 'email' field is required")
+            if self.email:
+                self.user_email = self.email
+            else:
+                raise ValueError("Either 'user_email' or 'email' field is required")
+        return self
 
 
 class RegisterResponse(BaseModel):

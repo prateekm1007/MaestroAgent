@@ -658,7 +658,23 @@ async def ask(request: Request, req: AskRequest, as_of: str | None = None, token
             logger.warning('Phase 3.3 fast entity lookup failed: %s', _fast_err)
 
     # ---- Cache miss → call _ask_impl (the slow path with LLM) ----
-    response = await _ask_impl(request, req, as_of, token)
+    # CRITICAL: wrap in try/except — if LLM crashes/times out, return fallback
+    try:
+        response = await _ask_impl(request, req, as_of, token)
+    except Exception as _ask_err:
+        logger.error("ask: _ask_impl crashed: %s", _ask_err, exc_info=True)
+        return AskResponse(
+            answer=f"I encountered an error processing your question. Please try rephrasing.",
+            query=req.query, source_sentence="", source_entity="",
+            source_timestamp="", situation_state="",
+            evidence_refs=[], confidence=0.0,
+            counterevidence=[], unknowns=[],
+            as_of=str(as_of or ""), decision_boundary="",
+            perspectives=[], reasoning_chain=[f"Error: {str(_ask_err)[:100]}"],
+            calibration_note="Fallback — LLM path failed.",
+            consequence_paths=[], llm_active=False, llm_provider="none",
+            intelligence_source="error_fallback",
+        )
 
     # Apply the TICKET-10 filter at the single exit point — unbypassable
     filtered_answer, filtered_ev, filtered_conf, filtered_cal = _apply_ticket10_filter(
@@ -1839,6 +1855,20 @@ async def _ask_impl(request: Request, req: AskRequest, as_of: str | None = None,
                 "anyone", "someone", "everyone", "nobody",
                 # question words (already lowercased in query_lower)
                 "what", "which", "who", "whom", "whose", "where", "when", "why", "how",
+                # Audit fix S1-2 followup (2026-07-31): additional filler words
+                # that were causing false entity detection. "right" appeared
+                # in "What commitments do I have right now?" and was treated as
+                # an entity name. "currently", "currently active", "exactly",
+                # "please", "kindly" are all filler that should not trigger
+                # entity-specific retrieval.
+                "right", "currently", "exactly", "please", "kindly",
+                "just", "only", "even", "also", "too",
+                "as", "or", "and", "but", "not", "if", "then", "else",
+                "so", "than", "such", "both", "either", "neither",
+                "up", "down", "out", "off", "over", "under", "again",
+                "further", "once", "here", "how", "more", "most", "other",
+                "some", "such", "no", "nor", "not", "only", "own", "same",
+                "s", "t", "don", "now", "ve", "ll", "re", "m",
             }
             after_words = [w for w in after_pattern.split() if w and w not in _stopwords]
             if after_words:
@@ -3695,7 +3725,7 @@ async def _ask_impl(request: Request, req: AskRequest, as_of: str | None = None,
         # takes ~26s per inference (reasoning model generates <think> tags).
         # The 15s timeout was causing every Ask query to fall back to rules.
         # 45s gives the model enough time while still bounding user wait time.
-        _ask_llm_timeout = 90.0  # 90s max for Ask (Qwen3 14B on Kaggle P100 takes ~26s/call)
+        _ask_llm_timeout = 25.0  # 25s max — Railway-safe (was 90s, caused process kills)
         try:
             _gather_results = await asyncio.wait_for(
                 asyncio.gather(*_gather_tasks, return_exceptions=True),
