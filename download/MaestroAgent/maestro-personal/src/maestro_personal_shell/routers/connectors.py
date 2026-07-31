@@ -1206,7 +1206,11 @@ async def create_auto_draft_stream(req: ConnectorAutoDraftRequest, token: str = 
                 yield "data: [DONE]\n\n"
                 return
 
-            entity = commitment.get("entity", req.recipient)
+            # P14 fix: clean entity name — strip hex suffixes
+            import re as _re_p14
+            _raw_entity = commitment.get("entity", req.recipient)
+            entity = _re_p14.sub(r'\s+[a-f0-9]{6,}$', '', _raw_entity).strip()
+            entity = _re_p14.sub(r'\s+\d+$', '', entity).strip() or _raw_entity
             commitment_text = commitment.get("text", "")
 
             # Send meta immediately so the modal can render subject + evidence

@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import logging
+import re
 from datetime import datetime, timezone, timedelta
 from typing import Any
 from uuid import uuid4
@@ -1300,7 +1301,8 @@ async def get_the_moment(as_of: str | None = None, token: str = Depends(verify_t
     _result = TheMomentResponse(
         has_moment=True,
         commitment={
-            "entity": best_commitment.get("entity", ""),
+            "entity": re.sub(r'\s+[a-f0-9]{6,}$', '', best_commitment.get("entity", "")).strip()
+                if best_commitment.get("entity") else "",
             "text": best_commitment.get("text", ""),
             "claim_type": str(best_commitment.get("claim_type", "commitment")),
             "signal_id": best_commitment.get("signal_id", ""),

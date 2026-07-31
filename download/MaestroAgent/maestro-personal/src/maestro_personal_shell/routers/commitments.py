@@ -3,6 +3,21 @@ from __future__ import annotations
 
 import logging
 import re
+
+
+def _clean_entity_name(name: str) -> str:
+    """Strip suffix IDs from entity names (e.g., 'Elowen 9ca721e2' → 'Elowen').
+
+    Demo data and some signal sources append hex suffixes to entity names
+    for uniqueness. These should never be shown to the user.
+    """
+    if not name:
+        return name
+    # Strip trailing hex suffixes: " 9ca721e2", " b872c3", " f6ccf1"
+    cleaned = re.sub(r'\s+[a-f0-9]{6,}$', '', name).strip()
+    # Also strip numeric suffixes: "Sarah Chen 2", "Bob 3"
+    cleaned = re.sub(r'\s+\d+$', '', cleaned).strip()
+    return cleaned
 from typing import Any
 
 from fastapi import APIRouter, Depends, Header, HTTPException
@@ -625,7 +640,7 @@ async def get_commitments(as_of: str | None = None, token: str = Depends(verify_
                 pass
 
         result.append(CommitmentResponse(
-            entity=c["entity"],
+            entity=_clean_entity_name(c["entity"]),
             text=c["text"],
             claim_type=str(c.get("claim_type", "commitment")),
             signal_id=sig_id,
@@ -690,7 +705,7 @@ async def get_the_one_commitment(token: str = Depends(verify_token_dep)):
         sig_id = c.get("signal_id", "")
         days_stale = stale_map.get(sig_id, 0)
         all_commitments.append(CommitmentResponse(
-            entity=c["entity"],
+            entity=_clean_entity_name(c["entity"]),
             text=c["text"],
             claim_type=str(c.get("claim_type", "commitment")),
             signal_id=sig_id,

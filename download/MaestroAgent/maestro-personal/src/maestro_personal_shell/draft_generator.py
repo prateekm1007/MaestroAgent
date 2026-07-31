@@ -42,6 +42,19 @@ from maestro_personal_shell.voice_analyzer import get_user_voice_profile
 
 logger = logging.getLogger(__name__)
 
+
+def _clean_entity_name(name: str) -> str:
+    """Strip suffix IDs from entity names (e.g., 'Elowen 9ca721e2' → 'Elowen').
+
+    Demo data and some signal sources append hex suffixes to entity names
+    for uniqueness. These should never be shown to the user.
+    """
+    if not name:
+        return name
+    cleaned = re.sub(r'\s+[a-f0-9]{6,}$', '', name).strip()
+    cleaned = re.sub(r'\s+\d+$', '', cleaned).strip()
+    return cleaned
+
 # Simple in-memory cache for draft generation (commitment_id + context -> draft)
 _DRAFT_CACHE = {}
 _CACHE_TTL_SECONDS = 300  # 5 minutes
@@ -107,7 +120,7 @@ def _deterministic_fallback_body(commitment: dict, sender_name: str = "Prateek")
     Deterministic template-filled body (no LLM). Used when the LLM returns
     placeholders even after retry.
     """
-    entity = commitment.get('entity') or commitment.get('recipient') or 'there'
+    entity = _clean_entity_name(commitment.get('entity') or commitment.get('recipient') or 'there')
     text = commitment.get('text') or commitment.get('action') or 'our conversation'
     return (
         f"Hi {entity},\n\n"
@@ -342,7 +355,7 @@ def _get_recipient_email(commitment: dict, commitment_id: str, user_email: str) 
     #    email client opens correctly. The user can edit the address
     #    before sending. Without this, mailto:"Alex Chen" fails to open
     #    an email client in most browsers.
-    entity = commitment.get('entity') or ''
+    entity = _clean_entity_name(commitment.get('entity') or '')
     if entity:
         parts = entity.lower().replace('.', '').replace(',', '').split()
         if parts:
@@ -439,7 +452,7 @@ async def generate_email_draft(
                 detail=f"Commitment {commitment_id} not found"
             )
 
-        entity = commitment.get('entity') or commitment.get('recipient') or 'there'
+        entity = _clean_entity_name(commitment.get('entity') or commitment.get('recipient') or 'there')
         commitment_text = commitment.get('text') or commitment.get('action') or ''
         if not commitment_text:
             raise HTTPException(
@@ -773,7 +786,7 @@ async def stream_email_draft(
             yield "data: [DONE]\n\n"
             return
 
-        entity = commitment.get('entity') or commitment.get('recipient') or 'there'
+        entity = _clean_entity_name(commitment.get('entity') or commitment.get('recipient') or 'there')
         commitment_text = commitment.get('text') or commitment.get('action') or ''
         if not commitment_text:
             yield f'data: {{"error": "Commitment has no text to follow up on."}}\n\n'
