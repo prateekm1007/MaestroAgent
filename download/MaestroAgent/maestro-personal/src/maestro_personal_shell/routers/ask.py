@@ -299,6 +299,22 @@ def _apply_ticket10_filter(
     return answer, evidence_refs, confidence, calibration_note
 
 
+def _clean_entity_name(name: str) -> str:
+    """Strip suffix IDs from entity names (e.g., 'Elowen 9ca721e2' → 'Elowen').
+
+    Demo data and some signal sources append hex suffixes to entity names
+    for uniqueness. These should never be shown to the user.
+    """
+    if not name:
+        return name
+    import re as _re_ce
+    # Strip trailing hex suffixes: " 9ca721e2", " b872c3", " f6ccf1"
+    cleaned = _re_ce.sub(r'\s+[a-f0-9]{6,}$', '', name).strip()
+    # Also strip numeric suffixes: "Sarah Chen 2", "Bob 3"
+    cleaned = _re_ce.sub(r'\s+\d+$', '', cleaned).strip()
+    return cleaned
+
+
 @router.post("", response_model=AskResponse)
 @rate_limit("10/minute")  # Phase 4 fix (auditor v17): cap at 10/min per user — was 30/min
 async def ask(request: Request, req: AskRequest, as_of: str | None = None, token: str = Depends(verify_token_dep)):
@@ -581,10 +597,11 @@ async def ask(request: Request, req: AskRequest, as_of: str | None = None, token
                         for sig in _fast_sigs:
                             sig_ent = sig.get('entity', '') if isinstance(sig, dict) else ''
                             if sig_ent and ent.lower() in sig_ent.lower():
-                                _fast_lines.append(f'• [{sig_ent}] {sig.get("text","")[:80]}')
+                                _clean_sig_ent = _clean_entity_name(sig_ent)
+                                _fast_lines.append(f'• [{_clean_sig_ent}] {sig.get("text","")[:80]}')
                                 _fast_evidence.append({
                                     'text': sig.get('text', ''),
-                                    'entity': sig_ent,
+                                    'entity': _clean_sig_ent,
                                     'timestamp': sig.get('timestamp', ''),
                                     'signal_id': sig.get('signal_id', ''),
                                     'source_type': 'signal',
@@ -1027,10 +1044,11 @@ async def _ask_impl(request: Request, req: AskRequest, as_of: str | None = None,
                         sig_text = getattr(sig, 'text', '') or (sig.get('text', '') if isinstance(sig, dict) else '')
                         sig_ts = str(getattr(sig, 'timestamp', '') or (sig.get('timestamp', '') if isinstance(sig, dict) else ''))
                         sig_id = str(getattr(sig, 'signal_id', '') or (sig.get('signal_id', '') if isinstance(sig, dict) else ''))
-                        _sig_answer_lines.append(f"• [{sig_ent}] {sig_text[:80]}")
+                        _clean_ent = _clean_entity_name(sig_ent)
+                        _sig_answer_lines.append(f"• [{_clean_ent}] {sig_text[:80]}")
                         _sig_evidence.append({
                             "text": sig_text,
-                            "entity": sig_ent,
+                            "entity": _clean_ent,
                             "timestamp": sig_ts,
                             "signal_id": sig_id,
                             "source_type": "signal",
