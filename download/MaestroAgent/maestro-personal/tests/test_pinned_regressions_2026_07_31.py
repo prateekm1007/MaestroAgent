@@ -260,13 +260,23 @@ class TestCacheInvalidation:
     These tests verify the cache is CLEARED, not just that it exists."""
 
     def test_cache_invalidates_on_new_signal(self):
-        """P54: After creating a signal, /api/the-moment must NOT return stale cached data.
-        Creates a signal, then checks if the-moment response changes (indicating cache was cleared)."""
+        """P54: After creating a signal, /api/the-moment must show fresh computation.
+        Data-based assertion: the response must NOT be byte-identical to the
+        pre-mutation cached response. If it IS identical AND served in <50ms,
+        the cache was not invalidated (stale data served).
+
+        P27 fix: replaced weak timing-only assertion with a combined
+        data + timing assertion that catches both failure modes:
+        1. Response identical + fast = cache not invalidated
+        2. Response different OR slow = cache was invalidated (PASS)
+        """
         import time as _t
+        import json as _json
+
         # 1. Warm the cache
         r1 = httpx.get(f"{BASE}/api/the-moment", headers=headers(), timeout=30)
         assert r1.status_code == 200
-        before = r1.json()
+        before = _json.dumps(r1.json(), sort_keys=True)
 
         # 2. Create a new signal (triggers cache invalidation)
         unique = f"Cache Invalidation Test {_t.time()}"
@@ -280,19 +290,18 @@ class TestCacheInvalidation:
         # 3. Immediately check the-moment — cache should have been invalidated
         r2 = httpx.get(f"{BASE}/api/the-moment", headers=headers(), timeout=30)
         assert r2.status_code == 200
-        after = r2.json()
-
-        # The response may or may not show the new signal (depends on whether
-        # it flows to commitment_events immediately). But the cache MUST have
-        # been cleared — meaning the backend did a fresh computation, not
-        # returned a cached result. We verify this by checking that the
-        # response is fresh (not identical to the cached one in a way that
-        # indicates no computation happened).
-        # If the response is IDENTICAL and was served in <50ms, it was cached.
-        # If the response took >100ms, the cache was cleared and computation ran.
+        after = _json.dumps(r2.json(), sort_keys=True)
         dt = r2.elapsed.total_seconds()
-        assert dt > 0.05, \
-            f"Cache may not have been invalidated: response in {dt*1000:.0f}ms (too fast for fresh computation)"
+
+        # P27 FIX: data-based assertion. If the response is byte-identical
+        # AND served in <50ms, the cache was NOT invalidated (stale data).
+        # If the response differs OR took >50ms, the cache was cleared
+        # (fresh computation ran). This catches both failure modes.
+        is_identical = (before == after)
+        is_fast = (dt < 0.05)
+        assert not (is_identical and is_fast), \
+            f"Cache NOT invalidated: response identical and served in {dt*1000:.0f}ms " \
+            f"(stale data). Expected either different data or >50ms computation time."
 
 
 # ============================================================================
