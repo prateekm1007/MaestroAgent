@@ -26,6 +26,23 @@ _PREPARE_CACHE: dict[str, tuple[float, list]] = {}
 # Phase L4: 60-second per-user cache for /api/the-moment (was 1.1-1.4s)
 _MOMENT_CACHE: dict[str, tuple[float, Any]] = {}
 
+
+def invalidate_moment_cache(user_email: str) -> None:
+    """Clear all cached entries for a user after a mutation (P54).
+
+    Called after: signal creation, signal correction, commitment transition,
+    draft resolution. Without this, the Today page shows stale data for up
+    to 60 seconds after the user takes an action.
+
+    P85: never raises — silently skips if cache unavailable.
+    """
+    try:
+        _keys_to_del = [k for k in _MOMENT_CACHE if f":{user_email}" in k]
+        for k in _keys_to_del:
+            del _MOMENT_CACHE[k]
+    except Exception:
+        pass
+
 # LATENCY FIX (v21): 60-second per-user cache for /api/whisper (was 6s every call)
 _WHISPER_CACHE: dict[str, tuple[float, Any]] = {}
 

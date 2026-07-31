@@ -536,6 +536,14 @@ def save_signal_to_db(signal: dict[str, Any], db_path: str | None = None, user_e
     except Exception as e:
         logger.debug("FTS indexing failed (non-fatal): %s", e)
 
+    # P54 FIX: invalidate the _MOMENT_CACHE so the new signal appears
+    # immediately on the Today page (was stale for up to 60s).
+    try:
+        from maestro_personal_shell.routers.surfaces import invalidate_moment_cache
+        invalidate_moment_cache(user_email)
+    except Exception:
+        pass
+
     return True  # newly inserted
 
 

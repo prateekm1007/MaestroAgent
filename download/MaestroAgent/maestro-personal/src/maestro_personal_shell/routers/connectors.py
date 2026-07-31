@@ -1371,6 +1371,14 @@ async def resolve_draft(draft_id: str, req: DraftResolutionRequest, token: str =
     result = store.resolve_draft(draft_id, req.resolution, user_email=token)
     if "error" in result:
         raise HTTPException(status_code=400, detail=result["error"])
+
+    # P54 FIX: invalidate cache so the draft resolution appears immediately.
+    try:
+        from maestro_personal_shell.routers.surfaces import invalidate_moment_cache
+        invalidate_moment_cache(token)
+    except Exception:
+        pass
+
     return result
 
 

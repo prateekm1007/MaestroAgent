@@ -897,6 +897,14 @@ async def transition_commitment(
     ok = transition_ledger_state(actual_ledger_id, to_state, token, _db)
     if not ok:
         raise HTTPException(status_code=409, detail="Illegal transition")
+
+    # P54 FIX: invalidate cache so the state change appears immediately.
+    try:
+        from maestro_personal_shell.routers.surfaces import invalidate_moment_cache
+        invalidate_moment_cache(token)
+    except Exception:
+        pass
+
     return {"ledger_id": actual_ledger_id, "state": to_state, "transitioned": True}
 
 
