@@ -736,3 +736,214 @@ AUDIT ONLY — NO WIRING PERFORMED. This is a recommendation list, not
 a work log. The coder should evaluate each recommendation, trace the
 call graph themselves (P16), and wire in priority order with journey
 assertions (P43) for each.
+
+---
+Task ID: 49 (Audit-of-audit: verify the "Deep Audit: Unwired Modules" report)
+Agent: Independent External Reviewer (GLM) — meta-audit
+
+GOVERNANCE LOOP READ RECEIPT:
+- All 8 governance files read from disk this session (GOVERNANCE.md,
+  ENTROPY_RECOVERY.md P1-P87, FORBIDDEN_ACTIONS.md FA1-FA34,
+  ANTI_ENTROPY.md, INVARIANTS.md, GOVERNANCE_LOOP.md, QUALITY_BARS.md,
+  AUTONOMY_LADDER.md).
+- Key principles applied: P1 (claim not true until executed), P11
+  (built-but-not-wired), P14 (bugs migrate one layer deeper), P16
+  (call-graph scrutiny), P27 (read assertions not test names), P30
+  (verify comprehensiveness by counting), P33 (search for refutation),
+  P35 (gate the journey not the component).
+
+AUDIT SCOPE: An auditor produced a "Deep Audit: Unwired Modules" report
+claiming 121 total modules, 114 wired, 7 unwired. This meta-audit
+independently verifies each claim by executing grep against the source
+tree.
+
+============================================================
+VERDICT: 🔴 AUDIT CONTAINS MATERIAL ERRORS — 3 false negatives, 5
+misclassifications, 7 missed modules. The auditor's #1 recommendation
+("wire salience.py") is wrong — it's already wired.
+============================================================
+
+ERROR 1 — SCOPE UNDERCOUNT (P30 violation: verify comprehensiveness
+by counting):
+  Auditor claims: 121 total Python modules
+  Reality: 291 total (120 maestro_personal_shell + 171 maestro_oem)
+  The auditor only counted maestro_personal_shell modules and
+  completely missed the 171 maestro_oem modules. This is a 58%
+  undercount. The auditor's "94% wired" claim is meaningless when
+  half the codebase wasn't counted.
+
+ERROR 2 — FALSE NEGATIVE: salience.py is ALREADY WIRED (P1/P27
+violation — claim not verified by execution):
+  Auditor says: "NOT imported. The shell.py has its own salience logic
+  that doesn't use this config."
+  Auditor recommends: "Wire this module — the most valuable unwired
+  module."
+  Reality: shell.py:41 imports PersonalSalienceConfig. shell.py:44
+  instantiates it. shell.py:98 uses it in the personal_is_high_salience
+  function that wraps the SituationEngine's salience check.
+  Verdict: The auditor's #1 recommendation is WRONG. Wiring it again
+  would be a no-op (or could break the existing wrapper). The auditor
+  did not read the source carefully enough — they grepped for
+  top-level imports and missed the in-method imports (lines 41, 66, 74).
+
+ERROR 3 — FALSE NEGATIVE: core_wiring.py IS wired (transitively):
+  Auditor says: "NOT imported by api.py or any router."
+  Reality: shell.py:66 imports CoreWiring inside the `core` property.
+  shell.py is imported by api.py:749. So core_wiring is transitively
+  wired via shell.py → api.py. It's lazy-initialized, but it IS
+  accessible. The auditor's claim is technically true (not directly
+  imported by api.py) but misleading — it's wired through the shell.
+  Adjacent finding: shell.core is accessed 6 times in production
+  (connectors.py, copilot_postcall_features.py), but only for
+  .core.signals — the cognitive modules (judgment_synthesizer,
+  delivery_governor, etc.) are never accessed. So core_wiring is
+  "wired but 90% dormant."
+
+ERROR 4 — FALSE NEGATIVE: nerve_wiring.py IS wired (but dormant):
+  Auditor says: "NOT imported."
+  Reality: shell.py:74 imports NerveWiring inside the `nerve` property.
+  However, shell.nerve has 0 callers in production — it's lazy-loaded
+  but never accessed. So it's "wired but 100% dormant." The auditor
+  missed the wiring but correctly identified it as having no value.
+
+ERROR 5 — MISCLASSIFICATION: agent_adapters.py is transitively wired:
+  Auditor says: "NOT imported by any production module."
+  Reality: nerve_wiring.py:150 imports PersonalAgentAdapter from
+  agent_adapters. Since nerve_wiring is wired (via shell.py),
+  agent_adapters is transitively wired. But since shell.nerve is never
+  called, agent_adapters is also 100% dormant. The auditor missed
+  the transitive chain.
+
+ERROR 6 — MISCLASSIFICATION: commitment_classifier_patch_v2.py is
+  transitively orphaned (not independently orphaned):
+  Auditor says: "NOT imported."
+  Reality: api_patched.py:10 imports it. But api_patched.py itself
+  has 0 production refs. So it's a 2-node orphan chain. The auditor
+  correctly identified it as deletable but missed the chain structure.
+
+ERROR 7 — 7 TRULY UNWIRED MODULES MISSED ENTIRELY (P33 violation —
+didn't search for refutation):
+  The auditor found 7 unwired modules but missed 7 MORE that are
+  truly unwired (0 production references, confirmed by grep). These
+  are the HIGH-VALUE, ZERO-LATENCY modules that my Task 48 audit
+  found:
+
+  1. actor_classifier.py (240 lines) — P82/FA33 four-bucket ownership.
+     Rules-only, zero latency. Fixes the "What did I promise Maria?"
+     false-positive/false-negative problem.
+  2. noise_classifier.py (254 lines) — P74 noise rejection.
+     Rules-only, zero latency. Would reduce the 80% dismissal rate.
+  3. sender_classifier.py (164 lines) — machine sender classification.
+     Rules-only, zero latency.
+  4. change_detection.py (195 lines) — P78 baseline tracking.
+     DB-only, ~50ms. Would fix /api/what-changed to show real deltas.
+  5. confidence_system.py (354 lines) — P77 multi-factor confidence.
+     DB-only, ~100ms. Would fix the uniform 0.85-0.9 decorative
+     precision (P25 violation).
+  6. behavior_change.py (206 lines) — entity track records.
+     DB-only, ~50ms.
+  7. material_transitions.py (411 lines) — material transition ranking.
+     In-memory, ~50ms.
+
+  These 7 modules are the ACTUAL high-value unwired modules in the
+  codebase. The auditor's report doesn't mention any of them.
+
+============================================================
+WHAT THE AUDITOR GOT RIGHT
+============================================================
+
+1. api_patched.py — correctly identified as dead code (0 refs). ✓
+2. sso.py — correctly identified as unwired (0 refs). ✓
+3. ConnectorsView.tsx — correctly identified as orphaned (0 imports,
+   uses framer-motion which violates Tufte). ✓
+4. commitment_classifier_patch_v2.py — correctly identified as
+   deletable (transitively orphaned via api_patched). ✓
+5. nerve_wiring.py / agent_adapters.py — correctly assessed as
+   "no personal value" (enterprise agents). The wiring status was
+   wrong, but the value assessment was right.
+6. core_wiring.py — correctly assessed as "do not wire full" (latency
+   risk). The wiring status was wrong, but the recommendation was
+   sound.
+7. Latency impact assessments for the modules they DID find were
+   accurate (LLM calls vs DB vs rules).
+
+============================================================
+ROOT CAUSE (P10 — why did the auditor miss so much?)
+============================================================
+
+The auditor used a shallow grep that only found top-level imports
+(`from X import Y` at module scope). They missed:
+  - In-method imports (`from X import Y` inside `__init__` or property
+    methods) — this caused the salience.py, core_wiring.py, and
+    nerve_wiring.py false negatives.
+  - The entire maestro_oem module set (171 modules) — scope was too
+    narrow.
+  - The 7 truly unwired personal_shell modules — the auditor didn't
+    search for refutation (P33). They found 7 candidates and stopped,
+    rather than asking "are there OTHER unwired modules I haven't
+    checked?"
+
+The auditor's methodology ("AST import analysis") was claimed but
+not actually applied — an AST analysis would have found the in-method
+imports. The grep pattern they used was too narrow.
+
+============================================================
+CORRECTED SUMMARY
+============================================================
+
+Total Python modules: 291 (not 121)
+Truly unwired (0 production refs): 9
+  - api_patched.py (dead code, delete)
+  - sso.py (enterprise stub, keep for future)
+  - actor_classifier.py (HIGH VALUE, zero latency, wire it)
+  - noise_classifier.py (HIGH VALUE, zero latency, wire it)
+  - sender_classifier.py (HIGH VALUE, zero latency, wire it)
+  - change_detection.py (HIGH VALUE, ~50ms, wire it)
+  - confidence_system.py (HIGH VALUE, ~100ms, wire it)
+  - behavior_change.py (MEDIUM value, ~50ms, defer)
+  - material_transitions.py (MEDIUM value, ~50ms, defer)
+Transitively orphaned (delete with parent): 1
+  - commitment_classifier_patch_v2.py (orphaned via api_patched)
+Wired but dormant: 3
+  - core_wiring.py (wired via shell.core, only .signals accessed)
+  - nerve_wiring.py (wired via shell.nerve, 0 callers)
+  - agent_adapters.py (transitively wired via nerve_wiring, 0 callers)
+Already correctly wired (auditor wrongly said unwired): 1
+  - salience.py (WIRED via shell.py:41,44,98 — do NOT re-wire)
+Orphaned frontend: 1
+  - ConnectorsView.tsx (delete — uses framer-motion, 0 imports)
+
+============================================================
+CORRECTED RECOMMENDATIONS (priority order)
+============================================================
+
+IMMEDIATE (zero latency, high value):
+1. Wire actor_classifier.py into ingestion path — fixes P60/P82/FA33
+2. Wire noise_classifier.py, replace inline _is_machine_sender — fixes P74
+3. Wire sender_classifier.py (merge with noise_classifier) — zero latency
+
+NEXT (minimal latency, high value):
+4. Wire change_detection.py into /api/what-changed — fixes P78, +50ms
+5. Wire confidence_system.py into ledger read path — fixes P25/P77, +100ms
+
+DEFER:
+6. material_transitions.py — wire after #4
+7. behavior_change.py — wire after core quality is fixed
+
+DELETE (dead code):
+8. api_patched.py (16 lines)
+9. commitment_classifier_patch_v2.py (127 lines)
+10. ConnectorsView.tsx (209 lines)
+
+DO NOT WIRE (enterprise, high latency, wrong stage):
+- core_wiring.py full (only .signals is used; the cognitive modules
+  add LLM latency without proportional value)
+- nerve_wiring.py + agent_adapters.py (8 enterprise agents, 0 personal
+  value, 8 LLM calls per evaluation)
+- sso.py (enterprise SSO, wait for pilot)
+
+DO NOT RE-WIRE (already wired):
+- salience.py — already wired via shell.py. The auditor's #1
+  recommendation is wrong and should NOT be followed.
+
+AUDIT ONLY — NO WIRING PERFORMED.
