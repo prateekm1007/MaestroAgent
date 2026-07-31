@@ -577,9 +577,13 @@ class SCIMUserResponse(BaseModel):
 # {"paths": {}} with a masked error. This has blocked integrators for 3
 # audits and blocks SCIM provisioning for Enterprise readiness.
 # Fix: call model_rebuild() so Pydantic resolves the forward references.
-SCIMName.model_rebuild()
-SCIMUserRequest.model_rebuild()
-SCIMUserResponse.model_rebuild()
+# Wrapped in try/except — model_rebuild() may not exist on older Pydantic v1.
+try:
+    SCIMName.model_rebuild()
+    SCIMUserRequest.model_rebuild()
+    SCIMUserResponse.model_rebuild()
+except Exception:
+    pass
 
 @router.post("/scim/v2/Users", response_model=SCIMUserResponse, status_code=201)
 async def scim_create_user(request: Request, user: SCIMUserRequest):
