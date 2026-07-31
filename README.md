@@ -21,7 +21,7 @@ The product UI is the Next.js app at the Frontend URL above.
 
 ## Stack
 
-- **Backend:** `maestro_personal_shell` — Python, FastAPI, SQLite, OpenRouter LLM (Gemma 3 12B)
+- **Backend:** `maestro_personal_shell` — Python, FastAPI, SQLite, OpenRouter LLM (DeepSeek Chat)
 - **Frontend:** Next.js 16, React, TypeScript, Tailwind CSS, shadcn/ui
 - **Deploy:** Railway (Docker)
 
