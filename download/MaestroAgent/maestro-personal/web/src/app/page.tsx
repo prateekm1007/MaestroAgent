@@ -625,14 +625,31 @@ function AskView() {
 }
 
 // === COMMITMENTS + WHISPER — merged split view ===
-// Tufte Step 1: Essential info = commitments list (left) + whispers (right)
+// Tufte Step 1: Essential info = commitments list (left) + whispers (right) + search filter
 // Bertin Step 2: Position (left/right split) + Value (font weight for priority) + Shape (whisper type)
 // Gestalt Step 3: Proximity (each column grouped) + Continuity (aligned rows) + Figure-Ground (h1 is figure)
 function CommitmentsWhisperView({ onDraft, draftBusy }: { onDraft: (entity: string) => void; draftBusy: boolean }) {
+  const [searchQuery, setSearchQuery] = useState('')
+
   return (
     <div className="space-y-8">
       {/* Shared heading — matches Today/Ask/Connectors pattern */}
       <h1 className="text-2xl font-bold tracking-tight text-black">Commitments.</h1>
+
+      {/* Search bar — Tufte: hairline border-b, no chrome
+          Gestalt: Proximity — sits between heading and content, grouping them
+          Bertin: Position — search is above both columns, applies to both */}
+      <div className="flex items-center gap-2 border-b border-gray-300 pb-2">
+        <Search className="h-4 w-4 text-gray-400 shrink-0" />
+        <input type="text" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)}
+          placeholder="Search commitments and whispers…"
+          className="flex-1 bg-transparent text-black placeholder:text-gray-400 focus:outline-none text-sm" />
+        {searchQuery && (
+          <button onClick={() => setSearchQuery('')} className="text-xs text-gray-400 hover:text-black underline underline-offset-4">
+            clear
+          </button>
+        )}
+      </div>
 
       {/* Split layout: left=commitments, right=whispers
           Gestalt: Proximity — each column is visually grouped
@@ -641,12 +658,12 @@ function CommitmentsWhisperView({ onDraft, draftBusy }: { onDraft: (entity: stri
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 lg:gap-16">
         {/* Left column: Commitments */}
         <div>
-          <CommitmentsViewReal onDraft={onDraft} draftBusy={draftBusy} />
+          <CommitmentsViewReal onDraft={onDraft} draftBusy={draftBusy} searchQuery={searchQuery} />
         </div>
 
         {/* Right column: Whispers */}
         <div>
-          <WhisperViewReal onDraft={onDraft} draftBusy={draftBusy} />
+          <WhisperViewReal onDraft={onDraft} draftBusy={draftBusy} searchQuery={searchQuery} />
         </div>
       </div>
     </div>
@@ -654,10 +671,11 @@ function CommitmentsWhisperView({ onDraft, draftBusy }: { onDraft: (entity: stri
 }
 
 // === COMMITMENTS — real API ===
-function CommitmentsViewReal({ onDraft, draftBusy }: { onDraft: (entity: string) => void; draftBusy: boolean }) {
+function CommitmentsViewReal({ onDraft, draftBusy, searchQuery = '' }: { onDraft: (entity: string) => void; draftBusy: boolean; searchQuery?: string }) {
   const [loading, setLoading] = useState(true)
   const [commitments, setCommitments] = useState<any[]>([])
   const [error, setError] = useState('')
+  const [visibleCount, setVisibleCount] = useState(10)
 
   useEffect(() => {
     let alive = true
@@ -674,23 +692,37 @@ function CommitmentsViewReal({ onDraft, draftBusy }: { onDraft: (entity: string)
 
   if (loading) return <div className="py-16 text-sm text-gray-400">Loading…</div>
   if (error) return <div className="py-8 text-sm text-gray-500">{error}</div>
-  if (!commitments.length) return (
+
+  // Filter by search query (case-insensitive on entity + text)
+  const filtered = searchQuery
+    ? commitments.filter(c => {
+        const q = searchQuery.toLowerCase()
+        return (c.entity || '').toLowerCase().includes(q) ||
+               (c.text || c.action || '').toLowerCase().includes(q)
+      })
+    : commitments
+
+  if (!filtered.length) return (
     <div className="py-16">
-      <p className="text-sm font-semibold text-black">No active commitments.</p>
-      <p className="text-xs text-gray-500 mt-1">Connect a tool or create a signal to start tracking.</p>
+      <p className="text-sm font-semibold text-black">{searchQuery ? 'No matches found.' : 'No active commitments.'}</p>
+      <p className="text-xs text-gray-500 mt-1">{searchQuery ? 'Try a different search term.' : 'Connect a tool or create a signal to start tracking.'}</p>
     </div>
   )
 
-  const sorted = [...commitments].sort((a, b) => (b.is_at_risk ? 1 : 0) - (a.is_at_risk ? 1 : 0))
+  const sorted = [...filtered].sort((a, b) => (b.is_at_risk ? 1 : 0) - (a.is_at_risk ? 1 : 0))
   const theOne = sorted[0]
   const rest = sorted.slice(1)
+  const visibleRest = rest.slice(0, visibleCount)
+  const hasMore = rest.length > visibleCount
 
   return (
     <div className="space-y-8">
       {/* Section label — Gestalt: Similarity with whispers column */}
-      <p className="text-xs font-semibold uppercase tracking-wide text-gray-400">Active</p>
+      <p className="text-xs font-semibold uppercase tracking-wide text-gray-400">
+        Active{searchQuery ? ` · ${filtered.length} match${filtered.length === 1 ? '' : 'es'}` : ''}
+      </p>
       {/* The One — Tufte: clean text block, no card chrome */}
-      {theOne && (
+      {theOne && !searchQuery && (
         <div>
           <p className="text-xs font-semibold uppercase tracking-wide text-gray-400 mb-3">Top Priority</p>
           <div className="border-l-2 border-black pl-4">
@@ -705,14 +737,14 @@ function CommitmentsViewReal({ onDraft, draftBusy }: { onDraft: (entity: string)
       )}
 
       {/* All Active — Tufte: dense list, hairline separators, no card chrome */}
-      {rest.length > 0 && (
+      {visibleRest.length > 0 && (
         <div>
           <div className="flex items-baseline justify-between mb-3">
-            <p className="text-xs font-semibold uppercase tracking-wide text-gray-400">All Active</p>
+            <p className="text-xs font-semibold uppercase tracking-wide text-gray-400">{searchQuery ? 'Results' : 'All Active'}</p>
             <span className="text-xs text-gray-400">{rest.length}</span>
           </div>
           <div className="divide-y divide-gray-100">
-            {rest.map((c, i) => (
+            {visibleRest.map((c, i) => (
               <ClickableCard
                 key={c.signal_id || i}
                 commitment={{
@@ -741,6 +773,15 @@ function CommitmentsViewReal({ onDraft, draftBusy }: { onDraft: (entity: string)
               </ClickableCard>
             ))}
           </div>
+          {/* Load more — Tufte: text link, no button chrome */}
+          {hasMore && (
+            <button
+              onClick={() => setVisibleCount(visibleCount + 10)}
+              className="mt-3 text-xs text-gray-400 hover:text-black underline underline-offset-4"
+            >
+              Load {Math.min(10, rest.length - visibleCount)} more ({rest.length - visibleCount} remaining)
+            </button>
+          )}
         </div>
       )}
     </div>
@@ -748,11 +789,12 @@ function CommitmentsViewReal({ onDraft, draftBusy }: { onDraft: (entity: string)
 }
 
 // === WHISPER — real API (elite UI, matches Today page design) ===
-function WhisperViewReal({ onDraft, draftBusy }: { onDraft: (entity: string) => void; draftBusy: boolean }) {
+function WhisperViewReal({ onDraft, draftBusy, searchQuery = '' }: { onDraft: (entity: string) => void; draftBusy: boolean; searchQuery?: string }) {
   const [loading, setLoading] = useState(true)
   const [whispers, setWhispers] = useState<any[]>([])
   const [error, setError] = useState('')
   const [whisperLive, setWhisperLive] = useState(false)
+  const [visibleCount, setVisibleCount] = useState(10)
 
   useEffect(() => {
     let alive = true
@@ -782,21 +824,43 @@ function WhisperViewReal({ onDraft, draftBusy }: { onDraft: (entity: string) => 
     </div>
   )
 
-  // Group whispers by priority
-  const highPriority = whispers.filter(w => w.priority === 'high')
-  const mediumPriority = whispers.filter(w => w.priority === 'medium' || !w.priority)
-  const lowPriority = whispers.filter(w => w.priority === 'low')
+  // Filter by search query (case-insensitive on entity + title + body)
+  const filtered = searchQuery
+    ? whispers.filter(w => {
+        const q = searchQuery.toLowerCase()
+        return (w.entity || '').toLowerCase().includes(q) ||
+               (w.title || w.text || '').toLowerCase().includes(q) ||
+               (w.body || w.context || w.detail || '').toLowerCase().includes(q)
+      })
+    : whispers
+
+  // Group filtered whispers by priority
+  const highPriority = filtered.filter(w => w.priority === 'high')
+  const mediumPriority = filtered.filter(w => w.priority === 'medium' || !w.priority)
+  const lowPriority = filtered.filter(w => w.priority === 'low')
+
+  // Apply pagination across all groups — show first N total
+  const allFiltered = [...highPriority, ...mediumPriority, ...lowPriority]
+  const visibleWhispers = allFiltered.slice(0, visibleCount)
+  const hasMore = allFiltered.length > visibleCount
+
+  // Re-group the visible ones
+  const visibleHigh = visibleWhispers.filter(w => w.priority === 'high')
+  const visibleMedium = visibleWhispers.filter(w => w.priority === 'medium' || !w.priority)
+  const visibleLow = visibleWhispers.filter(w => w.priority === 'low')
 
   return (
     <div className="space-y-8">
       {/* Section label — Gestalt: Similarity with commitments column */}
       <div>
-        <p className="text-xs font-semibold uppercase tracking-wide text-gray-400">Whispers</p>
+        <p className="text-xs font-semibold uppercase tracking-wide text-gray-400">
+          Whispers{searchQuery && filtered.length > 0 ? ` · ${filtered.length} match${filtered.length === 1 ? '' : 'es'}` : ''}
+        </p>
         <p className="text-gray-500 mt-1 text-sm">
-          {whispers.length > 0
-            ? `${whispers.length} ${whispers.length === 1 ? 'insight needs' : 'insights need'} attention.`
+          {filtered.length > 0
+            ? `${filtered.length} ${filtered.length === 1 ? 'insight needs' : 'insights need'} attention.`
             : whisperLive
-              ? "You're all caught up."
+              ? searchQuery ? 'No whispers match your search.' : "You're all caught up."
               : 'Loading…'}
         </p>
       </div>
@@ -807,22 +871,22 @@ function WhisperViewReal({ onDraft, draftBusy }: { onDraft: (entity: string) => 
       )}
 
       {/* Empty state — Tufte: text only, no decorative circle/icon */}
-      {whisperLive && whispers.length === 0 && (
+      {whisperLive && filtered.length === 0 && (
         <div className="py-12">
-          <p className="text-sm font-semibold text-black">All caught up.</p>
-          <p className="text-xs text-gray-500 mt-1">No proactive insights. Maestro is monitoring your commitments.</p>
+          <p className="text-sm font-semibold text-black">{searchQuery ? 'No matches.' : 'All caught up.'}</p>
+          <p className="text-xs text-gray-500 mt-1">{searchQuery ? 'Try a different search term.' : 'No proactive insights. Maestro is monitoring your commitments.'}</p>
         </div>
       )}
 
       {/* High priority — Tufte: dense list with hairlines, value encodes priority */}
-      {highPriority.length > 0 && (
+      {visibleHigh.length > 0 && (
         <div>
           <div className="flex items-baseline justify-between mb-3">
             <p className="text-xs font-semibold uppercase tracking-wide text-black">Needs Attention</p>
             <span className="text-xs text-gray-400">{highPriority.length}</span>
           </div>
           <div className="divide-y divide-gray-100">
-            {highPriority.map((w, i) => (
+            {visibleHigh.map((w, i) => (
               <WhisperRow
                 key={w.id || w.whisper_id || `h-${i}`}
                 whisper={w}
@@ -836,14 +900,14 @@ function WhisperViewReal({ onDraft, draftBusy }: { onDraft: (entity: string) => 
       )}
 
       {/* Medium priority */}
-      {mediumPriority.length > 0 && (
+      {visibleMedium.length > 0 && (
         <div>
           <div className="flex items-baseline justify-between mb-3">
             <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Worth Knowing</p>
             <span className="text-xs text-gray-400">{mediumPriority.length}</span>
           </div>
           <div className="divide-y divide-gray-100">
-            {mediumPriority.map((w, i) => (
+            {visibleMedium.map((w, i) => (
               <WhisperRow
                 key={w.id || w.whisper_id || `m-${i}`}
                 whisper={w}
@@ -857,14 +921,14 @@ function WhisperViewReal({ onDraft, draftBusy }: { onDraft: (entity: string) => 
       )}
 
       {/* Low priority */}
-      {lowPriority.length > 0 && (
+      {visibleLow.length > 0 && (
         <div>
           <div className="flex items-baseline justify-between mb-3">
             <p className="text-xs font-semibold uppercase tracking-wide text-gray-400">FYI</p>
             <span className="text-xs text-gray-400">{lowPriority.length}</span>
           </div>
           <div className="divide-y divide-gray-100">
-            {lowPriority.map((w, i) => (
+            {visibleLow.map((w, i) => (
               <WhisperRow
                 key={w.id || w.whisper_id || `l-${i}`}
                 whisper={w}
@@ -875,6 +939,16 @@ function WhisperViewReal({ onDraft, draftBusy }: { onDraft: (entity: string) => 
             ))}
           </div>
         </div>
+      )}
+
+      {/* Load more — Tufte: text link, no button chrome */}
+      {hasMore && (
+        <button
+          onClick={() => setVisibleCount(visibleCount + 10)}
+          className="text-xs text-gray-400 hover:text-black underline underline-offset-4"
+        >
+          Load {Math.min(10, allFiltered.length - visibleCount)} more ({allFiltered.length - visibleCount} remaining)
+        </button>
       )}
     </div>
   )
