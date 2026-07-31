@@ -1,8 +1,8 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { motion, AnimatePresence } from 'framer-motion'
 import { cn } from '@/lib/utils'
+// Tufte: removed framer-motion (motion/AnimatePresence) — no decorative animations
 import { Sun, Search, Calendar, Zap, Unplug, Mail, MessageSquare, FileText, RefreshCw, CheckCircle2, Plus, Send, Loader2, LogOut, Sparkles, PenLine, AlertTriangle, Clock, Lightbulb } from 'lucide-react'
 import { maestroApi, getToken, setToken, clearToken } from '@/lib/maestro-api'
 import { Login } from '@/components/maestro/Login'
@@ -168,25 +168,25 @@ export default function Home() {
 
   return (
     <div className="min-h-screen flex bg-white">
-      {/* Desktop sidebar */}
-      <aside className="hidden lg:flex w-60 shrink-0 flex-col border-r border-gray-100">
-        <div className="p-5 flex items-center gap-3">
-          <div className="h-7 w-7 rounded-md bg-gray-900 flex items-center justify-center">
-            <span className="text-white text-xs font-bold">M</span>
-          </div>
-          <span className="font-semibold text-sm tracking-tight text-gray-900">Maestro</span>
+      {/* Desktop sidebar — Tufte: hairline border, position-based active state */}
+      <aside className="hidden lg:flex w-56 shrink-0 flex-col border-r border-gray-200">
+        {/* Logo: text only, no decorative block */}
+        <div className="px-6 py-5">
+          <span className="text-sm font-bold tracking-tight text-black">Maestro</span>
         </div>
-        <nav className="flex-1 px-3 py-2 space-y-1" aria-label="Main">
+        <nav className="flex-1 px-3" aria-label="Main">
           {navItems.map((item) => (
             <button key={item.id} onClick={() => setTab(item.id)}
-              className={cn('flex items-center gap-3 w-full px-3 py-2 rounded-lg text-sm transition-colors',
-                tab === item.id ? 'bg-gray-100 text-gray-900 font-medium' : 'text-gray-400 hover:text-gray-700 hover:bg-gray-50')}>
+              className={cn('flex items-center gap-3 w-full px-3 py-2 text-sm border-l-2 transition-none',
+                tab === item.id
+                  ? 'border-black text-black font-semibold'
+                  : 'border-transparent text-gray-400 hover:text-black hover:border-gray-300')}>
               {item.icon} {item.label}
             </button>
           ))}
         </nav>
-        <div className="p-3 border-t border-gray-100">
-          <button onClick={handleLogout} className="flex items-center gap-2 w-full px-3 py-2 rounded-lg text-sm text-gray-400 hover:text-gray-700 hover:bg-gray-50 transition-colors">
+        <div className="px-3 py-3 border-t border-gray-200">
+          <button onClick={handleLogout} className="flex items-center gap-3 w-full px-3 py-2 text-sm text-gray-400 hover:text-black border-l-2 border-transparent hover:border-gray-300 transition-none">
             <LogOut className="h-4 w-4" /> Log out
           </button>
         </div>
@@ -194,13 +194,14 @@ export default function Home() {
 
       {/* Main content */}
       <div className="flex-1 flex flex-col min-w-0">
-        <header className="lg:hidden sticky top-0 z-10 bg-white/95 backdrop-blur-sm border-b border-gray-100">
+        {/* Mobile header — no backdrop-blur, no rounded corners */}
+        <header className="lg:hidden sticky top-0 z-10 bg-white border-b border-gray-200">
           <div className="flex items-center justify-between px-6 py-3">
-            <span className="font-semibold text-sm tracking-tight text-gray-900">Maestro</span>
+            <span className="text-sm font-bold tracking-tight text-black">Maestro</span>
             <nav className="flex items-center gap-1">
               {navItems.map((item) => (
                 <button key={item.id} onClick={() => setTab(item.id)}
-                  className={cn('p-1.5 rounded-lg', tab === item.id ? 'bg-gray-100 text-gray-900' : 'text-gray-400')}>
+                  className={cn('p-2', tab === item.id ? 'text-black' : 'text-gray-400')}>
                   {item.icon}
                 </button>
               ))}
@@ -209,26 +210,23 @@ export default function Home() {
         </header>
 
         <main className="flex-1 max-w-2xl w-full mx-auto px-6 lg:px-10 py-8 lg:py-10 pb-24 lg:pb-10">
-          <AnimatePresence mode="wait">
-            <motion.div key={tab} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -2 }} transition={{ duration: 0.2 }}>
-              {tab === 'today' && <TodayView onDraft={handleGenerateDraft} draftBusy={draftBusy} />}
-              {tab === 'today' && <WhisperPostIt onDraft={handleGenerateDraft} />}
-              {tab === 'ask' && <AskView />}
-              {tab === 'commitments' && <CommitmentsViewReal onDraft={handleGenerateDraft} draftBusy={draftBusy} />}
-              {tab === 'whisper' && <WhisperViewReal onDraft={handleGenerateDraft} draftBusy={draftBusy} />}
-              {tab === 'connectors' && <Connectors />}
-            </motion.div>
-          </AnimatePresence>
+          {/* Tufte: no motion animations — content appears immediately */}
+          {tab === 'today' && <TodayView onDraft={handleGenerateDraft} draftBusy={draftBusy} />}
+          {tab === 'today' && <WhisperPostIt onDraft={handleGenerateDraft} />}
+          {tab === 'ask' && <AskView />}
+          {tab === 'commitments' && <CommitmentsViewReal onDraft={handleGenerateDraft} draftBusy={draftBusy} />}
+          {tab === 'whisper' && <WhisperViewReal onDraft={handleGenerateDraft} draftBusy={draftBusy} />}
+          {tab === 'connectors' && <Connectors />}
         </main>
       </div>
 
-      {/* Mobile bottom nav */}
-      <nav className="lg:hidden fixed bottom-0 inset-x-0 z-30 border-t border-gray-100 bg-white/95 backdrop-blur-sm" style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}>
+      {/* Mobile bottom nav — no backdrop-blur, hairline border */}
+      <nav className="lg:hidden fixed bottom-0 inset-x-0 z-30 border-t border-gray-200 bg-white" style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}>
         <div className="grid grid-cols-5">
           {navItems.map((item) => (
             <button key={item.id} onClick={() => setTab(item.id)}
-              className={cn('flex flex-col items-center justify-center gap-1 py-2.5 text-[10px] font-medium min-h-[44px]',
-                tab === item.id ? 'text-gray-900' : 'text-gray-400')}>
+              className={cn('flex flex-col items-center justify-center gap-1 py-2.5 text-[10px] min-h-[44px] border-t-2',
+                tab === item.id ? 'border-black text-black font-semibold' : 'border-transparent text-gray-400')}>
               {item.icon}<span className="truncate max-w-full px-1">{item.label}</span>
             </button>
           ))}
@@ -308,15 +306,13 @@ function TodayView({ onDraft, draftBusy }: { onDraft: (entity: string) => void; 
     return () => { alive = false; clearTimeout(slowTimer) }
   }, [])
 
-  if (loading) return <div className="flex justify-center py-16"><Loader2 className="h-5 w-5 animate-spin text-gray-300" /></div>
+  if (loading) return <div className="py-16 text-sm text-gray-400">Loading…</div>
   if (error) return (
-    <div className="space-y-4">
-      {/* Phase 2.3: Stale/offline honesty — visible banner when backend unreachable */}
-      <div className="bg-amber-50 border border-amber-200 rounded-lg px-4 py-3 flex items-center gap-2">
-        <span className="text-amber-600 text-sm font-medium">⚠ Backend not connected</span>
-        <span className="text-amber-500 text-xs">Data may be stale. {error}</span>
-      </div>
-      <div className="text-sm text-gray-400 py-8">Retry in a moment.</div>
+    <div className="space-y-2">
+      {/* Tufte: no colored background, just text + hairline */}
+      <p className="text-sm font-semibold text-black">Backend not connected</p>
+      <p className="text-xs text-gray-500">{error}</p>
+      <p className="text-xs text-gray-400 pt-4">Retry in a moment.</p>
     </div>
   )
 
@@ -324,78 +320,65 @@ function TodayView({ onDraft, draftBusy }: { onDraft: (entity: string) => void; 
   const greeting = hour < 12 ? 'Good morning' : hour < 18 ? 'Good afternoon' : 'Good evening'
 
   return (
-    <div className="space-y-10">
+    <div className="space-y-12">
+      {/* Header — strong typographic hierarchy, no decoration */}
       <div>
-        <h1 className="text-3xl font-semibold tracking-tight text-gray-900">{greeting}.</h1>
-        <p className="text-gray-400 mt-2 text-base">
+        <h1 className="text-2xl font-bold tracking-tight text-black">{greeting}.</h1>
+        <p className="text-gray-500 mt-1 text-sm">
           {theOne
-            ? 'You have one promise that needs attention.'
+            ? 'One promise needs attention.'
             : momentLoading
               ? 'Loading your top priority…'
-              : "You're clear today. No commitments need attention."}
+              : "You're clear today."}
         </p>
       </div>
-      {/* LATENCY FIX v2: only show the slow banner after 10s — not during
-          normal cold-cache loading (2-3s). This prevents the page from
-          looking broken when it's actually working fine. */}
+
+      {/* Slow banner — Tufte: text + hairline, no colored background */}
       {showSlowBanner && !theOne && (
-        <div className="bg-amber-50 border border-amber-200 rounded-lg px-4 py-3 flex items-center gap-2">
-          <span className="text-amber-600 text-sm font-medium">⚠ Taking longer than usual</span>
-          <span className="text-amber-500 text-xs">
-            The backend is slow to respond. Your commitments are loaded — the top priority will appear when ready.
-          </span>
+        <div className="border-l-2 border-gray-400 pl-3 py-1">
+          <p className="text-xs font-semibold text-black">Taking longer than usual</p>
+          <p className="text-xs text-gray-500 mt-0.5">
+            Backend is slow. Your commitments are loaded — top priority will appear when ready.
+          </p>
         </div>
       )}
 
-      {/* While the-moment is loading, show a subtle skeleton placeholder
-          so the page doesn't feel empty. This disappears when the-moment
-          arrives or when we determine the user is "clear". */}
+      {/* Loading placeholder — Tufte: text only, no skeleton animation */}
       {momentLoading && !theOne && (
-        <div className="rounded-2xl border border-gray-100 bg-white p-6 animate-pulse">
-          <div className="flex items-center gap-3">
-            <div className="h-10 w-10 rounded-full bg-gray-100" />
-            <div className="flex-1 space-y-2">
-              <div className="h-3 bg-gray-100 rounded w-3/4" />
-              <div className="h-3 bg-gray-100 rounded w-1/2" />
-            </div>
+        <p className="text-sm text-gray-300 italic">Loading top priority…</p>
+      )}
+
+      {/* The Moment — clean text block, no card chrome */}
+      {theOne && theOne.commitment && (
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-wide text-gray-400 mb-3">Top Priority</p>
+          <div className="border-l-2 border-black pl-4">
+            <p className="text-sm font-semibold text-black">
+              {theOne.commitment.text || theOne.commitment.action || ''}
+            </p>
+            <p className="text-xs text-gray-500 mt-1">
+              {theOne.commitment.entity || 'Unknown'}
+              {theOne.commitment.deadline ? ` · due ${theOne.commitment.deadline.split('T')[0]}` : ''}
+            </p>
+            <button
+              onClick={() => onDraft(theOne.commitment.entity)}
+              disabled={draftBusy}
+              className="mt-3 text-xs font-medium text-black underline underline-offset-4 hover:text-gray-600 disabled:opacity-40"
+            >
+              {draftBusy ? 'Generating…' : 'Draft follow-up'}
+            </button>
           </div>
         </div>
       )}
 
-      {theOne && theOne.commitment && (
-        <div>
-          <TheOne
-            commitment={{
-              id: theOne.commitment.signal_id || 'the-one',
-              entity: theOne.commitment.entity || '',
-              text: theOne.commitment.text || theOne.commitment.action || '',
-              dueDate: theOne.commitment.deadline || new Date().toISOString(),
-              state: theOne.commitment.is_at_risk ? 'at_risk' : 'active',
-              confidence: theOne.commitment.confidence ?? 0.5,
-              importance: theOne.commitment.is_at_risk ? 'high' : 'medium',
-              isBlocking: false,
-              owner: 'user',
-              source: { type: 'email', snippet: theOne.commitment.text || '', timestamp: theOne.commitment.created_at || '', sender: '' },
-              createdAt: theOne.commitment.created_at || '',
-            }}
-            apiBase={API_BASE}
-            token={getToken() || ''}
-          />
-          <button
-            onClick={() => onDraft(theOne.commitment.entity)}
-            disabled={draftBusy}
-            className="mt-3 flex items-center gap-2 text-sm font-medium text-gray-600 hover:text-gray-900 px-4 py-2 rounded-lg bg-white border border-gray-200 hover:border-gray-300 transition-colors disabled:opacity-50"
-          >
-            {draftBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <PenLine className="h-4 w-4" />}
-            Draft Follow-up Email
-          </button>
-        </div>
-      )}
-
+      {/* What Changed — small multiples, aligned rows, no cards */}
       {changes.length > 0 && (
         <div>
-          <p className="text-xs font-medium uppercase tracking-wider text-gray-400 mb-4">What Changed</p>
-          <div className="space-y-3">
+          <div className="flex items-baseline justify-between mb-3">
+            <p className="text-xs font-semibold uppercase tracking-wide text-gray-400">What Changed</p>
+            <span className="text-xs text-gray-400">{changes.length}</span>
+          </div>
+          <div className="divide-y divide-gray-100">
             {changes.slice(0, 5).map((c, i) => {
               const match = commitments.find((cm: any) =>
                 cm.text && c.text && cm.text === c.text
@@ -414,11 +397,13 @@ function TodayView({ onDraft, draftBusy }: { onDraft: (entity: string) => void; 
                   apiBase={API_BASE}
                   token={getToken() || ''}
                 >
-                  <div className="flex items-start gap-3 hover:bg-gray-50 transition-colors p-2 rounded-lg">
-                    <div className={cn('flex-shrink-0 mt-1 h-1.5 w-1.5 rounded-full',
-                      c.type === 'new' ? 'bg-blue-400' : c.is_meaningful ? 'bg-amber-400' : 'bg-gray-300')} />
+                  {/* Tufte: row with positional marker, no background, no rounded */}
+                  <div className="flex items-start gap-3 py-3 hover:bg-gray-50">
+                    {/* Bertin: shape encodes type (circle = new, square = meaningful) */}
+                    <div className={cn('flex-shrink-0 mt-1.5',
+                      c.type === 'new' ? 'h-2 w-2 rounded-full bg-black' : c.is_meaningful ? 'h-2 w-2 bg-gray-400' : 'h-2 w-2 border border-gray-300')} />
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm text-gray-700 leading-relaxed">{c.text || c.action || JSON.stringify(c)}</p>
+                      <p className="text-sm text-black leading-snug">{c.text || c.action || ''}</p>
                       <p className="text-xs text-gray-400 mt-0.5">{c.entity || ''}</p>
                     </div>
                   </div>
@@ -429,15 +414,14 @@ function TodayView({ onDraft, draftBusy }: { onDraft: (entity: string) => void; 
         </div>
       )}
 
-      {/* v21: Show active commitments list on Today page — user expects to see
-          their commitments, not just "the one" that needs attention. */}
+      {/* Active Commitments — dense list, small multiples, no card chrome */}
       {commitments.length > 0 && (
         <div>
-          <div className="flex items-center justify-between mb-4">
-            <p className="text-xs font-medium uppercase tracking-wider text-gray-400">Your Active Commitments</p>
-            <span className="text-xs text-gray-400">{commitments.length} total</span>
+          <div className="flex items-baseline justify-between mb-3">
+            <p className="text-xs font-semibold uppercase tracking-wide text-gray-400">Active Commitments</p>
+            <span className="text-xs text-gray-400">{commitments.length}</span>
           </div>
-          <div className="space-y-2">
+          <div className="divide-y divide-gray-100">
             {commitments.slice(0, 10).map((c: any, i: number) => (
               <ClickableCard
                 key={c.signal_id || i}
@@ -451,28 +435,29 @@ function TodayView({ onDraft, draftBusy }: { onDraft: (entity: string) => void; 
                 apiBase={API_BASE}
                 token={getToken() || ''}
               >
-                <div className="flex items-start gap-3 hover:bg-gray-50 transition-colors p-3 rounded-lg border border-gray-100">
-                  <div className={cn('flex-shrink-0 mt-1 h-2 w-2 rounded-full',
-                    c.is_at_risk ? 'bg-red-400' : c.deadline ? 'bg-amber-400' : 'bg-emerald-400')} />
+                <div className="flex items-start gap-3 py-3 hover:bg-gray-50">
+                  {/* Bertin: value (darkness) encodes priority, shape is consistent */}
+                  <div className={cn('flex-shrink-0 mt-1.5 h-2 w-2',
+                    c.is_at_risk ? 'bg-black' : c.deadline ? 'bg-gray-500' : 'border border-gray-300')} />
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm text-gray-900 leading-snug">{c.text || c.action || ''}</p>
+                    <p className={cn('text-sm leading-snug', c.is_at_risk ? 'font-semibold text-black' : 'text-black')}>{c.text || c.action || ''}</p>
                     <div className="flex items-center gap-3 mt-1">
-                      <p className="text-xs text-gray-400">{c.entity || ''}</p>
+                      <p className="text-xs text-gray-500">{c.entity || ''}</p>
                       {c.deadline && (
-                        <p className="text-xs text-amber-500">{new Date(c.deadline).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</p>
+                        <p className="text-xs text-gray-500">{new Date(c.deadline).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</p>
                       )}
                       {c.is_at_risk && (
-                        <span className="text-[10px] font-medium text-red-500 uppercase tracking-wide">at risk</span>
+                        <span className="text-[10px] font-bold text-black uppercase tracking-wide">at risk</span>
                       )}
                     </div>
                   </div>
                   <button
                     onClick={(e) => { e.stopPropagation(); onDraft(c.entity) }}
                     disabled={draftBusy}
-                    className="flex-shrink-0 text-xs text-gray-400 hover:text-gray-700 disabled:opacity-50 px-2 py-1 rounded hover:bg-gray-100 transition-colors"
+                    className="flex-shrink-0 text-xs text-gray-400 hover:text-black disabled:opacity-40 underline underline-offset-4"
                     title="Draft follow-up"
                   >
-                    <PenLine className="h-3.5 w-3.5" />
+                    draft
                   </button>
                 </div>
               </ClickableCard>
@@ -563,84 +548,76 @@ function AskView() {
   return (
     <div className="flex flex-col items-center w-full">
       <div className="w-full max-w-2xl">
-        <form onSubmit={(e) => { e.preventDefault(); handleAsk(query) }} className="relative">
-          <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
-          <input type="text" value={query} onChange={(e) => setQuery(e.target.value)}
-            placeholder="Ask about your commitments..."
-            className="w-full pl-11 pr-4 py-3.5 bg-white rounded-xl border border-gray-200 text-gray-900 placeholder:text-gray-400 focus:outline-none focus:border-gray-400 text-sm" />
+        {/* Tufte: input with hairline border, no rounded corners */}
+        <form onSubmit={(e) => { e.preventDefault(); handleAsk(query) }}>
+          <div className="flex items-center gap-2 border-b border-gray-300 pb-2">
+            <Search className="h-4 w-4 text-gray-400 shrink-0" />
+            <input type="text" value={query} onChange={(e) => setQuery(e.target.value)}
+              placeholder="Ask about your commitments…"
+              className="flex-1 bg-transparent text-black placeholder:text-gray-400 focus:outline-none text-sm" />
+          </div>
         </form>
 
+        {/* Tufte: suggestion links, no button chrome */}
         {!answer && !loading && (
-          <div className="flex flex-wrap gap-2 mt-4">
+          <div className="flex flex-wrap gap-x-4 gap-y-1 mt-4">
             {suggestions.map((s) => (
               <button key={s} onClick={() => { setQuery(s); handleAsk(s) }}
-                className="px-3 py-1.5 text-sm text-gray-500 bg-gray-50 hover:bg-gray-100 rounded-full transition-colors">{s}</button>
+                className="text-xs text-gray-500 hover:text-black underline underline-offset-4">{s}</button>
             ))}
           </div>
         )}
 
-        {loading && <div className="mt-8 flex items-center gap-2 text-gray-400"><Loader2 className="h-4 w-4 animate-spin" /><span className="text-sm">Searching your commitments...</span></div>}
+        {/* Tufte: text loading, no spinner */}
+        {loading && <p className="mt-8 text-sm text-gray-400">Searching your commitments…</p>}
 
-        <AnimatePresence>
-          {answer && !loading && (
-            <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="mt-8">
-              <div className="mb-6">
-                <div className="flex items-center gap-2 mb-3">
-                  <div className="h-2.5 w-2.5 rounded-full" style={{ background: (answer.confidence || 0) >= 0.7 ? '#059669' : '#6B7280' }} />
-                  <span className="text-xs text-gray-400 tabular-nums">{Math.round((answer.confidence || 0) * 100)}% confidence</span>
-                </div>
-                <p className="text-lg leading-relaxed tracking-tight" style={{ color: (answer.confidence || 0) >= 0.7 ? '#1A1A1A' : '#6B7280' }}>
-                  {answer.answer || 'No answer available.'}
-                </p>
+        {/* Tufte: no motion animation, content appears immediately */}
+        {answer && !loading && (
+          <div className="mt-8">
+            {/* Bertin: value (font weight) encodes confidence, NOT color */}
+            <div className="mb-4">
+              <div className="flex items-center gap-2 mb-2">
+                <span className="text-xs text-gray-400 tabular-nums">{Math.round((answer.confidence || 0) * 100)}% confidence</span>
               </div>
+              <p className={cn('text-base leading-relaxed',
+                (answer.confidence || 0) >= 0.7 ? 'font-semibold text-black' : 'text-gray-600')}>
+                {answer.answer || 'No answer available.'}
+              </p>
+            </div>
 
-              {answer.evidence_refs && answer.evidence_refs.length > 0 && (
-                <div className="mt-4">
-                  <button onClick={() => setShowEvidence(!showEvidence)}
-                    className="flex items-center gap-1 text-sm font-medium text-gray-500 hover:text-gray-700 mb-2">
-                    Evidence ({answer.evidence_refs.length})
-                  </button>
-                  <AnimatePresence>
-                    {showEvidence && (
-                      <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} className="overflow-hidden">
-                        <div className="space-y-4">
-                          {answer.evidence_refs.map((ev: any, i: number) => (
-                            <div key={i} className="pl-4 border-l-2 rounded-r-lg" style={{ borderColor: '#2563EB', background: '#F9FAFB' }}>
-                              <div className="p-3">
-                                <div className="flex items-start justify-between gap-2">
-                                  <div className="flex-1">
-                                    <span className="text-xs text-gray-400">{ev.source_type || ev.source || 'signal'}</span>
-                                    <p className="text-sm italic text-gray-700 leading-relaxed mt-1">"{ev.text || ev.evidence_quote || ''}"</p>
-                                  </div>
-                                  {/* Phase 2.6: Correction UI — user can correct a wrong commitment */}
-                                  {ev.signal_id && (
-                                    <CorrectionButton
-                                      signalId={ev.signal_id}
-                                      apiBase={API_BASE}
-                                      token={getToken() || ''}
-                                      onCorrected={() => {
-                                        // Refresh the answer after correction
-                                        handleAsk(query)
-                                      }}
-                                    />
-                                  )}
-                                </div>
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      </motion.div>
-                    )}
-                  </AnimatePresence>
-                </div>
-              )}
+            {/* Evidence — Tufte: hairline border, no background, no rounded */}
+            {answer.evidence_refs && answer.evidence_refs.length > 0 && (
+              <div className="mt-6">
+                <button onClick={() => setShowEvidence(!showEvidence)}
+                  className="text-xs font-medium text-gray-500 hover:text-black mb-2 underline underline-offset-4">
+                  Evidence ({answer.evidence_refs.length})
+                </button>
+                {showEvidence && (
+                  <div className="space-y-4">
+                    {answer.evidence_refs.map((ev: any, i: number) => (
+                      <div key={i} className="border-l-2 border-gray-300 pl-3">
+                        <span className="text-[10px] font-medium uppercase tracking-wide text-gray-400">{ev.source_type || ev.source || 'signal'}</span>
+                        <p className="text-xs italic text-gray-600 leading-relaxed mt-1">&ldquo;{ev.text || ev.evidence_quote || ''}&rdquo;</p>
+                        {ev.signal_id && (
+                          <CorrectionButton
+                            signalId={ev.signal_id}
+                            apiBase={API_BASE}
+                            token={getToken() || ''}
+                            onCorrected={() => { handleAsk(query) }}
+                          />
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
 
-              {answer.intelligence_source && (
-                <p className="text-xs text-gray-400 mt-4">Source: {answer.intelligence_source}</p>
-              )}
-            </motion.div>
-          )}
-        </AnimatePresence>
+            {answer.intelligence_source && (
+              <p className="text-xs text-gray-400 mt-4">Source: {answer.intelligence_source}</p>
+            )}
+          </div>
+        )}
       </div>
     </div>
   )
@@ -665,12 +642,12 @@ function CommitmentsViewReal({ onDraft, draftBusy }: { onDraft: (entity: string)
     return () => { alive = false }
   }, [])
 
-  if (loading) return <div className="flex justify-center py-16"><Loader2 className="h-5 w-5 animate-spin text-gray-300" /></div>
-  if (error) return <div className="text-sm text-red-500 py-8">{error}</div>
+  if (loading) return <div className="py-16 text-sm text-gray-400">Loading…</div>
+  if (error) return <div className="py-8 text-sm text-gray-500">{error}</div>
   if (!commitments.length) return (
-    <div className="text-center py-16">
-      <p className="text-lg text-gray-400">No active commitments.</p>
-      <p className="text-sm text-gray-400 mt-1">Connect a tool or create a signal to start tracking.</p>
+    <div className="py-16">
+      <p className="text-sm font-semibold text-black">No active commitments.</p>
+      <p className="text-xs text-gray-500 mt-1">Connect a tool or create a signal to start tracking.</p>
     </div>
   )
 
@@ -679,28 +656,30 @@ function CommitmentsViewReal({ onDraft, draftBusy }: { onDraft: (entity: string)
   const rest = sorted.slice(1)
 
   return (
-    <div className="max-w-2xl mx-auto">
+    <div className="space-y-12">
+      {/* The One — Tufte: clean text block, no card chrome */}
       {theOne && (
-        <div className="mb-8">
-          <p className="text-xs font-medium uppercase tracking-wider text-gray-400 mb-3">The One</p>
-
-            <TheOne
-              commitment={{
-                id: theOne.signal_id || 'c1', entity: theOne.entity || '', text: theOne.text || theOne.action || '',
-                dueDate: theOne.deadline || new Date().toISOString(), state: theOne.is_at_risk ? 'at_risk' : 'active',
-                confidence: theOne.confidence ?? 0.5, importance: theOne.is_at_risk ? 'high' : 'medium', isBlocking: false,
-                owner: 'user', source: { type: 'email', snippet: theOne.text || '', timestamp: '', sender: '' }, createdAt: '',
-              }}
-              apiBase={API_BASE}
-              token={getToken() || ''}
-            />
-
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-wide text-gray-400 mb-3">Top Priority</p>
+          <div className="border-l-2 border-black pl-4">
+            <p className="text-sm font-bold text-black">{theOne.text || theOne.action || ''}</p>
+            <p className="text-xs text-gray-500 mt-1">
+              {theOne.entity || ''}
+              {theOne.deadline ? ` · due ${new Date(theOne.deadline).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}` : ''}
+              {theOne.is_at_risk ? ' · at risk' : ''}
+            </p>
+          </div>
         </div>
       )}
+
+      {/* All Active — Tufte: dense list, hairline separators, no card chrome */}
       {rest.length > 0 && (
         <div>
-          <p className="text-xs font-medium uppercase tracking-wider text-gray-400 mb-3">All Active ({rest.length})</p>
-          <div className="space-y-2">
+          <div className="flex items-baseline justify-between mb-3">
+            <p className="text-xs font-semibold uppercase tracking-wide text-gray-400">All Active</p>
+            <span className="text-xs text-gray-400">{rest.length}</span>
+          </div>
+          <div className="divide-y divide-gray-100">
             {rest.map((c, i) => (
               <ClickableCard
                 key={c.signal_id || i}
@@ -716,13 +695,16 @@ function CommitmentsViewReal({ onDraft, draftBusy }: { onDraft: (entity: string)
                 apiBase={API_BASE}
                 token={getToken() || ''}
               >
-                <div className="flex items-center gap-3 py-3 px-4 bg-white rounded-lg border border-gray-100">
-                  <div className="h-2 w-2 rounded-full flex-shrink-0" style={{ background: (c.confidence || 0.5) >= 0.7 ? '#059669' : '#D97706' }} />
+                {/* Tufte: row with value-based marker, no card chrome */}
+                <div className="flex items-start gap-3 py-3 hover:bg-gray-50">
+                  {/* Bertin: value (darkness) encodes confidence, NOT color */}
+                  <div className={cn('flex-shrink-0 mt-1.5 h-2 w-2',
+                    c.is_at_risk ? 'bg-black' : (c.confidence || 0.5) >= 0.7 ? 'bg-gray-700' : 'border border-gray-400')} />
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm text-gray-700 truncate">{c.text || c.action}</p>
-                    <p className="text-xs text-gray-400 mt-0.5">{c.entity}</p>
+                    <p className={cn('text-sm leading-snug', c.is_at_risk ? 'font-semibold text-black' : 'text-black')}>{c.text || c.action}</p>
+                    <p className="text-xs text-gray-500 mt-0.5">{c.entity}</p>
                   </div>
-                  {c.is_at_risk && <span className="text-xs text-red-500 font-medium">At risk</span>}
+                  {c.is_at_risk && <span className="text-[10px] font-bold text-black uppercase tracking-wide">at risk</span>}
                 </div>
               </ClickableCard>
             ))}
@@ -756,81 +738,63 @@ function WhisperViewReal({ onDraft, draftBusy }: { onDraft: (entity: string) => 
   }, [])
 
   if (loading) return (
-    <div className="space-y-10">
+    <div className="space-y-12">
       <div>
-        <h1 className="text-3xl font-semibold tracking-tight text-gray-900">Whispers.</h1>
-        <p className="text-gray-400 mt-2 text-base">Loading your insights…</p>
+        <h1 className="text-2xl font-bold tracking-tight text-black">Whispers.</h1>
+        <p className="text-gray-500 mt-1 text-sm">Loading your insights…</p>
       </div>
-      <div className="rounded-2xl border border-gray-100 bg-white p-6 animate-pulse">
-        <div className="flex items-center gap-3">
-          <div className="h-10 w-10 rounded-full bg-gray-100" />
-          <div className="flex-1 space-y-2">
-            <div className="h-3 bg-gray-100 rounded w-3/4" />
-            <div className="h-3 bg-gray-100 rounded w-1/2" />
-          </div>
-        </div>
-      </div>
+      <p className="text-sm text-gray-300 italic">Loading…</p>
     </div>
   )
   if (error) return (
-    <div className="space-y-4">
-      <div className="bg-amber-50 border border-amber-200 rounded-lg px-4 py-3 flex items-center gap-2">
-        <span className="text-amber-600 text-sm font-medium">⚠ Failed to load</span>
-        <span className="text-amber-500 text-xs">{error}</span>
-      </div>
+    <div className="space-y-2">
+      <p className="text-sm font-semibold text-black">Failed to load</p>
+      <p className="text-xs text-gray-500">{error}</p>
     </div>
   )
 
-  const hour = new Date().getHours()
-  const greeting = hour < 12 ? 'Good morning' : hour < 18 ? 'Good afternoon' : 'Good evening'
-
-  // Group whispers by priority for a cleaner layout
+  // Group whispers by priority
   const highPriority = whispers.filter(w => w.priority === 'high')
   const mediumPriority = whispers.filter(w => w.priority === 'medium' || !w.priority)
   const lowPriority = whispers.filter(w => w.priority === 'low')
 
   return (
-    <div className="space-y-10">
-      {/* Header — matches Today page's h1 + subtitle pattern */}
+    <div className="space-y-12">
+      {/* Header — Tufte: strong typographic hierarchy */}
       <div>
-        <h1 className="text-3xl font-semibold tracking-tight text-gray-900">Whispers.</h1>
-        <p className="text-gray-400 mt-2 text-base">
+        <h1 className="text-2xl font-bold tracking-tight text-black">Whispers.</h1>
+        <p className="text-gray-500 mt-1 text-sm">
           {whispers.length > 0
-            ? `${whispers.length} ${whispers.length === 1 ? 'insight needs' : 'insights need'} your attention right now.`
+            ? `${whispers.length} ${whispers.length === 1 ? 'insight needs' : 'insights need'} attention.`
             : whisperLive
-              ? "You're all caught up. No proactive insights right now."
-              : 'Still loading your whispers — they will appear here shortly.'}
+              ? "You're all caught up."
+              : 'Loading…'}
         </p>
       </div>
 
-      {/* Loading banner when backend is slow */}
+      {/* Loading — Tufte: text only, no colored banner */}
       {!whisperLive && !whispers.length && (
-        <div className="bg-amber-50 border border-amber-200 rounded-lg px-4 py-3 flex items-center gap-2">
-          <span className="text-amber-600 text-sm font-medium">⚠ Still loading</span>
-          <span className="text-amber-500 text-xs">
-            The backend is taking longer than usual. Refresh in a moment.
-          </span>
-        </div>
+        <p className="text-sm text-gray-300 italic">Loading whispers…</p>
       )}
 
-      {/* Empty state — elegant, not just "All caught up" */}
+      {/* Empty state — Tufte: text only, no decorative circle/icon */}
       {whisperLive && whispers.length === 0 && (
-        <div className="flex flex-col items-center justify-center py-20">
-          <div className="h-16 w-16 rounded-full bg-gray-100 flex items-center justify-center mb-4">
-            <Zap className="h-7 w-7 text-gray-300" />
-          </div>
-          <p className="text-lg font-medium text-gray-900">All caught up.</p>
-          <p className="text-sm text-gray-400 mt-1">No proactive insights right now. Maestro is monitoring your commitments in the background.</p>
+        <div className="py-12">
+          <p className="text-sm font-semibold text-black">All caught up.</p>
+          <p className="text-xs text-gray-500 mt-1">No proactive insights. Maestro is monitoring your commitments.</p>
         </div>
       )}
 
-      {/* High priority whispers — full-width cards with red accent */}
+      {/* High priority — Tufte: dense list with hairlines, value encodes priority */}
       {highPriority.length > 0 && (
         <div>
-          <p className="text-xs font-medium uppercase tracking-wider text-gray-400 mb-4">Needs Attention</p>
-          <div className="space-y-3">
+          <div className="flex items-baseline justify-between mb-3">
+            <p className="text-xs font-semibold uppercase tracking-wide text-black">Needs Attention</p>
+            <span className="text-xs text-gray-400">{highPriority.length}</span>
+          </div>
+          <div className="divide-y divide-gray-100">
             {highPriority.map((w, i) => (
-              <WhisperCardElite
+              <WhisperRow
                 key={w.id || w.whisper_id || `h-${i}`}
                 whisper={w}
                 priority="high"
@@ -842,13 +806,16 @@ function WhisperViewReal({ onDraft, draftBusy }: { onDraft: (entity: string) => 
         </div>
       )}
 
-      {/* Medium priority whispers */}
+      {/* Medium priority */}
       {mediumPriority.length > 0 && (
         <div>
-          <p className="text-xs font-medium uppercase tracking-wider text-gray-400 mb-4">Worth Knowing</p>
-          <div className="space-y-3">
+          <div className="flex items-baseline justify-between mb-3">
+            <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Worth Knowing</p>
+            <span className="text-xs text-gray-400">{mediumPriority.length}</span>
+          </div>
+          <div className="divide-y divide-gray-100">
             {mediumPriority.map((w, i) => (
-              <WhisperCardElite
+              <WhisperRow
                 key={w.id || w.whisper_id || `m-${i}`}
                 whisper={w}
                 priority="medium"
@@ -860,13 +827,16 @@ function WhisperViewReal({ onDraft, draftBusy }: { onDraft: (entity: string) => 
         </div>
       )}
 
-      {/* Low priority whispers — collapsed by default */}
+      {/* Low priority */}
       {lowPriority.length > 0 && (
         <div>
-          <p className="text-xs font-medium uppercase tracking-wider text-gray-400 mb-4">FYI</p>
-          <div className="space-y-3">
+          <div className="flex items-baseline justify-between mb-3">
+            <p className="text-xs font-semibold uppercase tracking-wide text-gray-400">FYI</p>
+            <span className="text-xs text-gray-400">{lowPriority.length}</span>
+          </div>
+          <div className="divide-y divide-gray-100">
             {lowPriority.map((w, i) => (
-              <WhisperCardElite
+              <WhisperRow
                 key={w.id || w.whisper_id || `l-${i}`}
                 whisper={w}
                 priority="low"
@@ -881,8 +851,8 @@ function WhisperViewReal({ onDraft, draftBusy }: { onDraft: (entity: string) => 
   )
 }
 
-// Elite whisper card — clean, minimal, with priority-based accent colors
-function WhisperCardElite({
+// Tufte/Bertin whisper row — no card chrome, value encodes priority, shape encodes type
+function WhisperRow({
   whisper,
   priority,
   onDraft,
@@ -899,10 +869,21 @@ function WhisperCardElite({
   const body = whisper.body || whisper.context || whisper.detail || ''
   const wType = whisper.type || 'routine'
 
-  // Priority-based styling — subtle, not garish
-  const accentColor = priority === 'high' ? 'bg-red-500' : priority === 'medium' ? 'bg-amber-400' : 'bg-gray-300'
-  const typeIcon = wType === 'critical_signal' ? AlertTriangle : wType === 'meeting_prep' ? Calendar : wType === 'deadline_approaching' ? Calendar : wType === 'stale_commitment' ? Clock : Lightbulb
-  const TypeIcon = typeIcon
+  // Bertin: value (font weight/darkness) encodes priority, NOT color
+  const titleClass = priority === 'high'
+    ? 'text-sm font-bold text-black'
+    : priority === 'medium'
+      ? 'text-sm font-semibold text-black'
+      : 'text-sm font-normal text-gray-700'
+
+  // Bertin: shape encodes type (circle = critical, square = deadline, triangle = stale)
+  const shapeClass = wType === 'critical_signal'
+    ? 'h-2 w-2 rounded-full bg-black'
+    : wType === 'deadline_approaching'
+      ? 'h-2 w-2 bg-black'
+      : wType === 'stale_commitment'
+        ? 'h-0 w-0 border-l-[4px] border-r-[4px] border-b-[6px] border-l-transparent border-r-transparent border-b-black'
+        : 'h-2 w-2 border border-gray-400'
 
   return (
     <ClickableCard
@@ -917,56 +898,44 @@ function WhisperCardElite({
       apiBase={API_BASE}
       token={getToken() || ''}
     >
-      <div className="p-5 rounded-2xl bg-white border border-gray-100 hover:border-gray-200 transition-colors">
-        {/* Top row: accent bar + type icon + entity */}
-        <div className="flex items-start gap-3">
-          <div className={cn('w-1 self-stretch rounded-full', accentColor)} />
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2 mb-1">
-              <TypeIcon className={cn('h-4 w-4 shrink-0',
-                priority === 'high' ? 'text-red-500' : priority === 'medium' ? 'text-amber-500' : 'text-gray-400')} />
-              <span className="text-xs font-medium uppercase tracking-wide text-gray-400">{wType.replace(/_/g, ' ')}</span>
-            </div>
-            <h3 className="font-semibold text-sm text-gray-900 leading-snug">{title}</h3>
-            {body && (
-              <p className={cn('text-sm text-gray-500 mt-1', !expanded && 'line-clamp-2')}>
-                {body}
-              </p>
-            )}
-            {/* Expand toggle for long bodies */}
-            {body && body.length > 120 && (
-              <button
-                onClick={(e) => { e.stopPropagation(); setExpanded(!expanded) }}
-                className="text-xs font-medium text-gray-400 hover:text-gray-600 mt-1"
-              >
-                {expanded ? 'Show less' : 'Show more'}
-              </button>
-            )}
-          </div>
+      <div className="flex items-start gap-3 py-3 hover:bg-gray-50">
+        {/* Bertin: shape marker — consistent position, varies by type */}
+        <div className="flex-shrink-0 mt-1.5 flex items-center justify-center w-3">
+          <div className={shapeClass} />
         </div>
-        {/* Action row */}
-        <div className="flex items-center gap-2 mt-4 pl-4">
-          {entity && entity !== 'Insight' && (
+        <div className="flex-1 min-w-0">
+          {/* Tufte: label close to data, no distant legend */}
+          <div className="flex items-center gap-2 mb-0.5">
+            <span className="text-[10px] font-medium uppercase tracking-wide text-gray-400">{wType.replace(/_/g, ' ')}</span>
+          </div>
+          <p className={titleClass}>{title}</p>
+          {body && (
+            <p className={cn('text-xs text-gray-500 mt-1', !expanded && 'line-clamp-2')}>
+              {body}
+            </p>
+          )}
+          {body && body.length > 120 && (
             <button
-              onClick={(e) => { e.stopPropagation(); onDraft(entity) }}
-              disabled={draftBusy}
-              className="flex items-center gap-1.5 text-xs font-medium text-gray-600 hover:text-gray-900 px-3 py-1.5 rounded-lg bg-gray-50 border border-gray-200 hover:border-gray-300 transition-colors disabled:opacity-50"
+              onClick={(e) => { e.stopPropagation(); setExpanded(!expanded) }}
+              className="text-xs text-gray-400 hover:text-black mt-1 underline underline-offset-4"
             >
-              {draftBusy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <PenLine className="h-3.5 w-3.5" />}
-              Draft Follow-up
+              {expanded ? 'less' : 'more'}
             </button>
           )}
-          {whisper.suggested_actions?.length > 0 && whisper.suggested_actions.map((a: any, j: number) => (
-            <button
-              key={j}
-              onClick={(e) => e.stopPropagation()}
-              className="text-xs font-medium text-gray-600 px-3 py-1.5 rounded-lg bg-gray-50 border border-gray-200 hover:border-gray-300 transition-colors"
-            >
-              {a.label || a}
-            </button>
-          ))}
         </div>
       </div>
+      {/* Action — Tufte: text link, no button chrome */}
+      {entity && entity !== 'Insight' && (
+        <div className="pl-6 pb-3">
+          <button
+            onClick={(e) => { e.stopPropagation(); onDraft(entity) }}
+            disabled={draftBusy}
+            className="text-xs text-gray-400 hover:text-black disabled:opacity-40 underline underline-offset-4"
+          >
+            {draftBusy ? 'Generating…' : 'Draft follow-up'}
+          </button>
+        </div>
+      )}
     </ClickableCard>
   )
 }
