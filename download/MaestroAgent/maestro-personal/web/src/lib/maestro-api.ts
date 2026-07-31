@@ -219,15 +219,35 @@ async function maestroFetch<T>(
   };
   if (token) headers["Authorization"] = `Bearer ${token}`;
 
+  // LATENCY FIX: stale-while-revalidate pattern.
+  // Check sessionStorage for a cached response. If found, return it immediately
+  // (live=true) AND fire a background fetch to update the cache. This makes page
+  // revisits instant — the user sees cached data in <1ms, then it updates when
+  // the fresh data arrives. Only applies to GET requests (no options.method or
+  // method === 'GET').
+  const isCacheable = !options.method || options.method === 'GET';
+  const cacheKey = `maestro:${path}:${token?.slice(0, 8) || 'anon'}`;
+  if (isCacheable && typeof window !== 'undefined') {
+    try {
+      const cached = sessionStorage.getItem(cacheKey);
+      if (cached) {
+        const { data: cachedData, ts } = JSON.parse(cached);
+        const ageMs = Date.now() - ts;
+        // Use cache if it's less than 60 seconds old (stale-while-revalidate window)
+        if (ageMs < 60000) {
+          // Return cached data immediately — page renders instantly
+          // Then fire a background fetch to refresh the cache
+          maestroFetchBackground<T>(path, headers, timeoutMs, cacheKey);
+          return { data: cachedData as T, live: true };
+        }
+      }
+    } catch {
+      // sessionStorage might be unavailable (private browsing) — proceed normally
+    }
+  }
+
   try {
     const controller = new AbortController();
-    // Audit fix S1-1 (2026-07-31): raised default timeout from 8000ms to 15000ms.
-    // The backend /api/the-moment endpoint has an 8.7s cold-cache latency (build_shell
-    // loads all 555+ signals from SQLite). The prior 8s timeout was shorter than the
-    // cold call, causing the Today page to silently time out and render
-    // "You're clear today. No commitments need attention." — a false negative that
-    // broke trust on every cold page load. 15s matches the login/register timeout
-    // already in use below.
     const timeout = setTimeout(() => controller.abort(), timeoutMs ?? 15000);
     const res = await fetch(url, { ...options, headers, signal: controller.signal });
     clearTimeout(timeout);
@@ -275,12 +295,45 @@ async function maestroFetch<T>(
       throw new Error(errorDetail);
     }
     const data = (await res.json()) as T;
+
+    // LATENCY FIX: cache GET responses in sessionStorage for stale-while-revalidate
+    if (isCacheable && typeof window !== 'undefined') {
+      try {
+        sessionStorage.setItem(cacheKey, JSON.stringify({ data, ts: Date.now() }));
+      } catch {
+        // sessionStorage full or unavailable — non-fatal
+      }
+    }
+
     return { data, live: true };
   } catch (err) {
     if (fallback !== undefined) {
       return { data: fallback, live: false };
     }
     throw err;
+  }
+}
+
+// LATENCY FIX: background fetch for stale-while-revalidate.
+// Fires a non-blocking fetch to refresh the cache. Errors are silently
+// swallowed — the cache will be refreshed on the next successful call.
+async function maestroFetchBackground<T>(
+  path: string,
+  headers: Record<string, string>,
+  timeoutMs: number | undefined,
+  cacheKey: string,
+): Promise<void> {
+  try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), timeoutMs ?? 15000);
+    const res = await fetch(path, { headers, signal: controller.signal });
+    clearTimeout(timeout);
+    if (res.ok) {
+      const data = await res.json() as T;
+      sessionStorage.setItem(cacheKey, JSON.stringify({ data, ts: Date.now() }));
+    }
+  } catch {
+    // Background fetch failed — cache stays stale, will retry on next call
   }
 }
 

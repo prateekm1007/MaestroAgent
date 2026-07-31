@@ -43,6 +43,15 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" suppressHydrationWarning>
+      <head>
+        {/* LATENCY FIX: preconnect to the backend API host so the browser
+            establishes DNS+TCP+TLS before the first API call fires.
+            Without this, the first /api/* request pays ~100-200ms of
+            connection overhead. With preconnect, the connection is
+            already warm by the time JS executes. */}
+        <link rel="preconnect" href="https://maestroagent-production.up.railway.app" />
+        <link rel="dns-prefetch" href="https://maestroagent-production.up.railway.app" />
+      </head>
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased bg-background text-foreground min-h-screen`}
       >

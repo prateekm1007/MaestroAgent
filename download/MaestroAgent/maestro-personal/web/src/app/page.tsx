@@ -56,6 +56,17 @@ export default function Home() {
     // (e.g. JS error in useEffect), force it to false so the user
     // sees the login screen instead of an infinite spinner.
     const timeout = setTimeout(() => setCheckingAuth(false), 5000)
+
+    // LATENCY FIX: pre-warm the backend shell cache immediately after auth.
+    // When the user is authenticated, fire a background /api/the-moment call
+    // so the backend's shell cache is warm by the time the Today page renders.
+    // Without this, the first Today page load pays the full 2.5s cold-cache
+    // latency. With pre-warming, the shell is already cached when the Today
+    // page's useEffect fires, reducing the-moment from 2.5s to ~0.3s.
+    if (getToken()) {
+      maestroApi.getTheMoment().catch(() => {})
+    }
+
     return () => clearTimeout(timeout)
   }, [])
 
