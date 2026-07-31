@@ -11,6 +11,7 @@ import ClickableCard from '@/components/maestro/ClickableCard'
 import { calculateImportance, getLayoutMode, getConfidenceStyle } from '@/lib/importance'
 import { TheOne } from '@/components/maestro/TheOne'
 import { WhisperView } from '@/components/maestro/WhisperView'
+import { WhisperPostIt } from '@/components/maestro/WhisperPostIt'
 import { CommitmentsView } from '@/components/maestro/CommitmentsView'
 import { CorrectionButton } from '@/components/maestro/CorrectionButton'
 import { Connectors } from '@/components/maestro/Connectors'
@@ -211,6 +212,7 @@ export default function Home() {
           <AnimatePresence mode="wait">
             <motion.div key={tab} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -2 }} transition={{ duration: 0.2 }}>
               {tab === 'today' && <TodayView onDraft={handleGenerateDraft} draftBusy={draftBusy} />}
+              {tab === 'today' && <WhisperPostIt onDraft={handleGenerateDraft} />}
               {tab === 'ask' && <AskView />}
               {tab === 'commitments' && <CommitmentsViewReal onDraft={handleGenerateDraft} draftBusy={draftBusy} />}
               {tab === 'whisper' && <WhisperViewReal onDraft={handleGenerateDraft} draftBusy={draftBusy} />}
