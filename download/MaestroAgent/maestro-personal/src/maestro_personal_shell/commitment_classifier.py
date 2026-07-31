@@ -888,6 +888,44 @@ def _rule_based_classify(text: str, entity: str = "", sender_email: str = "") ->
     # Auditor S1 fix: the mood/tense gate runs FIRST. If the sentence is
     # interrogative or future-tense, completion keywords are REJECTED —
     # they're adjectives or questions, not past-tense completion verbs.
+    #
+    # Audit fix S2-4 (2026-07-31): CANCELLATION/RETRACTION check runs BEFORE
+    # completion keywords. The audit found "Please ignore the previous
+    # email, I already sent it." classified as completed_claimed because
+    # "sent " matched the completion keyword. But this is a CANCELLATION —
+    # the sender is telling the recipient to disregard a prior message.
+    # The "already sent it" is explaining WHY to ignore, not claiming a
+    # commitment was completed. Without this check, 6 copies of this
+    # cancellation text were all marked as completed, polluting the
+    # commitment ledger with false completions.
+    cancellation_keywords = [
+        "ignore the previous", "ignore my last", "ignore this email",
+        "ignore the above", "ignore that last",
+        "disregard my last", "disregard the previous", "disregard this email",
+        "disregard that",
+        "forget about", "forget the", "forget i mentioned",
+        "cancel the", "cancel my", "cancel that",
+        "withdraw my", "withdraw the",
+        "retract the", "retract my",
+        "no longer applies", "no longer relevant", "no longer needed",
+        "please ignore", "please disregard",
+        "i already sent it",  # in context of "ignore" — this is a retraction
+        "already sent the",   # ambiguous but often a retraction in context
+        "sent in error", "sent by mistake",
+        "wrong recipient", "sent to the wrong",
+    ]
+    if any(kw in text_lower for kw in cancellation_keywords):
+        return {
+            "commitment_type": "cancelled",
+            "is_commitment": True,  # a cancellation is still a commitment event
+            "confidence": 0.85,
+            "state": "cancelled",
+            "owner": "user",
+            "deadline_text": "",
+            "reasoning": "rule-based: cancellation/retraction keyword detected (S2-4 fix)",
+            "llm_powered": False,
+        }
+
     completion_keywords = [
         "sent ", "delivered", "completed", "finished", "paid", "submitted",
         "reviewed", "signed", "shared", "finalized", "approved",
