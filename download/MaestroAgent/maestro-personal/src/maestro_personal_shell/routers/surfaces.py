@@ -875,7 +875,7 @@ async def get_briefing(token: str = Depends(verify_token_dep)):
         )
     try:
         briefing = core.briefing_bridge.generate_morning_briefing(
-            user_email="personal", org_id="personal",
+            user_email=token, org_id="personal",
         )
 
         # F-07 fix (auditor S2 — briefing prioritizes ambiguous content):
@@ -992,7 +992,7 @@ async def get_evening_briefing(token: str = Depends(verify_token_dep)):
         )
     try:
         briefing = core.briefing_bridge.generate_evening_briefing(
-            user_email="personal", org_id="personal",
+            user_email=token, org_id="personal",
         )
 
         # P1-2 fix: filter noise from top_situation (auditor finding D)

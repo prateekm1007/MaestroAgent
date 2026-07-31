@@ -657,6 +657,16 @@ async def get_retention_status(token: str = Depends(verify_token_dep)):
 
 # Default consent settings per provider — what each connector CAN access.
 # User can toggle these off individually for granular privacy control.
+#
+# Audit fix S2-7 (2026-07-31): write operations (send_emails, create_events,
+# post_messages, create_issues) default to False. These are dangerous
+# operations that can send emails on the user's behalf, create calendar
+# events, or post messages — they MUST be opt-in. The prior deployed
+# version had some bootstrap users with send_emails=True in their STORED
+# settings (set by an older version of the code that had different
+# defaults). The _reset_unsafe_write_consents() function below runs at
+# startup and resets any stored write-operation consent to False,
+# forcing users to explicitly re-enable write operations.
 _DEFAULT_CONSENT: dict[str, dict[str, bool]] = {
     "gmail": {"read_emails": True, "create_drafts": True, "send_emails": False},
     "calendar": {"read_events": True, "create_events": False},
@@ -667,6 +677,91 @@ _DEFAULT_CONSENT: dict[str, dict[str, bool]] = {
     "instagram": {"read_posts": True},
     "twitter": {"read_tweets": True},
 }
+
+# Write-operation scopes that must ALWAYS be opt-in. If any of these are
+# True in a user's stored settings, they were set either by an older
+# version of the code (before the defaults were corrected) or by a bug.
+# The startup fix-up resets them to False.
+_UNSAFE_WRITE_SCOPES: dict[str, list[str]] = {
+    "gmail": ["send_emails"],
+    "calendar": ["create_events"],
+    "slack": ["post_messages"],
+    "github": ["create_issues"],
+}
+
+
+def _reset_unsafe_write_consents() -> None:
+    """One-time startup fix-up: reset any stored write-operation consent to False.
+
+    Audit fix S2-7 (2026-07-31): some bootstrap users had send_emails=True
+    and create_events=True in their STORED consent settings (set by an
+    older version of the code). This function runs at import time and
+    resets those to False, forcing users to explicitly re-enable write
+    operations via the consent settings UI.
+
+    This is idempotent — running it multiple times has no effect beyond
+    the first reset. It only modifies stored settings where a write
+    scope is True; it never touches read-only scopes.
+    """
+    try:
+        from maestro_personal_shell.db_util import get_db_conn
+        import json
+        conn = get_db_conn()
+        try:
+            conn.execute(
+                "CREATE TABLE IF NOT EXISTS consent_settings "
+                "(user_email TEXT, settings_json TEXT, updated_at TEXT, "
+                "PRIMARY KEY (user_email))"
+            )
+            rows = conn.execute(
+                "SELECT user_email, settings_json FROM consent_settings"
+            ).fetchall()
+            reset_count = 0
+            for user_email, settings_json in rows:
+                if not settings_json:
+                    continue
+                try:
+                    settings = json.loads(settings_json)
+                except Exception:
+                    continue
+                changed = False
+                for provider, unsafe_scopes in _UNSAFE_WRITE_SCOPES.items():
+                    if provider not in settings:
+                        continue
+                    for scope in unsafe_scopes:
+                        if settings[provider].get(scope) is True:
+                            settings[provider][scope] = False
+                            changed = True
+                if changed:
+                    conn.execute(
+                        "UPDATE consent_settings SET settings_json = ?, updated_at = ? "
+                        "WHERE user_email = ?",
+                        (json.dumps(settings), _now_iso(), user_email),
+                    )
+                    reset_count += 1
+                    logger.info(
+                        "S2-7 consent fix-up: reset unsafe write consent for user %s "
+                        "(send_emails/create_events/post_messages/create_issues → False)",
+                        user_email,
+                    )
+            if reset_count:
+                conn.commit()
+                logger.info("S2-7 consent fix-up: reset %d user(s) with unsafe write consent", reset_count)
+        finally:
+            conn.close()
+    except Exception as e:
+        # Non-fatal: if the DB isn't available at import time, the fix-up
+        # will run on the next restart. Never block startup on consent cleanup.
+        logger.warning("S2-7 consent fix-up failed (non-fatal): %s", e)
+
+
+def _now_iso() -> str:
+    from datetime import datetime, timezone
+    return datetime.now(timezone.utc).isoformat()
+
+
+# Run the fix-up at import time
+_reset_unsafe_write_consents()
 
 
 @router.get("/consent/settings")

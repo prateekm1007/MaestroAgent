@@ -71,7 +71,7 @@ Surfaces: Ask / Dashboard / Prepare / What Changed / Ambient
 | Frontend | Next.js 16, React, TypeScript, Tailwind CSS, shadcn/ui |
 | Backend | Python, FastAPI, SQLite |
 | Mobile | Expo React Native |
-| LLM | Gemma 3 12B via OpenRouter (production), ZAI-GLM (sandbox) |
+| LLM | DeepSeek Chat (non-reasoning) via OpenRouter (production), ZAI-GLM (sandbox) |
 | Retrieval | BM25 + 5 specialist retrievers + RRF + Cohere Rerank |
 | Reranker | Cohere rerank-multilingual-v3.0 |
 
