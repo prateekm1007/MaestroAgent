@@ -585,7 +585,7 @@ try:
 except Exception:
     pass
 
-@router.post("/scim/v2/Users", response_model=SCIMUserResponse, status_code=201)
+@router.post("/scim/v2/Users", response_model=SCIMUserResponse, status_code=201, include_in_schema=False)
 async def scim_create_user(request: Request, user: SCIMUserRequest):
     """
     SCIM 2.0 endpoint for automated user provisioning.
