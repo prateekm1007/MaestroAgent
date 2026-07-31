@@ -1,6 +1,5 @@
 'use client'
 
-import { motion, AnimatePresence } from 'framer-motion'
 import { useState } from 'react'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
@@ -40,22 +39,14 @@ export function TheOne({ commitment, apiBase, token }: TheOneProps) {
       apiBase={apiBase || 'https://maestroagent-production.up.railway.app'}
       token={token || ''}
     >
-      <motion.div
-        initial={{ opacity: 0, y: 12 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
+      <div
         className={cn(
-          'relative w-full overflow-hidden rounded-2xl',
-          mode === 'dominant' && 'min-h-[55vh] bg-gradient-to-b from-white to-gray-50/50',
-          mode === 'prominent' && 'min-h-[38vh] bg-white',
-          mode === 'present' && 'min-h-[26vh] bg-white',
-          mode === 'quiet' && 'min-h-[18vh] bg-gray-50/50',
+          'relative w-full overflow-hidden border-l-2 border-black pl-4',
+          mode === 'dominant' && 'min-h-[55vh]',
+          mode === 'prominent' && 'min-h-[38vh]',
+          mode === 'present' && 'min-h-[26vh]',
+          mode === 'quiet' && 'min-h-[18vh]',
         )}
-        style={{
-          boxShadow: mode === 'dominant'
-            ? '0 4px 24px -8px rgba(0,0,0,0.08), 0 1px 2px rgba(0,0,0,0.04)'
-            : '0 1px 3px rgba(0,0,0,0.04)',
-        }}
       >
       {/* Urgency bar — Tufte sparkline-style indicator */}
       <div
@@ -85,7 +76,7 @@ export function TheOne({ commitment, apiBase, token }: TheOneProps) {
             {timeStr}
           </span>
           {commitment.isBlocking && (
-            <span className="ml-auto text-xs font-medium text-gray-400 px-2 py-0.5 rounded-full bg-gray-100">
+            <span className="ml-auto text-xs font-medium text-gray-400 px-2 py-0.5">
               Blocking
             </span>
           )}
@@ -124,15 +115,8 @@ export function TheOne({ commitment, apiBase, token }: TheOneProps) {
         </div>
 
         {/* Progressive disclosure: "Why this matters" (merged Briefing) */}
-        <AnimatePresence>
           {expanded && (
-            <motion.div
-              initial={{ opacity: 0, height: 0 }}
-              animate={{ opacity: 1, height: 'auto' }}
-              exit={{ opacity: 0, height: 0 }}
-              transition={{ duration: 0.3, ease: 'easeOut' }}
-              className="overflow-hidden"
-            >
+            <div className="overflow-hidden">
               <div className="mt-5 pt-5 border-t border-gray-100">
                 <p className="text-xs font-medium uppercase tracking-wider text-gray-400 mb-2">
                   Why this matters
@@ -151,9 +135,8 @@ export function TheOne({ commitment, apiBase, token }: TheOneProps) {
                   </p>
                 </div>
               </div>
-            </motion.div>
+            </div>
           )}
-        </AnimatePresence>
 
         {/* Actions — Tufte: minimal, clear, ordered by priority */}
         <div className="flex items-center gap-2 mt-5">
@@ -179,7 +162,6 @@ export function TheOne({ commitment, apiBase, token }: TheOneProps) {
           </button>
         </div>
       </div>
-      </motion.div>
     </ClickableCard>
   )
 }

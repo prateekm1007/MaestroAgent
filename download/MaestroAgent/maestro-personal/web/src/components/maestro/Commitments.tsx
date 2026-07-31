@@ -410,14 +410,14 @@ export function Commitments({
       </div>
 
       {/* P1-12: Segmented control — Commitments | Signals */}
-      <div className="inline-flex items-center gap-1 p-1 rounded-lg bg-muted/40 border border-border/60">
+      <div className="inline-flex items-center gap-1 p-1 border-b border-gray-200">
         <button
           type="button"
           onClick={() => setTab("commitments")}
           className={cn(
-            "px-3 py-1.5 text-sm font-medium rounded-md transition-colors",
+            "px-3 py-1.5 text-sm font-medium border-l-2 border-transparent transition-colors",
             tab === "commitments"
-              ? "bg-background text-foreground shadow-sm"
+              ? "border-l-2 border-black text-black font-semibold"
               : "text-muted-foreground hover:text-foreground"
           )}
         >
@@ -427,9 +427,9 @@ export function Commitments({
           type="button"
           onClick={() => setTab("signals")}
           className={cn(
-            "px-3 py-1.5 text-sm font-medium rounded-md transition-colors",
+            "px-3 py-1.5 text-sm font-medium border-l-2 border-transparent transition-colors",
             tab === "signals"
-              ? "bg-background text-foreground shadow-sm"
+              ? "border-l-2 border-black text-black font-semibold"
               : "text-muted-foreground hover:text-foreground"
           )}
         >
@@ -439,7 +439,7 @@ export function Commitments({
 
       {/* P1-8: Entity filter banner (visible when deep-linked from Ask) */}
       {entityFilter && (
-        <div className="flex items-center gap-2 text-xs rounded-md border border-amber-500/30 bg-amber-500/[0.08] px-3 py-2">
+        <div className="flex items-center gap-2 text-xs border-l-2 border-gray-400 px-3 py-2">
           <span className="text-amber-700 dark:text-amber-300 font-medium">
             Filtered by entity: <span className="font-mono">{entityFilter}</span>
           </span>
@@ -558,9 +558,9 @@ export function Commitments({
                         </div>
                         <span
                           className={cn(
-                            "text-xs px-2 py-0.5 rounded-full font-medium shrink-0 ml-2",
-                            t.confidence_level === "high" ? "bg-green-500/15 text-green-600"
-                              : t.confidence_level === "medium" ? "bg-yellow-500/15 text-yellow-600"
+                            "text-xs px-2 py-0.5 font-medium shrink-0 ml-2",
+                            t.confidence_level === "high" ? "text-black font-semibold"
+                              : t.confidence_level === "medium" ? "text-gray-600"
                               : "bg-muted text-muted-foreground"
                           )}
                         >
@@ -643,11 +643,11 @@ export function Commitments({
                         </Button>
                         <span
                           className={cn(
-                            "flex items-center justify-center rounded-lg w-9 h-9 text-lg font-black text-black",
-                            g.grade === "A" ? "bg-green-500"
-                              : g.grade === "B" ? "bg-yellow-500"
-                              : g.grade === "C" ? "bg-yellow-600"
-                              : "bg-red-500"
+                            "flex items-center justify-center w-9 h-9 text-lg font-black text-black",
+                            g.grade === "A" ? "bg-black"
+                              : g.grade === "B" ? "bg-gray-500"
+                              : g.grade === "C" ? "bg-gray-500"
+                              : "border border-gray-400"
                           )}
                         >
                           {g.effective_grade || g.grade}
@@ -740,7 +740,7 @@ function TheOneCard({
   return (
     <Card className="relative overflow-hidden border-border/60 surface-elevated">
       <div
-        className="pointer-events-none absolute -top-24 -right-24 h-64 w-64 rounded-full bg-amber-500/[0.06] blur-3xl"
+        className="hidden"
         aria-hidden
       />
       <CardContent className="relative pt-6 space-y-5">
@@ -750,7 +750,7 @@ function TheOneCard({
             <span>The One</span>
           </div>
           {commitment.is_at_risk && (
-            <span className="inline-flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-full bg-amber-500/15 text-amber-300 border border-amber-500/30">
+            <span className="inline-flex items-center gap-1.5 text-xs px-2.5 py-1 text-black border-l-2 border-gray-400">
               <AlertTriangle className="size-3" />
               at risk · {commitment.days_stale}d stale
             </span>
@@ -766,7 +766,7 @@ function TheOneCard({
 
         <div className="flex flex-wrap items-center gap-3 text-xs">
           {commitment.deadline && (
-            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-muted/60 border border-border/60">
+            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 border-l-2 border-gray-300">
               <Clock className="size-3" />
               due {formatTimestamp(commitment.deadline)}
             </span>
@@ -782,9 +782,9 @@ function TheOneCard({
         </div>
 
         {/* Confidence meter */}
-        <div className="h-1.5 w-full rounded-full bg-muted/60 overflow-hidden">
+        <div className="h-1.5 w-full bg-gray-200 overflow-hidden">
           <div
-            className={cn("h-full rounded-full", confidenceColor(commitment.confidence))}
+            className={cn("h-full", confidenceColor(commitment.confidence))}
             style={{ width: `${Math.max(2, Math.min(100, commitment.confidence * 100))}%` }}
           />
         </div>
@@ -837,7 +837,7 @@ function TheOneCard({
           <Button
             size="sm"
             variant="outline"
-            className="h-8 bg-amber-500/10 border-amber-500/30 text-amber-700 dark:text-amber-300 hover:bg-amber-500/20 ml-auto"
+            className="h-8 text-gray-500 underline underline-offset-4 ml-auto"
             disabled={draftBusy}
             onClick={() => onDraft(commitment.entity)}
             title="Draft a follow-up email"
@@ -867,7 +867,7 @@ function CommitmentRow({
   draftBusy: boolean;
 }) {
   return (
-    <Card className={cn("border-border/60", c.is_at_risk && "border-amber-500/30 bg-amber-500/[0.02]")}>
+    <Card className={cn("border-gray-200", c.is_at_risk && "border-l-2 border-l-black")}>
       <CardContent className="pt-5 space-y-3">
         <div className="flex items-start justify-between gap-3">
           <div className="space-y-1 min-w-0 flex-1">
@@ -923,7 +923,7 @@ function CommitmentRow({
           <Button
             size="sm"
             variant="ghost"
-            className="h-9 text-xs bg-amber-500/10 text-amber-700 dark:text-amber-300 hover:bg-amber-500/20 ml-auto"
+            className="h-9 text-xs text-gray-500 underline underline-offset-4 ml-auto"
             disabled={draftBusy}
             onClick={() => onDraft(c.entity)}
             title="Draft a follow-up email"
@@ -935,7 +935,7 @@ function CommitmentRow({
           <Button
             size="sm"
             variant="ghost"
-            className="h-9 text-xs bg-blue-500/10 text-blue-700 dark:text-blue-300 hover:bg-blue-500/20"
+            className="h-9 text-xs text-gray-500 underline underline-offset-4"
             onClick={() => onViewThreads?.(c.entity)}
             title={`View cross-meeting threads for ${c.entity}`}
           >
@@ -999,9 +999,9 @@ function SkeletonCommitment() {
   return (
     <Card className="border-border/60">
       <CardContent className="pt-6 space-y-3">
-        <div className="h-3 w-1/4 bg-muted/60 rounded animate-pulse" />
-        <div className="h-5 w-3/4 bg-muted/40 rounded animate-pulse" />
-        <div className="h-3 w-1/3 bg-muted/40 rounded animate-pulse" />
+        <div className="h-3 w-1/4 bg-gray-100" />
+        <div className="h-5 w-3/4 bg-gray-100" />
+        <div className="h-3 w-1/3 bg-gray-100" />
       </CardContent>
     </Card>
   );
@@ -1123,7 +1123,7 @@ function SignalsTab({
               {filter ? "No signals match your filter." : "No signals yet. Add one above."}
             </p>
           ) : (
-            <div className="rounded-lg border border-border/60 overflow-hidden">
+            <div className="border-l-2 border-gray-300 overflow-hidden">
               <Table>
                 <TableHeader>
                   <TableRow className="hover:bg-transparent">
@@ -1144,7 +1144,7 @@ function SignalsTab({
                         <span className="line-clamp-2">{s.text}</span>
                       </TableCell>
                       <TableCell className="align-top">
-                        <span className="text-xs px-2 py-0.5 rounded-full bg-muted/60 border border-border/60 text-muted-foreground capitalize">
+                        <span className="text-xs px-2 py-0.5 text-muted-foreground capitalize">
                           {s.signal_type.replace(/_/g, " ")}
                         </span>
                       </TableCell>

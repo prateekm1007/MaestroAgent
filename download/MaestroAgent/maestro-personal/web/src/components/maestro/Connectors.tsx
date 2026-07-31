@@ -600,8 +600,8 @@ function ConnectorCard({
         <div className="flex items-start justify-between gap-2">
           <div className="flex items-center gap-2">
             <div className={cn(
-              "size-8 rounded-lg flex items-center justify-center",
-              connected ? "bg-emerald-500/10 text-emerald-600" : "bg-muted text-muted-foreground",
+              "size-8 flex items-center justify-center",
+              connected ? "text-black" : "text-gray-400",
             )}>
               <Icon className="size-4" />
             </div>
@@ -620,8 +620,8 @@ function ConnectorCard({
             </div>
           </div>
           {connected ? (
-            <Badge className="bg-emerald-500/10 text-emerald-700 border-emerald-500/30">
-              <span className="size-1.5 rounded-full bg-emerald-500 mr-1" />
+            <Badge className="text-black border-gray-300">
+              <span className="size-1.5 bg-black mr-1" />
               Connected
             </Badge>
           ) : (
@@ -650,7 +650,7 @@ function ConnectorCard({
             banner so the user understands why their data is still there but
             new ingestion stopped. Do NOT lie by setting connected=true. */}
         {!connected && connector.commitments_ingested > 0 && connector.last_ingest_at && (
-          <div className="rounded-md border border-amber-400/50 bg-amber-50 p-2 text-[11px] text-amber-900 dark:bg-amber-950/20 dark:text-amber-200">
+          <div className="border-l-2 border-gray-400 p-2 text-[11px] text-black">
             <div className="font-medium">⚠ Previously connected</div>
             <div className="mt-0.5 text-amber-800 dark:text-amber-300">
               {connector.commitments_ingested} commitments ingested · last sync {formatTimeAgo(connector.last_ingest_at)}. Reconnect to resume ingestion — your existing data is preserved.
@@ -707,8 +707,8 @@ function ConnectorCard({
 function DraftRow({ draft, onReview }: { draft: DraftWithMeta; onReview: () => void }) {
   const Icon = draft.provider === "gmail" ? Mail : draft.provider === "slack" ? MessageSquare : draft.provider === "github" ? Code : Send;
   return (
-    <div className="flex items-center gap-3 rounded-lg border border-border/60 bg-background/60 p-3">
-      <div className="size-8 rounded-lg bg-primary/10 text-primary flex items-center justify-center shrink-0">
+    <div className="flex items-center gap-3 border-l-2 border-gray-300 p-3">
+      <div className="size-8 text-black flex items-center justify-center shrink-0">
         <Icon className="size-4" />
       </div>
       <div className="flex-1 min-w-0">

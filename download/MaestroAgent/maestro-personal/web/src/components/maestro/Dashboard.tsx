@@ -373,8 +373,8 @@ export function Dashboard({
               key={n.notification_id}
               onClick={() => onNavigate("commitments")}
               className={cn(
-                "w-full text-left rounded-lg border p-3 transition-colors hover:bg-accent",
-                n.priority === "critical" ? "border-red-300 bg-red-50 dark:bg-red-950/20" : "border-border bg-card"
+                "w-full text-left border-l-2 border-transparent p-3 transition-colors hover:bg-gray-50",
+                n.priority === "critical" ? "border-l-2 border-black" : "border-l-2 border-transparent"
               )}
             >
               <p className="font-semibold text-sm">{n.title}</p>
@@ -398,7 +398,7 @@ export function Dashboard({
                 key={e.commitment_id}
                 onClick={() => onNavigate("commitments")}
                 className={cn(
-                  "w-full text-left rounded-lg border-l-4 border p-3 bg-card transition-colors hover:bg-accent",
+                  "w-full text-left border-l-2 border p-3 transition-colors hover:bg-gray-50",
                   e.escalation_level === "critical" ? "border-red-500" : "border-yellow-500"
                 )}
               >
@@ -426,7 +426,7 @@ export function Dashboard({
             .filter((d) => d.status === "at_risk" || d.status === "critical")
             .slice(0, 3)
             .map((d) => (
-              <div key={d.entity} className="flex items-center justify-between rounded-lg border p-3 bg-card">
+              <div key={d.entity} className="flex items-center justify-between border-l-2 border-gray-300 p-3">
                 <div className="flex-1">
                   <p className="font-semibold text-sm">{d.entity}</p>
                   <p className="text-xs text-muted-foreground mt-0.5">
@@ -435,8 +435,8 @@ export function Dashboard({
                 </div>
                 <span
                   className={cn(
-                    "rounded-md px-2.5 py-1 text-sm font-bold text-black",
-                    d.status === "critical" ? "bg-red-500" : "bg-yellow-500"
+                    "px-2.5 py-1 text-sm font-bold text-black",
+                    d.status === "critical" ? "bg-black" : "bg-gray-400"
                   )}
                 >
                   {Math.round(d.score)}%
@@ -453,7 +453,7 @@ export function Dashboard({
             <span>📅 Upcoming Meetings</span>
           </h3>
           {upcomingMeetings.slice(0, 2).map((m) => (
-            <div key={m.meeting_id} className="rounded-lg border-l-4 border-yellow-500 border p-3 bg-card">
+            <div key={m.meeting_id} className="border-l-2 border-gray-400 p-3">
               <p className="font-semibold text-sm">{m.title || "Untitled Meeting"}</p>
               {m.entity ? (
                 <p className="text-xs text-muted-foreground mt-0.5">{m.entity} · {m.urgency}</p>
@@ -599,7 +599,7 @@ function TheMomentCard({
     <Card className="relative overflow-hidden border-primary/40 border-l-4 surface-elevated">
       {/* Subtle ambient glow — Bumble warm */}
       <div
-        className="pointer-events-none absolute -top-24 -left-24 h-64 w-64 rounded-full bg-primary/10 blur-3xl"
+        className="hidden"
         aria-hidden
       />
       <CardContent className="relative pt-6">
@@ -690,7 +690,7 @@ function TheMomentCard({
 
             <div className="flex flex-wrap items-center gap-2 pt-1">
               {moment.why_this_one && (
-                <span className="inline-flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-full bg-muted/60 border border-border/60 text-muted-foreground">
+                <span className="inline-flex items-center gap-1.5 text-xs px-2.5 py-1 border-l-2 border-gray-300 text-muted-foreground">
                   <CalendarClock className="size-3" />
                   {moment.why_this_one}
                 </span>
@@ -701,7 +701,7 @@ function TheMomentCard({
             <div className="flex flex-wrap items-center gap-2 pt-2">
               <Button
                 size="sm"
-                className="h-9 bg-emerald-500 text-white hover:bg-emerald-600"
+                className="h-9 text-black underline underline-offset-4"
                 disabled={disabled}
                 onClick={() => onCorrect("complete")}
                 title={!signalId ? "No signal to mark complete" : undefined}
@@ -733,7 +733,7 @@ function TheMomentCard({
               <Button
                 size="sm"
                 variant="outline"
-                className="h-9 bg-amber-500/10 border-amber-500/30 text-amber-700 dark:text-amber-300 hover:bg-amber-500/20"
+                className="h-9 text-gray-500 underline underline-offset-4"
                 disabled={disabled}
                 onClick={onDraft}
                 title="Draft a follow-up email for this commitment"
@@ -774,8 +774,8 @@ function TrustedSilence({ why }: { why?: string }) {
   return (
     <div className="py-10 flex flex-col items-center justify-center text-center gap-4">
       <div className="relative">
-        <div className="absolute inset-0 rounded-full bg-emerald-500/10 blur-2xl" aria-hidden />
-        <div className="relative size-14 rounded-full bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center">
+        <div className="absolute inset-0" aria-hidden />
+        <div className="relative size-14 border border-gray-300 flex items-center justify-center">
           <Wind className="size-6 text-emerald-400" />
         </div>
       </div>
@@ -823,7 +823,7 @@ function WhatChangedCard({
             {items.map((s, i) => (
               <li
                 key={i}
-                className="rounded-lg border border-border/60 bg-muted/30 p-3"
+                className="border-l-2 border-gray-300 p-3"
               >
                 <div className="flex items-center gap-2 text-xs text-muted-foreground mb-1">
                   <span className="font-medium text-foreground/90">{s.entity}</span>
@@ -874,7 +874,7 @@ function BriefingCard({
         ) : (
           <>
             {briefing?.top_situation && (
-              <div className="rounded-lg border border-border/60 bg-muted/30 p-3">
+              <div className="border-l-2 border-gray-300 p-3">
                 <div className="text-[11px] uppercase tracking-wider text-muted-foreground mb-1">
                   Top situation
                 </div>
@@ -930,7 +930,7 @@ function BriefingCard({
             <button
               type="button"
               onClick={() => onNavigate("ask")}
-              className="w-full mt-2 flex items-center justify-between gap-2 rounded-lg border border-border/60 bg-muted/20 hover:bg-muted/40 transition-colors p-3 text-left"
+              className="w-full mt-2 flex items-center justify-between gap-2 border-l-2 border-gray-300 hover:bg-gray-50 transition-colors p-3 text-left"
             >
               <div className="flex items-center gap-2">
                 <Eye className="size-4 text-muted-foreground" />
@@ -956,9 +956,9 @@ export function LlmBadge({ llm }: { llm: LlmStatus | null }) {
   const active = !!llm?.active;
   const configured = !!llm?.configured;
   const color = active
-    ? "bg-emerald-500"
+    ? "bg-black"
     : configured
-      ? "bg-amber-500"
+      ? "bg-gray-500"
       : "bg-zinc-500";
   const label = active
     ? `LLM · ${llm?.provider ?? "live"}`
@@ -966,7 +966,7 @@ export function LlmBadge({ llm }: { llm: LlmStatus | null }) {
       ? "LLM configured"
       : "Rule-based";
   return (
-    <div className="inline-flex items-center gap-2 rounded-full border border-border/60 bg-muted/30 px-3 py-1.5">
+    <div className="inline-flex items-center gap-2 border-l-2 border-gray-300 px-3 py-1.5">
       <span className={cn("size-2 rounded-full", color)} aria-hidden />
       <span className="text-xs font-medium text-foreground/90">{label}</span>
     </div>
@@ -978,8 +978,8 @@ function SkeletonRows({ n }: { n: number }) {
     <div className="space-y-3">
       {Array.from({ length: n }).map((_, i) => (
         <div key={i} className="space-y-2">
-          <div className="h-3 w-1/3 rounded bg-muted/60 animate-pulse" />
-          <div className="h-3 w-2/3 rounded bg-muted/40 animate-pulse" />
+          <div className="h-3 w-1/3 bg-gray-100" />
+          <div className="h-3 w-2/3 bg-gray-100" />
         </div>
       ))}
     </div>
@@ -1005,8 +1005,8 @@ function WhisperCards({
   const priorityColor = (p: string) => {
     switch (p?.toLowerCase()) {
       case "critical": return "border-rose-500/40 bg-rose-500/[0.05]";
-      case "high": return "border-amber-500/40 bg-amber-500/[0.05]";
-      case "medium": return "border-blue-500/40 bg-blue-500/[0.05]";
+      case "high": return "border-gray-400";
+      case "medium": return "border-gray-300";
       default: return "border-border/60 bg-muted/20";
     }
   };
@@ -1028,7 +1028,7 @@ function WhisperCards({
               <div
                 key={i}
                 className={cn(
-                  "rounded-lg border p-3 transition-colors",
+                  "border-l-2 border-gray-300 p-3 transition-colors",
                   priorityColor(w.priority || ""),
                 )}
               >
@@ -1156,7 +1156,7 @@ function AmbientCard() {
               {stale.map((c, i) => (
                 <div
                   key={i}
-                  className="flex items-start gap-2 rounded-md border border-amber-500/30 bg-amber-500/[0.06] p-2.5"
+                  className="flex items-start gap-2 border-l-2 border-gray-400 p-2.5"
                 >
                   <CalendarClock className="size-3.5 text-amber-500 mt-0.5 shrink-0" />
                   <div className="flex-1 min-w-0">
@@ -1179,7 +1179,7 @@ function AmbientCard() {
             </div>
             <div className="space-y-1.5">
               {upcoming.slice(0, 3).map((m, i) => (
-                <div key={i} className="text-xs text-foreground/80 rounded-md border border-border/60 bg-muted/20 p-2">
+                <div key={i} className="text-xs text-foreground/80 border-l-2 border-gray-300 p-2">
                   {String(m.title || m.summary || m.subject || JSON.stringify(m)).slice(0, 120)}
                 </div>
               ))}
@@ -1195,7 +1195,7 @@ function AmbientCard() {
             </div>
             <div className="space-y-1.5">
               {alerts.slice(0, 3).map((a, i) => (
-                <div key={i} className="text-xs text-foreground/80 rounded-md border border-rose-500/30 bg-rose-500/[0.06] p-2">
+                <div key={i} className="text-xs text-foreground/80 border-l-2 border-gray-400 p-2">
                   {String(a.entity || a.summary || JSON.stringify(a)).slice(0, 120)}
                 </div>
               ))}

@@ -93,7 +93,7 @@ export function DraftApprovalModal({
         <div className="space-y-4">
           {/* AI-generated / derived badges */}
           {(draft as DraftWithMeta).llm_generated && (
-            <div className="text-[11px] text-amber-600 dark:text-amber-400 font-medium">
+            <div className="text-[11px] text-gray-500 dark:text-amber-400 font-medium">
               ✨ AI-generated in your writing style
             </div>
           )}
@@ -105,11 +105,11 @@ export function DraftApprovalModal({
 
           {/* P25 fix: warn when a draft has no evidence backing */}
           {(!draft.evidence_refs || draft.evidence_refs.length === 0) && (
-            <div className="rounded-md border border-amber-400/50 bg-amber-50 p-3 flex items-start gap-2 dark:bg-amber-950/20">
-              <AlertTriangle className="size-4 text-amber-600 mt-0.5 shrink-0" />
-              <div className="text-xs text-amber-900 dark:text-amber-200">
+            <div className="border-l-2 border-gray-400 pl-3 py-1 flex items-start gap-2">
+              <AlertTriangle className="size-4 text-gray-500 mt-0.5 shrink-0" />
+              <div className="text-xs text-black ">
                 <p className="font-medium">This draft has no evidence backing</p>
-                <p className="text-amber-800 dark:text-amber-300 mt-0.5">
+                <p className="text-gray-600  mt-0.5">
                   Review carefully before sending — Maestro could not find commitments in your signal history grounding this message.
                 </p>
               </div>
@@ -118,7 +118,7 @@ export function DraftApprovalModal({
 
           {/* Provenance — the moat */}
           {draft.evidence_refs && draft.evidence_refs.length > 0 && (
-            <div className="rounded-md border border-primary/30 bg-primary/5 p-3">
+            <div className="border-l-2 border-gray-300 pl-3 py-1">
               <div className="text-[10px] uppercase tracking-wider text-primary font-medium mb-1">
                 📎 Grounded in your commitments ({draft.evidence_refs.length} source{draft.evidence_refs.length === 1 ? "" : "s"})
               </div>
@@ -142,7 +142,7 @@ export function DraftApprovalModal({
           {/* Body */}
           <div>
             <div className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1">Message</div>
-            <div className="rounded-md border border-border/60 bg-background/60 p-3">
+            <div className="border-l-2 border-gray-300 pl-3 py-1">
               <pre className="whitespace-pre-wrap font-sans text-sm leading-relaxed">{draft.body}</pre>
             </div>
           </div>
@@ -156,7 +156,7 @@ export function DraftApprovalModal({
 
           {/* Phase 1: Send outcome rendered INLINE — persistent, actionable */}
           {result.status === "sent" && (
-            <div className="rounded-md border border-emerald-500/40 bg-emerald-500/10 p-4 space-y-2">
+            <div className="border-l-2 border-gray-500 pl-3 py-1 space-y-2">
               <div className="flex items-center gap-2 text-emerald-700 dark:text-emerald-400">
                 <Check className="size-5" />
                 <span className="font-semibold">Email sent successfully</span>
@@ -169,7 +169,7 @@ export function DraftApprovalModal({
           )}
 
           {result.status === "send_failed" && (
-            <div className="rounded-md border border-red-500/40 bg-red-500/10 p-4 space-y-3">
+            <div className="border-l-2 border-gray-500 pl-3 py-1 space-y-3">
               <div className="flex items-center gap-2 text-red-700 dark:text-red-400">
                 <X className="size-5" />
                 <span className="font-semibold">Not sent</span>
@@ -203,7 +203,7 @@ export function DraftApprovalModal({
           )}
 
           {result.status === "ready_to_send" && (
-            <div className="rounded-md border border-blue-500/40 bg-blue-500/10 p-4 space-y-3">
+            <div className="border-l-2 border-gray-300 pl-3 py-1 space-y-3">
               <div className="flex items-center gap-2 text-blue-700 dark:text-blue-400">
                 <Mail className="size-5" />
                 <span className="font-semibold">Ready to send</span>
@@ -221,7 +221,7 @@ export function DraftApprovalModal({
           )}
 
           {result.status === "error" && (
-            <div className="rounded-md border border-red-500/40 bg-red-500/10 p-4 space-y-2">
+            <div className="border-l-2 border-gray-500 pl-3 py-1 space-y-2">
               <div className="flex items-center gap-2 text-red-700 dark:text-red-400">
                 <AlertTriangle className="size-5" />
                 <span className="font-semibold">Error</span>

@@ -271,7 +271,7 @@ function Shell({
 
       {/* Main */}
       <div className="flex-1 flex flex-col min-w-0">
-        <header className="sticky top-0 z-20 border-b border-border/60 bg-background/80 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+        <header className="sticky top-0 z-20 border-b border-gray-200 bg-white">
           <div className="flex items-center justify-between px-4 sm:px-6 lg:px-8 h-14">
             <div className="flex items-center gap-2 lg:hidden">
               <MaestroMark size={24} />
@@ -307,7 +307,7 @@ function Shell({
 
       {/* Mobile bottom nav — 4 columns for 4 tabs */}
       <nav
-        className="lg:hidden fixed bottom-0 inset-x-0 z-30 border-t border-border/60 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80"
+        className="lg:hidden fixed bottom-0 inset-x-0 z-30 border-t border-gray-200 bg-white"
         aria-label="Mobile navigation"
         style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
       >
@@ -366,7 +366,7 @@ export function ShellSkeleton({ view }: { view: View }) {
               <div
                 key={item.id}
                 className={cn(
-                  "w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium",
+                  "w-full flex items-center gap-3 px-3 py-2 border-l-2 border-transparent text-sm font-medium",
                   active
                     ? "bg-secondary text-secondary-foreground"
                     : "text-muted-foreground",
@@ -382,7 +382,7 @@ export function ShellSkeleton({ view }: { view: View }) {
 
       {/* Main */}
       <div className="flex-1 flex flex-col min-w-0">
-        <header className="sticky top-0 z-20 border-b border-border/60 bg-background/80 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+        <header className="sticky top-0 z-20 border-b border-gray-200 bg-white">
           <div className="flex items-center justify-between px-4 sm:px-6 lg:px-8 h-14">
             <div className="flex items-center gap-2 lg:hidden">
               <MaestroMark size={24} />
@@ -396,13 +396,13 @@ export function ShellSkeleton({ view }: { view: View }) {
 
         <main className="flex-1 px-4 sm:px-6 lg:px-8 py-6 pb-24 lg:pb-10 max-w-6xl w-full mx-auto">
           <div className="space-y-4">
-            <div className="h-8 w-48 rounded-md bg-muted/40 animate-pulse" />
-            <div className="h-4 w-full max-w-md rounded-md bg-muted/30 animate-pulse" />
+            <div className="h-8 w-48 bg-gray-100" />
+            <div className="h-4 w-full max-w-md bg-gray-100" />
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mt-6">
               {[1, 2, 3].map((i) => (
                 <div
                   key={i}
-                  className="h-32 rounded-lg border border-border/40 bg-muted/20 animate-pulse"
+                  className="h-32 border border-gray-200 bg-gray-50"
                 />
               ))}
             </div>
@@ -412,7 +412,7 @@ export function ShellSkeleton({ view }: { view: View }) {
 
       {/* Mobile bottom nav (static, non-interactive in skeleton) */}
       <nav
-        className="lg:hidden fixed bottom-0 inset-x-0 z-30 border-t border-border/60 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80"
+        className="lg:hidden fixed bottom-0 inset-x-0 z-30 border-t border-gray-200 bg-white"
         aria-label="Mobile navigation"
         style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
       >
@@ -450,7 +450,7 @@ function NavButton({
       type="button"
       onClick={onClick}
       className={cn(
-        "w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors",
+        "w-full flex items-center gap-3 px-3 py-2 border-l-2 border-transparent text-sm font-medium transition-colors",
         active
           ? "bg-secondary text-secondary-foreground"
           : "text-muted-foreground hover:text-foreground hover:bg-accent/50",
@@ -467,14 +467,14 @@ function NavButton({
 function LlmPill({ llm }: { llm: LlmStatus | null }) {
   const active = !!llm?.active;
   const configured = !!llm?.configured;
-  const color = active ? "bg-emerald-500" : configured ? "bg-amber-500" : "bg-zinc-500";
+  const color = active ? "bg-black" : configured ? "bg-gray-500" : "border border-gray-300";
   const label = active
     ? `LLM · ${llm?.provider ?? "live"}`
     : configured
       ? "LLM configured"
       : "Rule-based";
   return (
-    <div className="inline-flex items-center gap-2 rounded-full border border-border/60 bg-muted/30 px-3 py-1">
+    <div className="inline-flex items-center gap-2 border-l-2 border-gray-300 px-3 py-1">
       <span className={cn("size-1.5 rounded-full", color)} aria-hidden />
       <span className="text-xs font-medium text-foreground/90 hidden sm:inline">{label}</span>
     </div>
