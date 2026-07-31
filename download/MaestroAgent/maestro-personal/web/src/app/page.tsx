@@ -1,9 +1,11 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo, useDeferredValue } from 'react'
 import { cn } from '@/lib/utils'
 // Tufte: removed framer-motion (motion/AnimatePresence) — no decorative animations
 import { Sun, Search, Calendar, Zap, Unplug, Mail, MessageSquare, FileText, RefreshCw, CheckCircle2, Plus, Send, Loader2, LogOut, Sparkles, PenLine, AlertTriangle, Clock, Lightbulb } from 'lucide-react'
+import { useToast } from '@/hooks/use-toast'
+import { Skeleton } from '@/components/ui/skeleton'
 import { maestroApi, getToken, setToken, clearToken } from '@/lib/maestro-api'
 import { Login } from '@/components/maestro/Login'
 import { DraftApprovalModal, type DraftWithMeta } from '@/components/maestro/DraftApprovalModal'
@@ -40,6 +42,7 @@ const API_BASE = typeof window !== 'undefined'
   : 'https://maestroagent-production.up.railway.app'
 
 export default function Home() {
+  const { toast } = useToast()
   const [authed, setAuthed] = useState(false)
   const [checkingAuth, setCheckingAuth] = useState(true)
   const [tab, setTab] = useState<Tab>('today')
@@ -79,10 +82,10 @@ export default function Home() {
       if (live && data) {
         setDraftForReview(data as DraftWithMeta)
       } else {
-        alert('Could not generate draft. Make sure Gmail is connected.')
+        toast({ title: 'Error', description: 'Could not generate draft. Make sure Gmail is connected.', variant: 'destructive' })
       }
     } catch {
-      alert('Draft generation failed. Please try again.')
+      toast({ title: 'Error', description: 'Draft generation failed. Please try again.', variant: 'destructive' })
     } finally {
       setDraftBusy(false)
     }
@@ -97,7 +100,7 @@ export default function Home() {
     try {
       const { data, live } = await maestroApi.resolveDraft(draft.draft_id, resolution)
       if (!live) {
-        alert('Backend unreachable. Could not resolve draft.')
+        toast({ title: 'Error', description: 'Backend unreachable. Could not resolve draft.', variant: 'destructive' })
         return
       }
 
@@ -108,7 +111,7 @@ export default function Home() {
 
         if (status === 'send_failed') {
           // Do NOT close the modal
-          alert(`Send failed: ${sendError}. Check that Gmail is connected.`)
+          toast({ title: 'Error', description: `Send failed: ${sendError}. Check that Gmail is connected.`, variant: 'destructive' })
           // Fallback: log mailto URL to console
           if (draft.recipient) {
             const subject = encodeURIComponent(draft.subject || '')
@@ -120,14 +123,14 @@ export default function Home() {
           return  // Keep modal open so user can retry or copy
         } else if (status === 'approved') {
           if (sentMessageId) {
-            alert(`Sent. Message ID: ${sentMessageId}`)
+            toast({ title: 'Success', description: `Sent. Message ID: ${sentMessageId}` })
           } else {
-            alert('Sent (no message ID returned)')
+            toast({ title: 'Success', description: 'Sent (no message ID returned)' })
           }
           setDraftForReview(null)
         } else {
           // Unexpected status
-          alert(`Unexpected response. Status: ${status}`)
+          toast({ title: 'Error', description: `Unexpected response. Status: ${status}`, variant: 'destructive' })
         }
       } else if (resolution === 'use_draft') {
         try {
@@ -138,15 +141,15 @@ export default function Home() {
           const body = encodeURIComponent(draft.body || '')
           window.open(`mailto:${draft.recipient}?subject=${subject}&body=${body}`, '_blank')
         }
-        alert('Opened in mail app. Body copied to clipboard as backup.')
+        toast({ title: 'Info', description: 'Opened in mail app. Body copied to clipboard as backup.' })
         setDraftForReview(null)
       } else {
-        alert('Discarded')
+        toast({ title: 'Info', description: 'Discarded' })
         setDraftForReview(null)
       }
     } catch (e: any) {
       const msg = e?.message || String(e)
-      alert(`Failed to resolve draft: ${msg}`)
+      toast({ title: 'Error', description: `Failed to resolve draft: ${msg}`, variant: 'destructive' })
     } finally {
       setDraftResolving(false)
     }
@@ -187,6 +190,7 @@ export default function Home() {
         <nav className="flex-1 px-3" aria-label="Main">
           {navItems.map((item) => (
             <button key={item.id} onClick={() => setTab(item.id)}
+              aria-current={tab === item.id ? 'page' : undefined}
               className={cn('flex items-center gap-3 w-full px-3 py-2 text-sm border-l-2 transition-none',
                 tab === item.id
                   ? 'border-black text-black font-semibold'
@@ -211,6 +215,8 @@ export default function Home() {
             <nav className="flex items-center gap-1">
               {navItems.map((item) => (
                 <button key={item.id} onClick={() => setTab(item.id)}
+                  aria-label={item.label}
+                  aria-current={tab === item.id ? 'page' : undefined}
                   className={cn('p-2', tab === item.id ? 'text-black' : 'text-gray-400')}>
                   {item.icon}
                 </button>
@@ -232,9 +238,11 @@ export default function Home() {
 
       {/* Mobile bottom nav — no backdrop-blur, hairline border */}
       <nav className="lg:hidden fixed bottom-0 inset-x-0 z-30 border-t border-gray-200 bg-white" style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}>
-        <div className="grid grid-cols-5">
+        <div className="grid grid-cols-4">
           {navItems.map((item) => (
             <button key={item.id} onClick={() => setTab(item.id)}
+              aria-label={item.label}
+              aria-current={tab === item.id ? 'page' : undefined}
               className={cn('flex flex-col items-center justify-center gap-1 py-2.5 text-[10px] min-h-[44px] border-t-2',
                 tab === item.id ? 'border-black text-black font-semibold' : 'border-transparent text-gray-400')}>
               {item.icon}<span className="truncate max-w-full px-1">{item.label}</span>
@@ -311,18 +319,28 @@ function TodayView({ onDraft, draftBusy }: { onDraft: (entity: string) => void; 
     // something is genuinely wrong and the banner is appropriate.
     const slowTimer = setTimeout(() => {
       if (alive && momentLoading) setShowSlowBanner(true)
-    }, 10000)
+    }, 4000)
 
     return () => { alive = false; clearTimeout(slowTimer) }
   }, [])
 
-  if (loading) return <div className="py-16 text-sm text-gray-400">Loading…</div>
+  if (loading) return (
+    <div className="space-y-4" aria-live="polite">
+      <Skeleton className="h-24 w-full" />
+      <Skeleton className="h-6 w-48" />
+      <div className="space-y-2">
+        {[1,2,3,4,5].map(i => <Skeleton key={i} className="h-16 w-full" />)}
+      </div>
+    </div>
+  )
   if (error) return (
     <div className="space-y-2">
       {/* Tufte: no colored background, just text + hairline */}
       <p className="text-sm font-semibold text-black">Backend not connected</p>
       <p className="text-xs text-gray-500">{error}</p>
-      <p className="text-xs text-gray-400 pt-4">Retry in a moment.</p>
+      <p className="text-xs text-gray-400 pt-4">
+        <button onClick={() => window.location.reload()} className="text-xs font-medium text-black underline">Retry</button>
+      </p>
     </div>
   )
 
@@ -566,7 +584,7 @@ function AskView() {
             <Search className="h-4 w-4 text-gray-400 shrink-0" />
             <input type="text" value={query} onChange={(e) => setQuery(e.target.value)}
               placeholder="Ask about your commitments…"
-              className="flex-1 bg-transparent text-black placeholder:text-gray-400 focus:outline-none text-sm" />
+              className="flex-1 bg-transparent text-black placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-black focus:ring-offset-2 text-sm" />
           </div>
         </form>
 
@@ -654,7 +672,7 @@ function CommitmentsWhisperView({ onDraft, draftBusy }: { onDraft: (entity: stri
         <Search className="h-4 w-4 text-gray-400 shrink-0" />
         <input type="text" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)}
           placeholder="Search commitments and whispers…"
-          className="flex-1 bg-transparent text-black placeholder:text-gray-400 focus:outline-none text-sm" />
+          className="flex-1 bg-transparent text-black placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-black focus:ring-offset-2 text-sm" />
         {searchQuery && (
           <button onClick={() => setSearchQuery('')} className="text-xs text-gray-400 hover:text-black underline underline-offset-4">
             clear
@@ -706,8 +724,17 @@ function CommitmentsViewReal({ onDraft, draftBusy, searchQuery = '' }: { onDraft
     return () => { alive = false }
   }, [])
 
-  if (loading) return <div className="py-16 text-sm text-gray-400">Loading…</div>
-  if (error) return <div className="py-8 text-sm text-gray-500">{error}</div>
+  if (loading) return (
+    <div className="space-y-2" aria-live="polite">
+      {[1,2,3,4,5].map(i => <Skeleton key={i} className="h-12 w-full" />)}
+    </div>
+  )
+  if (error) return (
+    <div className="py-8">
+      <p className="text-sm text-gray-500 mb-2">{error}</p>
+      <button onClick={() => window.location.reload()} className="text-xs font-medium text-black underline">Retry</button>
+    </div>
+  )
 
   // Filter by search query (case-insensitive on entity + text)
   const filtered = searchQuery

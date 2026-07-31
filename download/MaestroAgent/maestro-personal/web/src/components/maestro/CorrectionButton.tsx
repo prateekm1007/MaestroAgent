@@ -2,7 +2,6 @@
 
 import { useState, useRef, useEffect } from 'react'
 import { MoreVertical, Check, X, AlertTriangle, Edit3, Loader2 } from 'lucide-react'
-import { motion, AnimatePresence } from 'framer-motion'
 
 interface CorrectionButtonProps {
   signalId: string
@@ -95,13 +94,9 @@ export function CorrectionButton({ signalId, apiBase, token, onCorrected }: Corr
         <MoreVertical className="h-3.5 w-3.5 text-gray-400" />
       </button>
 
-      <AnimatePresence>
-        {open && (
-          <motion.div
-            initial={{ opacity: 0, y: -4 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -4 }}
-            className="absolute right-0 top-7 z-20 bg-white   border border-gray-200 py-1 min-w-[180px]"
+      {open && (
+          <div
+            className="absolute right-0 top-7 z-20 bg-white border border-gray-200 py-1 min-w-[180px] transition-all duration-200 opacity-100"
           >
             {!editing ? (
               ACTIONS.map((a) => (
@@ -151,9 +146,8 @@ export function CorrectionButton({ signalId, apiBase, token, onCorrected }: Corr
             {errorMsg && (
               <div className="px-3 py-1 text-xs ">{errorMsg}</div>
             )}
-          </motion.div>
-        )}
-      </AnimatePresence>
+          </div>
+      )}
     </div>
   )
 }

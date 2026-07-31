@@ -27,10 +27,10 @@ export default function ClickableCard({ children, commitment, apiBase, token }: 
     <>
       <div
         onClick={() => setOpen(true)}
-        className="cursor-pointer hover:shadow-md hover:-translate-y-0.5 transition-all duration-200"
+        className="cursor-pointer transition-colors hover:bg-gray-50"
         role="button"
         tabIndex={0}
-        onKeyDown={(e) => { if (e.key === 'Enter') setOpen(true); }}
+        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setOpen(true); } }}
       >
         {children}
       </div>
