@@ -272,6 +272,54 @@ def reduce_commitments(user_email: str, db_path: str | None = None) -> list[dict
                 "last_event_at": last_event_at,
                 "event_count": len(evs),
             })
+
+    # Audit fix S2-3 (2026-07-31): semantic deduplication.
+    # The prior code grouped by commitment_id only, so multiple signals with
+    # the same commitment text but different signal_ids (e.g., the same
+    # "I will send the report by Friday" appearing in 5 different emails,
+    # each with a different hash-suffixed entity like "Katherine Wells
+    # 678218") were treated as 5 separate commitments. This caused the
+    # /api/commitments list to balloon to 574 items, 95% of which were
+    # duplicates. Users couldn't find their actual commitments.
+    #
+    # Fix: after the initial grouping, deduplicate by (normalized_text,
+    # base_entity). Two commitments are duplicates if:
+    #   - Their text is identical after normalization (lowercase, strip
+    #     trailing punctuation/whitespace, collapse whitespace)
+    #   - Their entity names share the same base name (first 2 words, to
+    #     handle hash-suffixed entities like "Katherine Wells 678218")
+    # When duplicates are found, keep the one with the highest confidence
+    # and merge the evidence_refs from all duplicates.
+    if len(results) > 1:
+        import re as _dedup_re
+        seen: dict[tuple[str, str], dict] = {}
+        deduped: list[dict] = []
+        for c in results:
+            # Normalize text: lowercase, collapse whitespace, strip trailing punct
+            norm_text = _dedup_re.sub(r'\s+', ' ', (c.get("text") or "").lower().strip()).rstrip('.!?')
+            # Extract base entity (first 2 words, to handle hash suffixes)
+            # "Katherine Wells 678218" → "katherine wells"
+            # "Bob" → "bob"
+            # "Cambridge Partners 8208b2" → "cambridge partners"
+            entity_parts = (c.get("entity") or "").lower().split()
+            base_entity = " ".join(entity_parts[:2]) if len(entity_parts) >= 2 else " ".join(entity_parts)
+            dedup_key = (base_entity, norm_text)
+            if dedup_key in seen:
+                # Duplicate found — keep the one with higher confidence
+                existing_idx = seen[dedup_key]
+                existing = deduped[existing_idx]
+                if c.get("confidence", 0) > existing.get("confidence", 0):
+                    # Replace with higher-confidence version
+                    deduped[existing_idx] = c
+                # Note: we could merge evidence_refs here, but the current
+                # data model doesn't support multi-signal evidence per
+                # commitment. The commitment_id of the kept entry is the
+                # authoritative one.
+            else:
+                seen[dedup_key] = len(deduped)
+                deduped.append(c)
+        results = deduped
+
     return results
 
 

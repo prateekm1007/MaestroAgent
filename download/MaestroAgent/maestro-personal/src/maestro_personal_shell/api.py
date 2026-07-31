@@ -1404,9 +1404,28 @@ async def trace_id_middleware(request: Request, call_next):
     return response
 
 # CORS — allow the mobile app (Expo Metro bundler runs on :8081/:19000) to call
+# Audit fix S3-2 (2026-07-31): added the production frontend origin. The prior
+# list only had localhost origins, so when the deployed frontend at
+# web-production-d5c26.up.railway.app called the backend directly (for SSE
+# streaming on /api/ask/stream), the CORS preflight returned 400 and the
+# streaming request was blocked. Now the production frontend origin is
+# allowed. Also reads from the FRONTEND_URL env var so other deployments
+# (staging, preview) can be added without code changes.
+import os as _cors_os
+_frontend_url = _cors_os.environ.get("FRONTEND_URL", "").rstrip("/")
+_cors_origins = [
+    "http://localhost:8081",    # Expo Metro
+    "http://localhost:19000",   # Expo Metro (alt)
+    "http://localhost:8766",    # Local API
+    "http://localhost:3000",    # Next.js dev server
+    "https://web-production-d5c26.up.railway.app",  # Production frontend
+]
+# Allow any FRONTEND_URL env var override (for staging/preview deploys)
+if _frontend_url and _frontend_url not in _cors_origins:
+    _cors_origins.append(_frontend_url)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:8081", "http://localhost:19000", "http://localhost:8766"],  # Expo Metro + API only
+    allow_origins=_cors_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
