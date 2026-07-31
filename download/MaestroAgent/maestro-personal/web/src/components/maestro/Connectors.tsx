@@ -38,6 +38,14 @@ import {
   type DraftWithMeta,
 } from "@/components/maestro/DraftApprovalModal";
 import { Settings } from "@/components/maestro/Settings";
+import { lazy, Suspense } from "react";
+
+// Lazy-load Settings to speed up Connectors page initial render.
+// The Settings component makes 7 API calls on mount; loading it lazily
+// lets the Connectors list render first, then Settings streams in.
+const SettingsLazy = lazy(() =>
+  import("@/components/maestro/Settings").then((m) => ({ default: m.Settings }))
+);
 
 function formatRelativeTime(iso: string): string {
   if (!iso) return 'never';
@@ -549,9 +557,12 @@ export function Connectors() {
 
       {/* Settings — merged into Connectors page per user request.
           Shows real-time LLM status, privacy mode, calibration, metrics,
-          notifications, data export, and insights. */}
+          notifications, data export, and insights.
+          Lazy-loaded so the Connectors list renders first. */}
       <div className="mt-8 pt-6 border-t border-border/60">
-        <Settings />
+        <Suspense fallback={<div className="py-8 text-center text-sm text-gray-400">Loading settings…</div>}>
+          <SettingsLazy />
+        </Suspense>
       </div>
     </div>
   );

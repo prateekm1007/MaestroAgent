@@ -35,17 +35,23 @@ from contextlib import asynccontextmanager
 logger = logging.getLogger(__name__)
 
 # Shell cache — shared across all endpoints that call build_shell.
-# 300-second TTL (audit fix S1-1, 2026-07-31: was 30s, raised to 300s).
-# build_shell loads ALL signals from the DB (555+ rows for the demo user)
-# and takes 3-10s on cold calls. The prior 30s TTL meant most page loads
-# hit cold cache (any user who navigates away and back >30s later sees the
-# false-negative "You're clear today" message on the Today page). 300s is
-# a reasonable trade-off: data freshness vs. interactive latency. The
-# frontend timeout was also raised from 8s to 15s to absorb the rare cold
-# call. Cache is keyed per user_email + as_of, so different users and
-# time-travel queries get their own cache entries.
+#
+# STABILITY FIX (2026-07-31): the prior 300s TTL cache was storing full
+# PersonalShell objects (each containing 555+ signals + OEM state) in
+# memory for 5 minutes. With multiple users + background schedulers
+# calling build_shell, this caused OOM kills on Railway's limited RAM.
+# The cache was then disabled (TTL=0), but that made every endpoint do
+# a cold build_shell (3-10s each), causing cascading timeouts.
+#
+# The real fix: re-enable a SHORT cache (60s) with a SIGNAL LIMIT (200).
+# This bounds memory usage (200 signals × ~2KB = ~400KB per cache entry)
+# while still preventing concurrent build_shell calls within 60s.
+# 200 signals is enough for the-moment, briefing, and whisper surfaces
+# (they only display top 5-10 items). Ask queries that need more signals
+# bypass the cache via signal_limit=None.
 _SHELL_CACHE: dict[str, tuple[float, Any]] = {}
-_SHELL_CACHE_TTL_SECONDS: float = 0.0  # DISABLED — was causing OOM crashes on Railway
+_SHELL_CACHE_TTL_SECONDS: float = 60.0  # 60s — short enough to avoid OOM, long enough to batch requests
+_SHELL_CACHE_SIGNAL_LIMIT: int = 200  # cap signals loaded into memory per shell
 
 # ---------------------------------------------------------------------------
 # Configuration
@@ -742,8 +748,14 @@ def build_shell(user_email: str | None = None, as_of: str | None = None,
     from maestro_personal_shell.personal_oem_state import PersonalOemState, PersonalSignal
     from maestro_personal_shell.shell import PersonalShell
 
-    # Load signals from DB — filtered by user_email for per-user isolation
-    db_signals = load_signals_from_db(user_email=user_email, limit=signal_limit)
+    # Load signals from DB — filtered by user_email for per-user isolation.
+    # STABILITY FIX (2026-07-31): if no explicit signal_limit was passed,
+    # use the default cap (_SHELL_CACHE_SIGNAL_LIMIT=200). This prevents
+    # any single build_shell call from loading ALL 555+ signals into
+    # memory, which was causing OOM crashes on Railway. Callers that
+    # need more signals (e.g., Ask retrieval) pass signal_limit explicitly.
+    _effective_limit = signal_limit if signal_limit is not None else _SHELL_CACHE_SIGNAL_LIMIT
+    db_signals = load_signals_from_db(user_email=user_email, limit=_effective_limit)
 
     # Temporal filtering: if as_of is provided, filter out future signals
     if as_of:
@@ -912,9 +924,12 @@ async def lifespan(app: FastAPI):
 
     # P0-2 fix: pre-warm the shell on startup so the first user request
     # hits the warm path (<10ms instead of 2.5s cold load).
+    # STABILITY FIX (2026-07-31): use signal_limit=200 to avoid loading
+    # ALL signals into memory at startup. The prior code loaded 555+
+    # signals with no limit, contributing to OOM crashes on Railway.
     try:
-        build_shell(user_email="bootstrap")
-        logger.info("Shell pre-warmed for fast cold-start")
+        build_shell(user_email="bootstrap", signal_limit=_SHELL_CACHE_SIGNAL_LIMIT)
+        logger.info("Shell pre-warmed for fast cold-start (signal_limit=%d)", _SHELL_CACHE_SIGNAL_LIMIT)
     except Exception as e:
         logger.warning("Shell pre-warm failed (non-fatal): %s", e)
 

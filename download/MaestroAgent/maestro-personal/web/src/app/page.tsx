@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { cn } from '@/lib/utils'
-import { Sun, Search, Calendar, Zap, Unplug, Mail, MessageSquare, FileText, RefreshCw, CheckCircle2, Plus, Send, Loader2, LogOut, Sparkles, PenLine } from 'lucide-react'
+import { Sun, Search, Calendar, Zap, Unplug, Mail, MessageSquare, FileText, RefreshCw, CheckCircle2, Plus, Send, Loader2, LogOut, Sparkles, PenLine, AlertTriangle, Clock, Lightbulb } from 'lucide-react'
 import { maestroApi, getToken, setToken, clearToken } from '@/lib/maestro-api'
 import { Login } from '@/components/maestro/Login'
 import { DraftApprovalModal, type DraftWithMeta } from '@/components/maestro/DraftApprovalModal'
@@ -702,11 +702,12 @@ function CommitmentsViewReal({ onDraft, draftBusy }: { onDraft: (entity: string)
   )
 }
 
-// === WHISPER — real API ===
+// === WHISPER — real API (elite UI, matches Today page design) ===
 function WhisperViewReal({ onDraft, draftBusy }: { onDraft: (entity: string) => void; draftBusy: boolean }) {
   const [loading, setLoading] = useState(true)
   const [whispers, setWhispers] = useState<any[]>([])
   const [error, setError] = useState('')
+  const [whisperLive, setWhisperLive] = useState(false)
 
   useEffect(() => {
     let alive = true
@@ -714,6 +715,7 @@ function WhisperViewReal({ onDraft, draftBusy }: { onDraft: (entity: string) => 
       try {
         const { data, live } = await maestroApi.getWhispers()
         if (!alive) return
+        setWhisperLive(!!live)
         const list = Array.isArray(data) ? data : (data ? [data] : [])
         if (live) setWhispers(list)
         setLoading(false)
@@ -723,51 +725,202 @@ function WhisperViewReal({ onDraft, draftBusy }: { onDraft: (entity: string) => 
   }, [])
 
   if (loading) return <div className="flex justify-center py-16"><Loader2 className="h-5 w-5 animate-spin text-gray-300" /></div>
-  if (error) return <div className="text-sm text-red-500 py-8">{error}</div>
-  if (!whispers.length) return (
-    <div className="text-center py-16">
-      <p className="text-lg text-gray-400">All caught up.</p>
-      <p className="text-sm text-gray-400 mt-1">No proactive insights right now.</p>
+  if (error) return (
+    <div className="space-y-4">
+      <div className="bg-amber-50 border border-amber-200 rounded-lg px-4 py-3 flex items-center gap-2">
+        <span className="text-amber-600 text-sm font-medium">⚠ Failed to load</span>
+        <span className="text-amber-500 text-xs">{error}</span>
+      </div>
     </div>
   )
 
+  const hour = new Date().getHours()
+  const greeting = hour < 12 ? 'Good morning' : hour < 18 ? 'Good afternoon' : 'Good evening'
+
+  // Group whispers by priority for a cleaner layout
+  const highPriority = whispers.filter(w => w.priority === 'high')
+  const mediumPriority = whispers.filter(w => w.priority === 'medium' || !w.priority)
+  const lowPriority = whispers.filter(w => w.priority === 'low')
+
   return (
-    <div className="space-y-4 max-w-2xl mx-auto">
-      {whispers.map((w, i) => (
-        <ClickableCard
-          key={w.id || w.whisper_id || i}
-          commitment={{
-            commitment_id: w.id || w.whisper_id || w.signal_id || `w-${i}`,
-            entity: w.entity || w.title || 'Insight',
-            text: w.context || w.detail || w.title || 'Insight',
-            state: 'active',
-            confidence: w.probability ? w.probability / 100 : 0.5,
-            source_signal_id: w.id || w.signal_id || '',
-          }}
-          apiBase={API_BASE}
-          token={getToken() || ''}
-        >
-          <div className={cn('p-5 rounded-2xl',
-            w.type === 'at_risk' ? 'bg-red-50/80' : w.type === 'preparation' ? 'bg-blue-50/80' : w.type === 'opportunity' ? 'bg-green-50/80' : 'bg-gray-50')}>
-            <h3 className="font-semibold text-sm text-gray-900">{w.title || w.text || w.message || 'Insight'}</h3>
-            {(w.context || w.detail) && <p className="text-sm text-gray-500 mt-1">{w.context || w.detail}</p>}
-            {w.suggested_actions?.length > 0 && (
-              <div className="flex items-center gap-2 mt-3">
-                {w.suggested_actions.map((a: any, j: number) => (
-                  <button
-                    key={j}
-                    onClick={(e) => e.stopPropagation()}
-                    className="text-xs font-medium text-gray-600 px-3 py-1.5 rounded-lg bg-white border border-gray-200 hover:border-gray-300"
-                  >
-                    {a.label || a}
-                  </button>
-                ))}
-              </div>
+    <div className="space-y-10">
+      {/* Header — matches Today page's h1 + subtitle pattern */}
+      <div>
+        <h1 className="text-3xl font-semibold tracking-tight text-gray-900">Whispers.</h1>
+        <p className="text-gray-400 mt-2 text-base">
+          {whispers.length > 0
+            ? `${whispers.length} ${whispers.length === 1 ? 'insight needs' : 'insights need'} your attention right now.`
+            : whisperLive
+              ? "You're all caught up. No proactive insights right now."
+              : 'Still loading your whispers — they will appear here shortly.'}
+        </p>
+      </div>
+
+      {/* Loading banner when backend is slow */}
+      {!whisperLive && !whispers.length && (
+        <div className="bg-amber-50 border border-amber-200 rounded-lg px-4 py-3 flex items-center gap-2">
+          <span className="text-amber-600 text-sm font-medium">⚠ Still loading</span>
+          <span className="text-amber-500 text-xs">
+            The backend is taking longer than usual. Refresh in a moment.
+          </span>
+        </div>
+      )}
+
+      {/* Empty state — elegant, not just "All caught up" */}
+      {whisperLive && whispers.length === 0 && (
+        <div className="flex flex-col items-center justify-center py-20">
+          <div className="h-16 w-16 rounded-full bg-gray-100 flex items-center justify-center mb-4">
+            <Zap className="h-7 w-7 text-gray-300" />
+          </div>
+          <p className="text-lg font-medium text-gray-900">All caught up.</p>
+          <p className="text-sm text-gray-400 mt-1">No proactive insights right now. Maestro is monitoring your commitments in the background.</p>
+        </div>
+      )}
+
+      {/* High priority whispers — full-width cards with red accent */}
+      {highPriority.length > 0 && (
+        <div>
+          <p className="text-xs font-medium uppercase tracking-wider text-gray-400 mb-4">Needs Attention</p>
+          <div className="space-y-3">
+            {highPriority.map((w, i) => (
+              <WhisperCardElite
+                key={w.id || w.whisper_id || `h-${i}`}
+                whisper={w}
+                priority="high"
+                onDraft={onDraft}
+                draftBusy={draftBusy}
+              />
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Medium priority whispers */}
+      {mediumPriority.length > 0 && (
+        <div>
+          <p className="text-xs font-medium uppercase tracking-wider text-gray-400 mb-4">Worth Knowing</p>
+          <div className="space-y-3">
+            {mediumPriority.map((w, i) => (
+              <WhisperCardElite
+                key={w.id || w.whisper_id || `m-${i}`}
+                whisper={w}
+                priority="medium"
+                onDraft={onDraft}
+                draftBusy={draftBusy}
+              />
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Low priority whispers — collapsed by default */}
+      {lowPriority.length > 0 && (
+        <div>
+          <p className="text-xs font-medium uppercase tracking-wider text-gray-400 mb-4">FYI</p>
+          <div className="space-y-3">
+            {lowPriority.map((w, i) => (
+              <WhisperCardElite
+                key={w.id || w.whisper_id || `l-${i}`}
+                whisper={w}
+                priority="low"
+                onDraft={onDraft}
+                draftBusy={draftBusy}
+              />
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// Elite whisper card — clean, minimal, with priority-based accent colors
+function WhisperCardElite({
+  whisper,
+  priority,
+  onDraft,
+  draftBusy,
+}: {
+  whisper: any
+  priority: 'high' | 'medium' | 'low'
+  onDraft: (entity: string) => void
+  draftBusy: boolean
+}) {
+  const [expanded, setExpanded] = useState(false)
+  const entity = whisper.entity || 'Insight'
+  const title = whisper.title || whisper.text || whisper.message || 'Insight'
+  const body = whisper.body || whisper.context || whisper.detail || ''
+  const wType = whisper.type || 'routine'
+
+  // Priority-based styling — subtle, not garish
+  const accentColor = priority === 'high' ? 'bg-red-500' : priority === 'medium' ? 'bg-amber-400' : 'bg-gray-300'
+  const typeIcon = wType === 'critical_signal' ? AlertTriangle : wType === 'meeting_prep' ? Calendar : wType === 'deadline_approaching' ? Calendar : wType === 'stale_commitment' ? Clock : Lightbulb
+  const TypeIcon = typeIcon
+
+  return (
+    <ClickableCard
+      commitment={{
+        commitment_id: whisper.id || whisper.whisper_id || whisper.signal_id || `w-${entity}`,
+        entity,
+        text: body || title,
+        state: 'active',
+        confidence: whisper.probability ? whisper.probability / 100 : 0.5,
+        source_signal_id: whisper.id || whisper.signal_id || '',
+      }}
+      apiBase={API_BASE}
+      token={getToken() || ''}
+    >
+      <div className="p-5 rounded-2xl bg-white border border-gray-100 hover:border-gray-200 transition-colors">
+        {/* Top row: accent bar + type icon + entity */}
+        <div className="flex items-start gap-3">
+          <div className={cn('w-1 self-stretch rounded-full', accentColor)} />
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2 mb-1">
+              <TypeIcon className={cn('h-4 w-4 shrink-0',
+                priority === 'high' ? 'text-red-500' : priority === 'medium' ? 'text-amber-500' : 'text-gray-400')} />
+              <span className="text-xs font-medium uppercase tracking-wide text-gray-400">{wType.replace(/_/g, ' ')}</span>
+            </div>
+            <h3 className="font-semibold text-sm text-gray-900 leading-snug">{title}</h3>
+            {body && (
+              <p className={cn('text-sm text-gray-500 mt-1', !expanded && 'line-clamp-2')}>
+                {body}
+              </p>
+            )}
+            {/* Expand toggle for long bodies */}
+            {body && body.length > 120 && (
+              <button
+                onClick={(e) => { e.stopPropagation(); setExpanded(!expanded) }}
+                className="text-xs font-medium text-gray-400 hover:text-gray-600 mt-1"
+              >
+                {expanded ? 'Show less' : 'Show more'}
+              </button>
             )}
           </div>
-        </ClickableCard>
-      ))}
-    </div>
+        </div>
+        {/* Action row */}
+        <div className="flex items-center gap-2 mt-4 pl-4">
+          {entity && entity !== 'Insight' && (
+            <button
+              onClick={(e) => { e.stopPropagation(); onDraft(entity) }}
+              disabled={draftBusy}
+              className="flex items-center gap-1.5 text-xs font-medium text-gray-600 hover:text-gray-900 px-3 py-1.5 rounded-lg bg-gray-50 border border-gray-200 hover:border-gray-300 transition-colors disabled:opacity-50"
+            >
+              {draftBusy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <PenLine className="h-3.5 w-3.5" />}
+              Draft Follow-up
+            </button>
+          )}
+          {whisper.suggested_actions?.length > 0 && whisper.suggested_actions.map((a: any, j: number) => (
+            <button
+              key={j}
+              onClick={(e) => e.stopPropagation()}
+              className="text-xs font-medium text-gray-600 px-3 py-1.5 rounded-lg bg-gray-50 border border-gray-200 hover:border-gray-300 transition-colors"
+            >
+              {a.label || a}
+            </button>
+          ))}
+        </div>
+      </div>
+    </ClickableCard>
   )
 }
 

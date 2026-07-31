@@ -129,11 +129,14 @@ export function Settings() {
     let alive = true;
     (async () => {
       setLoading(true);
-      const [l, p, c, a, cs, at, af, mt] = await Promise.all([
+      // Audit log fetch REMOVED (2026-07-31): was adding latency to the
+      // Connectors page load. The audit log is still recorded server-side
+      // but no longer fetched or displayed in the UI. This drops one API
+      // call from the Promise.all, speeding up page load.
+      const [l, p, c, cs, at, af, mt] = await Promise.all([
         maestroApi.getLlmStatus(),
         maestroApi.getPrivacyMode(),
         maestroApi.getCalibration(),
-        maestroApi.getAuditLog(),
         maestroApi.getConsentSettings(),
         maestroApi.getAnalyticsTrends(),
         maestroApi.getAnalyticsFlywheel(),
@@ -143,7 +146,6 @@ export function Settings() {
       setLlm(l.data);
       setPrivacy(p.data);
       setCalibration(c.data);
-      setAudit(a.data);
       setConsent(cs.data.consent);
       setConsentDefaults(cs.data.defaults);
       setAnalyticsReport(at.data?.report ?? null);
@@ -771,73 +773,10 @@ export function Settings() {
         </CardContent>
       </Card>
 
-      {/* Audit log */}
-      <Card className="border-border/60">
-        <CardContent className="pt-6 space-y-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2 text-[11px] uppercase tracking-[0.18em] text-muted-foreground">
-              <Activity className="size-3.5" />
-              <span>Audit log</span>
-            </div>
-            <span className="text-[11px] text-muted-foreground/70">
-              {loading ? "loading…" : `${audit?.events?.length ?? 0} recent event${(audit?.events?.length ?? 0) === 1 ? "" : "s"}`}
-            </span>
-          </div>
-          {loading || !audit ? (
-            <SkeletonRow />
-          ) : (
-            <div className="rounded-lg border border-border/60 overflow-hidden">
-              <Table>
-                <TableHeader>
-                  <TableRow className="hover:bg-transparent">
-                    <TableHead className="w-[180px]">Timestamp</TableHead>
-                    <TableHead className="w-[100px]">Action</TableHead>
-                    <TableHead>Endpoint</TableHead>
-                    {audit.events.some((e) => e.signal_id) && (
-                      <TableHead className="w-[160px]">Signal</TableHead>
-                    )}
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {audit.events.map((e, i) => (
-                    <TableRow key={i}>
-                      <TableCell className="font-mono text-xs text-muted-foreground">
-                        {formatTimestamp(e.timestamp)}
-                      </TableCell>
-                      <TableCell>
-                        <span
-                          className={cn(
-                            "text-xs px-2 py-0.5 rounded-full border",
-                            e.action === "read"
-                              ? "border-border/60 bg-muted/40 text-muted-foreground"
-                              : e.action === "write"
-                                ? "border-emerald-500/30 bg-emerald-500/[0.08] text-emerald-300"
-                                : e.action === "delete"
-                                  ? "border-rose-500/30 bg-rose-500/[0.08] text-rose-300"
-                                  : e.action === "correct"
-                                    ? "border-amber-500/30 bg-amber-500/[0.08] text-amber-300"
-                                    : "border-border/60 bg-muted/40 text-muted-foreground",
-                          )}
-                        >
-                          {e.action}
-                        </span>
-                      </TableCell>
-                      <TableCell className="font-mono text-xs text-foreground/80">
-                        {e.endpoint}
-                      </TableCell>
-                      {audit.events.some((x) => x.signal_id) && (
-                        <TableCell className="font-mono text-xs text-muted-foreground">
-                          {e.signal_id || "—"}
-                        </TableCell>
-                      )}
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
-          )}
-        </CardContent>
-      </Card>
+      {/* Audit log table REMOVED (2026-07-31): was slowing down the Connectors
+          page load with an extra API call + heavy table render. The audit log
+          is still recorded server-side (every action is logged via
+          log_data_access), but it's no longer displayed in the UI. */}
 
       {/* P1-10: Retention policy dialog (loaded on-demand) */}
       <Dialog open={retentionOpen} onOpenChange={setRetentionOpen}>

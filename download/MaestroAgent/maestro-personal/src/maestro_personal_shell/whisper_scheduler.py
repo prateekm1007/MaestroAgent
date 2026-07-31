@@ -183,7 +183,7 @@ def run_whisper_cycle(db_path: str | None = None) -> dict:
 
     for (user_email,) in users:
         try:
-            shell = build_shell(user_email=user_email, signal_limit=500)
+            shell = build_shell(user_email=user_email, signal_limit=200)  # STABILITY FIX: was 500, reduced to 200 to prevent OOM
             surface = WhisperSurface(shell=shell)
             whispers = surface.get_active_whispers()
 
