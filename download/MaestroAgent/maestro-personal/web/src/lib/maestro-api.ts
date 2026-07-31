@@ -193,6 +193,24 @@ export function setToken(token: string): void {
 export function clearToken(): void {
   if (typeof window === "undefined") return;
   window.localStorage.removeItem(TOKEN_KEY);
+  // GAP-3 FIX: clear SWR cache on logout — prevents stale data leaking
+  clearSwrCache();
+}
+
+// GAP-1 FIX: clear SWR cache entries after mutations so the next GET
+// fetches fresh data instead of returning stale cached responses.
+// Pass a pattern (e.g. '/api/commitments') to clear only matching entries,
+// or call with no args to clear the entire cache.
+export function clearSwrCache(pattern?: string): void {
+  if (typeof window === "undefined") return;
+  try {
+    const keys = Object.keys(sessionStorage).filter(k =>
+      k.startsWith("maestro:") && (!pattern || k.includes(pattern))
+    );
+    keys.forEach(k => sessionStorage.removeItem(k));
+  } catch {
+    // sessionStorage unavailable — non-fatal
+  }
 }
 
 export function getMode(): MaestroMode {
@@ -225,6 +243,11 @@ async function maestroFetch<T>(
   // revisits instant — the user sees cached data in <1ms, then it updates when
   // the fresh data arrives. Only applies to GET requests (no options.method or
   // method === 'GET').
+  //
+  // GAP-2 FIX: the background fetch now dispatches a 'maestro:cache:stale'
+  // event if it fails, so the UI can show a "showing cached data" indicator.
+  // The cached response is still returned with live=true (so the UI renders),
+  // but the UI can listen for the stale event to show a warning banner.
   const isCacheable = !options.method || options.method === 'GET';
   const cacheKey = `maestro:${path}:${token?.slice(0, 8) || 'anon'}`;
   if (isCacheable && typeof window !== 'undefined') {
@@ -315,8 +338,8 @@ async function maestroFetch<T>(
 }
 
 // LATENCY FIX: background fetch for stale-while-revalidate.
-// Fires a non-blocking fetch to refresh the cache. Errors are silently
-// swallowed — the cache will be refreshed on the next successful call.
+// GAP-2 FIX: on failure, dispatches a 'maestro:cache:stale' event so the
+// UI can show a "showing cached data — backend may be unreachable" banner.
 async function maestroFetchBackground<T>(
   path: string,
   headers: Record<string, string>,
@@ -331,9 +354,17 @@ async function maestroFetchBackground<T>(
     if (res.ok) {
       const data = await res.json() as T;
       sessionStorage.setItem(cacheKey, JSON.stringify({ data, ts: Date.now() }));
+    } else {
+      // GAP-2 FIX: non-OK response — dispatch stale event
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('maestro:cache:stale', { detail: { path, status: res.status } }));
+      }
     }
   } catch {
-    // Background fetch failed — cache stays stale, will retry on next call
+    // GAP-2 FIX: network error — dispatch stale event
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('maestro:cache:stale', { detail: { path, error: true } }));
+    }
   }
 }
 
@@ -497,11 +528,12 @@ export const maestroApi = {
     // Now: no fallback → maestroFetch re-throws on failure → caller must
     // try/catch (see Commitments.tsx correct() + correctSignal()).
     const path = `/api/signals/${signal_id}/correct?action=${action}`;
-    return maestroFetch<{ ok: boolean }>(
+    const result = await maestroFetch<{ ok: boolean }>(
       path,
       { method: "POST" },
-      // no fallback — re-throws on failure
     );
+    clearSwrCache('/api/commitments'); clearSwrCache('/api/signals'); // GAP-1
+    return result;
   },
 
   async ask(query: string, sessionId?: string): Promise<{ data: AskResponse; live: boolean }> {
@@ -612,11 +644,12 @@ export const maestroApi = {
     oauthToken: string = "",
   ): Promise<{ data: ConnectResponse; live: boolean }> {
     const body = JSON.stringify({ provider, oauth_token: oauthToken });
-    return maestroFetch<ConnectResponse>(
+    const result = await maestroFetch<ConnectResponse>(
       `/api/connectors/${provider}/connect`,
       { method: "POST", body },
-      // no fallback — re-throws on failure
     );
+    clearSwrCache('/api/connectors'); // GAP-1: invalidate after mutation
+    return result;
   },
 
   async disconnectProvider(
@@ -627,21 +660,24 @@ export const maestroApi = {
     // disconnected state when backend unreachable, caller discarded the response.
     // Now: no fallback → maestroFetch re-throws on failure → caller must
     // try/catch (see Connectors.tsx handleDisconnect).
-    return maestroFetch<{ provider: string; connected: boolean }>(
+    const result = await maestroFetch<{ provider: string; connected: boolean }>(
       `/api/connectors/${provider}`,
       { method: "DELETE" },
-      // no fallback — re-throws on failure
     );
+    clearSwrCache('/api/connectors'); // GAP-1: invalidate after mutation
+    return result;
   },
 
   async ingestConnector(
     provider: string,
   ): Promise<{ data: { ingested: number; new_commitments: number; duplicates: number }; live: boolean }> {
-    return maestroFetch<{ ingested: number; new_commitments: number; duplicates: number }>(
+    const result = await maestroFetch<{ ingested: number; new_commitments: number; duplicates: number }>(
       `/api/connectors/${provider}/ingest`,
       { method: "POST" },
       { ingested: 4, new_commitments: 3, duplicates: 0 },
     );
+    clearSwrCache('/api/connectors'); clearSwrCache('/api/commitments'); // GAP-1
+    return result;
   },
 
   async listDrafts(status: string = "pending"): Promise<{ data: { drafts: Draft[] }; live: boolean }> {
@@ -679,11 +715,12 @@ export const maestroApi = {
     // try/catch (see Connectors.tsx handleResolve, Dashboard.tsx
     // handleResolveDraft, Commitments.tsx handleResolveDraft).
     const body = JSON.stringify({ resolution });
-    return maestroFetch<{ draft_id: string; status: string; sent_message_id?: string; send_error?: string }>(
+    const result = await maestroFetch<{ draft_id: string; status: string; sent_message_id?: string; send_error?: string }>(
       `/api/drafts/${draftId}/resolve`,
       { method: "POST", body },
-      // no fallback — re-throws on failure
     );
+    clearSwrCache('/api/drafts'); // GAP-1: invalidate after mutation
+    return result;
   },
 
   /* ---------------------------------------------------------------- */
@@ -709,11 +746,13 @@ export const maestroApi = {
     enabled: boolean,
   ): Promise<{ data: { ok: boolean; provider: string; scope: string; enabled: boolean }; live: boolean }> {
     const body = JSON.stringify({ provider, scope, enabled });
-    return maestroFetch<{ ok: boolean; provider: string; scope: string; enabled: boolean }>(
+    const result = await maestroFetch<{ ok: boolean; provider: string; scope: string; enabled: boolean }>(
       "/api/consent/settings",
       { method: "PUT", body },
       { ok: true, provider, scope, enabled },
     );
+    clearSwrCache('/api/consent/settings'); // GAP-1: invalidate after mutation
+    return result;
   },
 
   /* ---------------------------------------------------------------- */
@@ -1197,11 +1236,13 @@ export const maestroApi = {
     ledgerId: string,
     toState: string,
   ): Promise<{ data: { ledger_id: string; state: string; transitioned: boolean }; live: boolean }> {
-    return maestroFetch(
+    const result = await maestroFetch(
       `/api/commitments/${encodeURIComponent(ledgerId)}/transition?to_state=${encodeURIComponent(toState)}`,
       { method: "POST" },
       undefined,
     );
+    clearSwrCache('/api/commitments'); // GAP-1: invalidate after mutation
+    return result;
   },
 
   /* ------------------------------------------------------------------ */
