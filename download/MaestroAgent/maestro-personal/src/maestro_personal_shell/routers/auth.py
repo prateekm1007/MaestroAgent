@@ -569,6 +569,18 @@ class SCIMUserResponse(BaseModel):
     emails: List[dict]
     active: bool
     meta: dict
+
+# Tech debt audit fix (2026-07-31): with `from __future__ import annotations`
+# at line 2, ALL type annotations become lazy strings. Pydantic cannot
+# resolve forward references like `name: SCIMName` at schema-generation
+# time, so SCIMUserRequest stays undefined → /openapi.json returns
+# {"paths": {}} with a masked error. This has blocked integrators for 3
+# audits and blocks SCIM provisioning for Enterprise readiness.
+# Fix: call model_rebuild() so Pydantic resolves the forward references.
+SCIMName.model_rebuild()
+SCIMUserRequest.model_rebuild()
+SCIMUserResponse.model_rebuild()
+
 @router.post("/scim/v2/Users", response_model=SCIMUserResponse, status_code=201)
 async def scim_create_user(request: Request, user: SCIMUserRequest):
     """
