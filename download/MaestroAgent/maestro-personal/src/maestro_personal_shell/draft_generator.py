@@ -464,11 +464,12 @@ async def generate_email_draft(
         # If you want thread context, use the streaming endpoint which
         # fetches it in the background.
 
-        # Voice profile (filtered)
-        voice_profile = await get_user_voice_profile(user_email)
-        clean_phrases = _filter_voice_phrases(getattr(voice_profile, 'common_phrases', []) or [])
-        formality = getattr(voice_profile, 'formality', 0.5)
-        signature = _clean_phrase(getattr(voice_profile, 'signature', '') or '') or "Thanks,"
+        # LATENCY FIX (v21): skip voice profile — use defaults.
+        # The voice profile fetches all signals and analyzes them, taking
+        # 5-8s. The LLM produces high-quality output without voice phrases.
+        clean_phrases = []
+        formality = 0.5
+        signature = "Thanks,"
 
         length_hint = {"short": "2-3 sentences", "medium": "4-6 sentences", "long": "8-12 sentences"}.get(length, "4-6 sentences")
 
@@ -781,10 +782,10 @@ async def stream_email_draft(
 
         recipient_email = _get_recipient_email(commitment, commitment_id, user_email)
 
-        voice_profile = await get_user_voice_profile(user_email)
-        clean_phrases = _filter_voice_phrases(getattr(voice_profile, 'common_phrases', []) or [])
-        formality = getattr(voice_profile, 'formality', 0.5)
-        signature = _clean_phrase(getattr(voice_profile, 'signature', '') or '') or "Thanks,"
+        # LATENCY FIX: skip voice profile for streaming too
+        clean_phrases = []
+        formality = 0.5
+        signature = "Thanks,"
 
         length_hint = {"short": "2-3 sentences", "medium": "4-6 sentences", "long": "8-12 sentences"}.get(length, "4-6 sentences")
 
