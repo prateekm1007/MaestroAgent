@@ -677,6 +677,11 @@ function CommitmentsViewReal({ onDraft, draftBusy, searchQuery = '' }: { onDraft
   const [error, setError] = useState('')
   const [visibleCount, setVisibleCount] = useState(10)
 
+  // UX followup: reset pagination when search changes
+  useEffect(() => {
+    setVisibleCount(10)
+  }, [searchQuery])
+
   useEffect(() => {
     let alive = true
     ;(async () => {
@@ -741,7 +746,7 @@ function CommitmentsViewReal({ onDraft, draftBusy, searchQuery = '' }: { onDraft
         <div>
           <div className="flex items-baseline justify-between mb-3">
             <p className="text-xs font-semibold uppercase tracking-wide text-gray-400">{searchQuery ? 'Results' : 'All Active'}</p>
-            <span className="text-xs text-gray-400">{rest.length}</span>
+            <span className="text-xs text-gray-400">Showing {visibleRest.length} of {rest.length}</span>
           </div>
           <div className="divide-y divide-gray-100">
             {visibleRest.map((c, i) => (
@@ -795,6 +800,11 @@ function WhisperViewReal({ onDraft, draftBusy, searchQuery = '' }: { onDraft: (e
   const [error, setError] = useState('')
   const [whisperLive, setWhisperLive] = useState(false)
   const [visibleCount, setVisibleCount] = useState(10)
+
+  // UX followup: reset pagination when search changes
+  useEffect(() => {
+    setVisibleCount(10)
+  }, [searchQuery])
 
   useEffect(() => {
     let alive = true
@@ -858,7 +868,7 @@ function WhisperViewReal({ onDraft, draftBusy, searchQuery = '' }: { onDraft: (e
         </p>
         <p className="text-gray-500 mt-1 text-sm">
           {filtered.length > 0
-            ? `${filtered.length} ${filtered.length === 1 ? 'insight needs' : 'insights need'} attention.`
+            ? `Showing ${visibleWhispers.length} of ${filtered.length} ${filtered.length === 1 ? 'insight' : 'insights'}.`
             : whisperLive
               ? searchQuery ? 'No whispers match your search.' : "You're all caught up."
               : 'Loading…'}
