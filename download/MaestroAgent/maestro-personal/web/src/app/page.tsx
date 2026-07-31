@@ -8,7 +8,7 @@ import { useToast } from '@/hooks/use-toast'
 import { Skeleton } from '@/components/ui/skeleton'
 import { maestroApi, getToken, setToken, clearToken } from '@/lib/maestro-api'
 import { Login } from '@/components/maestro/Login'
-import { DraftApprovalModal, type DraftWithMeta } from '@/components/maestro/DraftApprovalModal'
+import { DraftApprovalModal, type DraftWithMeta, type SendResult } from '@/components/maestro/DraftApprovalModal'
 import ClickableCard from '@/components/maestro/ClickableCard'
 import { calculateImportance, getLayoutMode, getConfidenceStyle } from '@/lib/importance'
 import { TheOne } from '@/components/maestro/TheOne'
@@ -51,6 +51,13 @@ export default function Home() {
   const [draftForReview, setDraftForReview] = useState<DraftWithMeta | null>(null)
   const [draftResolving, setDraftResolving] = useState(false)
   const [draftBusy, setDraftBusy] = useState(false)
+  // D1 fix (auditor v22): sendResult drives the INLINE outcome UI in
+  // DraftApprovalModal (the "Not sent — Reconnect Gmail / Open in mail
+  // client" panel). The prior code only showed a toast on send_failed,
+  // so the user had no persistent, actionable recovery UI inside the
+  // modal. The modal already had the inline UI built (lines 171-203) —
+  // it just wasn't wired to any state. Now it is.
+  const [sendResult, setSendResult] = useState<SendResult | undefined>(undefined)
 
   useEffect(() => {
     setAuthed(!!getToken())
@@ -77,6 +84,8 @@ export default function Home() {
   const handleGenerateDraft = async (entity: string) => {
     if (!entity) return
     setDraftBusy(true)
+    // D1: reset sendResult so the modal starts in idle state for each new draft
+    setSendResult(undefined)
     try {
       const { data, live } = await maestroApi.generateAutoDraft('gmail', entity)
       if (live && data) {
@@ -95,11 +104,14 @@ export default function Home() {
   // F-35 fix (auditor v18): surface send failures — never close modal on
   // send_failed. The prior code closed the modal regardless of the result,
   // so the user believed the email was sent when it wasn't.
+  // D1 fix (auditor v22): set sendResult state so the modal's inline
+  // recovery UI ("Reconnect Gmail" / "Open in mail client") renders.
   const handleResolveDraft = async (draft: DraftWithMeta, resolution: 'approve' | 'deny' | 'use_draft') => {
     setDraftResolving(true)
     try {
       const { data, live } = await maestroApi.resolveDraft(draft.draft_id, resolution)
       if (!live) {
+        setSendResult({ status: 'error', error: 'Backend unreachable. Could not resolve draft.' })
         toast({ title: 'Error', description: 'Backend unreachable. Could not resolve draft.', variant: 'destructive' })
         return
       }
@@ -110,26 +122,27 @@ export default function Home() {
         const sentMessageId = data?.sent_message_id || ''
 
         if (status === 'send_failed') {
-          // Do NOT close the modal
+          // Do NOT close the modal — set sendResult so the inline
+          // "Not sent — Reconnect Gmail / Open in mail client" UI renders.
+          setSendResult({
+            status: 'send_failed',
+            error: sendError,
+            needs_gmail: true,  // send_failed almost always means Gmail token expired/revoked
+          })
           toast({ title: 'Error', description: `Send failed: ${sendError}. Check that Gmail is connected.`, variant: 'destructive' })
-          // Fallback: log mailto URL to console
-          if (draft.recipient) {
-            const subject = encodeURIComponent(draft.subject || '')
-            const body = encodeURIComponent(draft.body || '')
-            console.warn(
-              `Send failed. Use this mailto link: mailto:${draft.recipient}?subject=${subject}&body=${body}`
-            )
-          }
           return  // Keep modal open so user can retry or copy
         } else if (status === 'approved') {
+          setSendResult({ status: 'sent', message_id: sentMessageId })
           if (sentMessageId) {
             toast({ title: 'Success', description: `Sent. Message ID: ${sentMessageId}` })
           } else {
             toast({ title: 'Success', description: 'Sent (no message ID returned)' })
           }
           setDraftForReview(null)
+          setSendResult(undefined)
         } else {
           // Unexpected status
+          setSendResult({ status: 'error', error: `Unexpected response. Status: ${status}` })
           toast({ title: 'Error', description: `Unexpected response. Status: ${status}`, variant: 'destructive' })
         }
       } else if (resolution === 'use_draft') {
@@ -143,16 +156,43 @@ export default function Home() {
         }
         toast({ title: 'Info', description: 'Opened in mail app. Body copied to clipboard as backup.' })
         setDraftForReview(null)
+        setSendResult(undefined)
       } else {
         toast({ title: 'Info', description: 'Discarded' })
         setDraftForReview(null)
+        setSendResult(undefined)
       }
     } catch (e: any) {
       const msg = e?.message || String(e)
+      setSendResult({ status: 'error', error: `Failed to resolve draft: ${msg}` })
       toast({ title: 'Error', description: `Failed to resolve draft: ${msg}`, variant: 'destructive' })
     } finally {
       setDraftResolving(false)
     }
+  }
+
+  // D1 fix: handler that opens the user's mail client with a mailto URL
+  // built from the current draft. Used by the "Open in mail client" button
+  // in the send_failed / ready_to_send states of the modal.
+  const handleOpenMailClient = () => {
+    const draft = draftForReview
+    if (!draft?.recipient) {
+      toast({ title: 'Error', description: 'No recipient on this draft.', variant: 'destructive' })
+      return
+    }
+    const subject = encodeURIComponent(draft.subject || '')
+    const body = encodeURIComponent(draft.body || '')
+    window.open(`mailto:${draft.recipient}?subject=${subject}&body=${body}`, '_blank')
+  }
+
+  // D1 fix: handler that switches to the Connectors tab so the user can
+  // reconnect Gmail. Used by the "Reconnect Gmail" button in the send_failed
+  // state of the modal.
+  const handleReconnectGmail = () => {
+    setTab('connectors')
+    setDraftForReview(null)  // close the modal so the Connectors tab is visible
+    setSendResult(undefined)
+    toast({ title: 'Reconnect Gmail', description: 'Click the Gmail connector below to reconnect.' })
   }
 
   if (checkingAuth) {
@@ -255,9 +295,18 @@ export default function Home() {
       <DraftApprovalModal
         draft={draftForReview}
         open={!!draftForReview}
-        onOpenChange={(o) => { if (!o) setDraftForReview(null) }}
+        onOpenChange={(o) => {
+          if (!o) {
+            setDraftForReview(null)
+            // D1: reset sendResult when modal closes so the next draft starts fresh
+            setSendResult(undefined)
+          }
+        }}
         onResolve={handleResolveDraft}
         resolving={draftResolving}
+        sendResult={sendResult}
+        onOpenMailClient={handleOpenMailClient}
+        onReconnectGmail={handleReconnectGmail}
       />
     </div>
   )

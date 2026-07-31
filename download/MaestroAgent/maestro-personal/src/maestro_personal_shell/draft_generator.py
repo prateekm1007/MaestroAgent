@@ -59,6 +59,57 @@ def _clean_entity_name(name: str) -> str:
 _DRAFT_CACHE = {}
 _CACHE_TTL_SECONDS = 300  # 5 minutes
 
+# Q7 (P14 fix): canonical set of signal types that must NEVER trigger a
+# follow-up draft. Drafting on a cancelled/question/tentative commitment
+# makes the user look careless — the worst content error for a commitment
+# intelligence product.
+#
+# This constant is the SINGLE SOURCE OF TRUTH. All draft paths must import
+# and check it. The prior fix (commit 11fd1e3) only applied the filter to
+# generate_email_draft; the streaming path, the connectors derive path,
+# and the create_auto_draft_stream inline derive all bypassed it — a
+# textbook P14 violation ("bugs migrate one layer deeper").
+_NON_DRAFTABLE_TYPES = frozenset({
+    "cancelled",
+    "negation",
+    "third_party_report",
+    "not_a_commitment",
+    "question",
+    "tentative",
+    "joke",
+    "request",
+    "aspiration",
+    "proposal",
+    "superseded",
+})
+
+
+def _is_non_draftable(metadata: dict | str | None) -> tuple[bool, str]:
+    """Q7 helper: check whether a signal's metadata marks it as non-draftable.
+
+    Returns (is_non_draftable, commitment_type).
+    Shared across all draft paths so the filter logic cannot drift.
+    """
+    if not metadata:
+        return False, ""
+    if isinstance(metadata, str):
+        try:
+            import json as _json
+            metadata = _json.loads(metadata) if metadata else {}
+        except Exception:
+            metadata = {}
+    if not isinstance(metadata, dict):
+        return False, ""
+    commitment_type = str(metadata.get("commitment_type", "") or "").lower().strip()
+    is_commitment = metadata.get("is_commitment", True)
+    # Treat explicit is_commitment=False as non-draftable (covers signals that
+    # don't carry a commitment_type but are explicitly marked as non-commitments).
+    if commitment_type in _NON_DRAFTABLE_TYPES:
+        return True, commitment_type
+    if is_commitment is False or is_commitment == "false":
+        return True, commitment_type or "not_a_commitment"
+    return False, commitment_type
+
 # No-Gemini rule (user directive 2026-07-30): Google Gemini / Gemma is
 # forbidden for any coding or LLM-calling task.
 # v20 fix: user directed DeepSeek be used for drafting.
@@ -461,19 +512,19 @@ async def generate_email_draft(
             )
 
 
-        # Q7 FIX: reject non-commitment signals before drafting
-        _meta = commitment.get('metadata', {}) or {}
-        if isinstance(_meta, str):
-            try:
-                import json as _json_meta
-                _meta = _json_meta.loads(_meta) if _meta else {}
-            except Exception:
-                _meta = {}
-        _commitment_type = _meta.get('commitment_type', '')
-        _is_commitment = _meta.get('is_commitment', True)
-        _NON_DRAFTABLE = {'cancelled','negation','third_party_report','not_a_commitment','question','tentative','joke','request','aspiration','proposal','superseded'}
-        if _commitment_type in _NON_DRAFTABLE or _is_commitment is False:
-            raise HTTPException(status_code=422, detail={'error':'non_draftable_signal','commitment_type':_commitment_type,'reason':f'This signal is {_commitment_type} — no follow-up needed.'})
+        # Q7 FIX (P14 — single source of truth): reject non-commitment
+        # signals before drafting. Uses the shared _is_non_draftable helper
+        # so the filter logic cannot drift between draft paths.
+        _non_draftable, _commitment_type = _is_non_draftable(commitment.get('metadata', {}))
+        if _non_draftable:
+            raise HTTPException(
+                status_code=422,
+                detail={
+                    'error': 'non_draftable_signal',
+                    'commitment_type': _commitment_type,
+                    'reason': f'This signal is {_commitment_type} — no follow-up needed.',
+                },
+            )
 
         # Look up actual email address (P-DRAFT-EMAIL-ADDRESS fix)
         recipient_email = _get_recipient_email(commitment, commitment_id, user_email)
@@ -805,6 +856,17 @@ async def stream_email_draft(
         commitment_text = commitment.get('text') or commitment.get('action') or ''
         if not commitment_text:
             yield f'data: {{"error": "Commitment has no text to follow up on."}}\n\n'
+            yield "data: [DONE]\n\n"
+            return
+
+        # Q7 FIX (P14 — streaming path was missing this filter): reject
+        # non-commitment signals before drafting. The non-streaming path
+        # raised HTTPException(422); the streaming path cannot raise (the
+        # SSE headers have already been flushed), so we yield an error
+        # chunk + [DONE] and return.
+        _non_draftable, _commitment_type = _is_non_draftable(commitment.get('metadata', {}))
+        if _non_draftable:
+            yield f'data: {{"error": "non_draftable_signal", "commitment_type": "{_commitment_type}", "reason": "This signal is {_commitment_type} — no follow-up needed."}}\n\n'
             yield "data: [DONE]\n\n"
             return
 

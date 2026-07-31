@@ -1456,7 +1456,38 @@ class ConnectorDraftGenerator:
                 except Exception:
                     pass
 
-                if is_commitment and not best_commitment:
+                # Q7 FIX (P14 — derive path was missing this filter): even
+                # if a signal is a commitment, it must NOT be used as the
+                # primary draftable commitment if its commitment_type marks
+                # it as cancelled / negation / question / tentative / etc.
+                # Drafting on a cancelled commitment makes the user look
+                # careless. We still keep it as evidence (it's context), but
+                # we skip it as the best_commitment candidate.
+                #
+                # Uses the canonical _is_non_draftable helper from
+                # draft_generator.py so the filter set cannot drift.
+                _non_draftable = False
+                try:
+                    from maestro_personal_shell.draft_generator import _is_non_draftable as _check_draftable
+                    _non_draftable, _ = _check_draftable(getattr(sig, "metadata", {}) or {})
+                except Exception:
+                    # Import failed (rare) — fall back to inline check
+                    try:
+                        _sig_meta = getattr(sig, "metadata", {}) or {}
+                        if isinstance(_sig_meta, str):
+                            import json as _json_fb
+                            _sig_meta = _json_fb.loads(_sig_meta) if _sig_meta else {}
+                        _ct = str(_sig_meta.get("commitment_type", "") or "").lower().strip()
+                        _NON_DRAFTABLE_FALLBACK = {
+                            "cancelled", "negation", "third_party_report",
+                            "not_a_commitment", "question", "tentative",
+                            "joke", "request", "aspiration", "proposal", "superseded",
+                        }
+                        _non_draftable = _ct in _NON_DRAFTABLE_FALLBACK
+                    except Exception:
+                        _non_draftable = False
+
+                if is_commitment and not _non_draftable and not best_commitment:
                     # This is our primary commitment
                     best_commitment = {"text": sig_text, "entity": sig_entity}
                     best_signal_id = sig_id
@@ -1467,7 +1498,9 @@ class ConnectorDraftGenerator:
                         "timestamp": sig_timestamp,
                     })
                 else:
-                    # Related signal — add as evidence
+                    # Related signal — add as evidence (this includes
+                    # cancelled commitments — they're context, not the
+                    # primary draftable commitment)
                     if len(best_evidence) < 3:
                         best_evidence.append({
                             "entity": sig_entity,

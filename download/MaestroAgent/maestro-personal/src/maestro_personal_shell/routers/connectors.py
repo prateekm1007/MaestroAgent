@@ -1179,27 +1179,61 @@ async def create_auto_draft_stream(req: ConnectorAutoDraftRequest, token: str = 
             commitment = None
             evidence_refs = []
             source_signal_id = ""
+            # Q7 FIX (P14 — this inline derive path was bypassing the filter):
+            # import the canonical helper so this path uses the SAME
+            # non-draftable set as generate_email_draft / stream_email_draft /
+            # _derive_commitment_for_recipient. Without this, /api/drafts/auto/stream
+            # would happily draft on a cancelled commitment.
+            try:
+                from maestro_personal_shell.draft_generator import _is_non_draftable as _check_draftable
+            except Exception:
+                _check_draftable = None
             if rows:
-                # Pick the first row that looks like a commitment
+                # Pick the first row that looks like a commitment AND is draftable
                 for row in rows:
                     text = row["text"] if "text" in row.keys() else ""
                     entity_val = row["entity"] if "entity" in row.keys() else ""
                     sig_id = row["signal_id"] if "signal_id" in row.keys() else ""
                     ts = row["timestamp"] if "timestamp" in row.keys() else ""
+                    row_meta = row["metadata"] if "metadata" in row.keys() else "{}"
+                    # Q7: skip non-draftable signals (cancelled/question/etc.)
+                    _skip = False
+                    if _check_draftable:
+                        try:
+                            _skip, _ct = _check_draftable(row_meta)
+                        except Exception:
+                            _skip = False
+                    if _skip:
+                        continue
                     if text and ("will " in text.lower() or "promise" in text.lower() or "send" in text.lower() or "deliver" in text.lower() or "by " in text.lower()):
-                        commitment = {"text": text, "entity": entity_val}
+                        commitment = {"text": text, "entity": entity_val, "metadata": row_meta if isinstance(row_meta, dict) else {}}
                         source_signal_id = sig_id
                         evidence_refs = [{"entity": entity_val, "text": text, "timestamp": ts}]
                         break
-                # Fallback: use first row if no commitment-like text found
-                if not commitment and rows:
-                    row = rows[0]
-                    commitment = {
-                        "text": row["text"] if "text" in row.keys() else "",
-                        "entity": row["entity"] if "entity" in row.keys() else req.recipient,
-                    }
-                    source_signal_id = row["signal_id"] if "signal_id" in row.keys() else ""
-                    evidence_refs = [{"entity": commitment["entity"], "text": commitment["text"], "timestamp": row["timestamp"] if "timestamp" in row.keys() else ""}]
+                # Fallback: use first DRAFTABLE row if no commitment-like text found
+                if not commitment:
+                    for row in rows:
+                        text = row["text"] if "text" in row.keys() else ""
+                        entity_val = row["entity"] if "entity" in row.keys() else ""
+                        sig_id = row["signal_id"] if "signal_id" in row.keys() else ""
+                        ts = row["timestamp"] if "timestamp" in row.keys() else ""
+                        row_meta = row["metadata"] if "metadata" in row.keys() else "{}"
+                        _skip = False
+                        if _check_draftable:
+                            try:
+                                _skip, _ct = _check_draftable(row_meta)
+                            except Exception:
+                                _skip = False
+                        if _skip:
+                            continue
+                        commitment = {
+                            "text": text,
+                            "entity": entity_val if entity_val else req.recipient,
+                            "metadata": row_meta if isinstance(row_meta, dict) else {},
+                        }
+                        source_signal_id = sig_id
+                        evidence_refs = [{"entity": commitment["entity"], "text": text, "timestamp": ts}]
+                        break
 
             if not commitment:
                 yield f'data: {{"error": "No active commitments found for \'{req.recipient}\'. Connect a connector and ingest."}}\n\n'
