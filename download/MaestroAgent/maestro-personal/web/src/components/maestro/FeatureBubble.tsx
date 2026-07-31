@@ -115,13 +115,13 @@ export function FeatureBubble() {
     >
       <div
         className={cn(
-          "group relative flex items-start gap-3 rounded-2xl border border-border/60",
-          "bg-card/95 backdrop-blur-sm px-4 py-3 shadow-sm",
-          "hover:shadow-md transition-shadow",
+          "group relative flex items-start gap-3  border border-border/60",
+          "bg-card/95 -sm px-4 py-3 ",
+          "hover: transition-shadow",
         )}
       >
         <div
-          className="mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary"
+          className="mt-0.5 flex size-7 shrink-0 items-center justify-center  bg-primary/10 text-primary"
           aria-hidden
         >
           <Lightbulb className="size-4" />
@@ -136,7 +136,7 @@ export function FeatureBubble() {
           onClick={handleDismiss}
           aria-label="Dismiss tip"
           className={cn(
-            "shrink-0 rounded-md p-1 text-muted-foreground/60",
+            "shrink-0  p-1 text-muted-foreground/60",
             "hover:bg-accent hover:text-foreground transition-colors",
             "focus:outline-none focus-visible:ring-2 focus-visible:ring-ring",
           )}
@@ -147,7 +147,7 @@ export function FeatureBubble() {
         {/* Subtle progress indicator (rotates every ROTATE_MS) */}
         <span
           aria-hidden
-          className="absolute bottom-0 left-4 right-4 h-0.5 overflow-hidden rounded-full bg-muted"
+          className="absolute bottom-0 left-4 right-4 h-0.5 overflow-hidden  bg-muted"
         >
           <span
             key={index}

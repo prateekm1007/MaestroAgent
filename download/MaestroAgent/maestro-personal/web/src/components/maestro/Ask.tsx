@@ -552,7 +552,7 @@ export function Ask({
                   id="ask-autocomplete-listbox"
                   role="listbox"
                   aria-label="Ask suggestions"
-                  className="absolute z-50 left-0 right-0 mt-1 rounded-md border border-border/60 bg-popover shadow-md overflow-hidden max-h-80 overflow-y-auto"
+                  className="absolute z-50 left-0 right-0 mt-1  border border-border/60 bg-popover  overflow-hidden max-h-80 overflow-y-auto"
                 >
                   <div className="px-3 py-1.5 text-[10px] uppercase tracking-wider text-muted-foreground/70 border-b border-border/40 bg-muted/20">
                     Suggestions · from your history + commitments
@@ -602,8 +602,8 @@ export function Ask({
 
           {/* Recording indicator */}
           {recording && (
-            <div className="mt-3 flex items-center gap-2 text-xs text-rose-500 font-medium animate-pulse">
-              <span className="size-2 rounded-full bg-rose-500" />
+            <div className="mt-3 flex items-center gap-2 text-xs text-rose-500 font-medium ">
+              <span className="size-2  bg-rose-500" />
               Recording… click stop when done.
             </div>
           )}
@@ -619,7 +619,7 @@ export function Ask({
                     setQuery(q);
                     void runAsk(q);
                   }}
-                  className="text-xs px-3 py-1.5 rounded-full border border-border/60 bg-muted/30 hover:bg-muted/60 transition-colors text-muted-foreground hover:text-foreground"
+                  className="text-xs px-3 py-1.5  border border-border/60 bg-muted/30 hover:bg-muted/60 transition-colors text-muted-foreground hover:text-foreground"
                 >
                   {q}
                 </button>
@@ -644,7 +644,7 @@ export function Ask({
                 </div>
                 <p className="text-sm leading-relaxed whitespace-pre-wrap">
                   {streamingText}
-                  <span className="inline-block w-1.5 h-4 bg-primary/60 ml-0.5 animate-pulse align-middle" />
+                  <span className="inline-block w-1.5 h-4 bg-primary/60 ml-0.5  align-middle" />
                 </p>
               </CardContent>
             </Card>
@@ -671,7 +671,7 @@ export function Ask({
           {!busy && !response && (
             <Card className="border-border/60 border-dashed">
               <CardContent className="pt-6 pb-8 flex flex-col items-center justify-center text-center gap-3">
-                <div className="size-12 rounded-full bg-muted/40 flex items-center justify-center">
+                <div className="size-12  bg-muted/40 flex items-center justify-center">
                   <Search className="size-5 text-muted-foreground" />
                 </div>
                 <div>
@@ -708,7 +708,7 @@ export function Ask({
                           setQuery(q);
                           void runAsk(q);
                         }}
-                        className="w-full text-left text-sm px-2.5 py-2 rounded-md hover:bg-muted/40 transition-colors text-foreground/80 truncate"
+                        className="w-full text-left text-sm px-2.5 py-2  hover:bg-muted/40 transition-colors text-foreground/80 truncate"
                         title={q}
                       >
                         {q}
@@ -810,9 +810,9 @@ function AnswerCard({
                 )}
               </span>
             </div>
-            <div className="h-1.5 w-full rounded-full bg-muted/60 overflow-hidden">
+            <div className="h-1.5 w-full  bg-muted/60 overflow-hidden">
               <div
-                className={cn("h-full rounded-full transition-all", confidenceColor(response.confidence))}
+                className={cn("h-full  transition-all", confidenceColor(response.confidence))}
                 style={{ width: `${Math.max(2, Math.min(100, response.confidence * 100))}%` }}
               />
             </div>
@@ -834,12 +834,12 @@ function AnswerCard({
               a trust product. This block surfaces it visibly so the user
               sees WHY the confidence is what it is. */}
           {response.calibration_note && (
-            <div className="rounded-md border border-amber-500/30 bg-amber-50/60 dark:bg-amber-950/20 px-3 py-2 text-xs">
+            <div className=" border  /60 dark:bg-amber-950/20 px-3 py-2 text-xs">
               <div className="flex items-start gap-2">
-                <span className="text-amber-700 dark:text-amber-400 font-medium shrink-0 mt-0.5">
+                <span className=" dark:text-amber-400 font-medium shrink-0 mt-0.5">
                   Why this confidence:
                 </span>
-                <span className="text-amber-900 dark:text-amber-200 leading-relaxed">
+                <span className=" dark:text-amber-200 leading-relaxed">
                   {response.calibration_note}
                 </span>
               </div>
@@ -924,7 +924,7 @@ function AnswerCard({
                 return (
                   <li
                     key={i}
-                    className="rounded-lg border border-border/50 bg-muted/20 p-3 hover:bg-muted/30 transition-colors"
+                    className=" border border-border/50 bg-muted/20 p-3 hover:bg-muted/30 transition-colors"
                   >
                     <div className="flex items-start justify-between gap-3">
                       <div className="flex-1 min-w-0">
@@ -934,7 +934,7 @@ function AnswerCard({
                               {refEntity}
                             </span>
                             {refSourceType && (
-                              <span className="inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded-full border border-border/60 bg-muted/40 text-muted-foreground uppercase tracking-wide">
+                              <span className="inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5  border border-border/60 bg-muted/40 text-muted-foreground uppercase tracking-wide">
                                 {refSourceType}
                               </span>
                             )}
@@ -985,7 +985,7 @@ function AnswerCard({
             </div>
             <ul className="space-y-2">
               {response.counterevidence.map((c, i) => (
-                <li key={i} className="rounded-lg border border-rose-500/20 bg-rose-500/[0.04] p-3">
+                <li key={i} className=" border border-rose-500/20 bg-rose-500/[0.04] p-3">
                   <p className="text-sm text-foreground/90">
                     {c.text || (typeof c === "string" ? c : JSON.stringify(c))}
                   </p>
@@ -1024,7 +1024,7 @@ function AnswerCard({
                   key={i}
                   type="button"
                   onClick={() => onReAsk(u)}
-                  className="text-left text-sm px-3 py-2 rounded-lg border border-border/60 bg-muted/20 hover:bg-muted/40 hover:border-border transition-colors text-muted-foreground hover:text-foreground"
+                  className="text-left text-sm px-3 py-2  border border-border/60 bg-muted/20 hover:bg-muted/40 hover:border-border transition-colors text-muted-foreground hover:text-foreground"
                   title="Re-ask this as a new question"
                 >
                   {u}
@@ -1068,7 +1068,7 @@ function AnswerCard({
               {response.perspectives.map((p, i) => (
                 <div
                   key={i}
-                  className="rounded-lg border border-border/60 bg-muted/20 p-3"
+                  className=" border border-border/60 bg-muted/20 p-3"
                 >
                   <div className="text-[11px] uppercase tracking-wider text-muted-foreground mb-1">
                     {(p as any).lens || "view"}
@@ -1109,10 +1109,10 @@ function AnswerSkeleton() {
   return (
     <Card className="border-border/60">
       <CardContent className="pt-6 space-y-3">
-        <div className="h-3 w-24 bg-muted/60 rounded animate-pulse" />
-        <div className="h-5 w-3/4 bg-muted/40 rounded animate-pulse" />
-        <div className="h-5 w-2/3 bg-muted/40 rounded animate-pulse" />
-        <div className="h-1.5 w-full bg-muted/60 rounded-full animate-pulse mt-4" />
+        <div className="h-3 w-24 bg-muted/60 rounded " />
+        <div className="h-5 w-3/4 bg-muted/40 rounded " />
+        <div className="h-5 w-2/3 bg-muted/40 rounded " />
+        <div className="h-1.5 w-full bg-muted/60   mt-4" />
       </CardContent>
     </Card>
   );

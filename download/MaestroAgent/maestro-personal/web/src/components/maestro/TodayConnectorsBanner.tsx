@@ -111,15 +111,15 @@ export function TodayConnectorsBanner({
       role="status"
       aria-label="Connectors reminder"
       className={cn(
-        "rounded-lg border border-amber-500/40 bg-amber-50/80 dark:bg-amber-950/30 px-4 py-3",
+        " border /40 /80 dark:bg-amber-950/30 px-4 py-3",
         "flex items-start gap-3",
       )}
     >
       <div className="shrink-0 mt-0.5">
-        <Link2 className="size-4 text-amber-700 dark:text-amber-400" />
+        <Link2 className="size-4  dark:text-amber-400" />
       </div>
       <div className="flex-1 min-w-0">
-        <p className="text-sm text-amber-900 dark:text-amber-100 leading-relaxed">
+        <p className="text-sm  dark:text-amber-100 leading-relaxed">
           <strong>Maestro only knows what you connect.</strong>{" "}
           Your connected sources are where every answer comes from. Connect
           email, calendar, or work email in <strong>More</strong>.
@@ -142,7 +142,7 @@ export function TodayConnectorsBanner({
           <Button
             size="sm"
             variant="ghost"
-            className="h-9 text-xs text-amber-800 dark:text-amber-300 hover:text-amber-900 dark:hover:text-amber-200"
+            className="h-9 text-xs text-amber-800 dark:text-amber-300 hover: dark:hover:text-amber-200"
             onClick={handleGotIt}
           >
             Got it
@@ -150,7 +150,7 @@ export function TodayConnectorsBanner({
           <Button
             size="sm"
             variant="ghost"
-            className="h-9 text-xs text-amber-700/80 dark:text-amber-400/80 hover:text-amber-800 dark:hover:text-amber-300"
+            className="h-9 text-xs /80 dark:text-amber-400/80 hover:text-amber-800 dark:hover:text-amber-300"
             onClick={handleSnooze}
           >
             Snooze 3 days
@@ -160,7 +160,7 @@ export function TodayConnectorsBanner({
       <button
         type="button"
         onClick={handleGotIt}
-        className="shrink-0 text-amber-700/60 dark:text-amber-400/60 hover:text-amber-900 dark:hover:text-amber-200 transition-colors"
+        className="shrink-0 /60 dark:text-amber-400/60 hover: dark:hover:text-amber-200 transition-colors"
         aria-label="Dismiss"
       >
         <X className="size-4" />

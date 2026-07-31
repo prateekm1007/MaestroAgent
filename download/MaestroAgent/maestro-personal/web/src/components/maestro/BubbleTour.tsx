@@ -153,7 +153,7 @@ export function BubbleTour({
     <>
       {/* Backdrop — dim the page, click anywhere to advance */}
       <div
-        className="fixed inset-0 z-40 bg-black/40 backdrop-blur-[1px]"
+        className="fixed inset-0 z-40 bg-black/40 -[1px]"
         onClick={next}
         aria-hidden
       />
@@ -165,7 +165,7 @@ export function BubbleTour({
         className="fixed z-50 left-1/2 -translate-x-1/2 top-20 sm:top-24 w-[calc(100vw-2rem)] max-w-md"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="rounded-lg border border-border bg-card shadow-xl">
+        <div className=" border border-border bg-card ">
           {/* Header — step indicator + close */}
           <div className="flex items-center justify-between px-4 pt-3 pb-2 border-b border-border/60">
             <div className="flex items-center gap-1.5">
@@ -173,7 +173,7 @@ export function BubbleTour({
                 <span
                   key={i}
                   className={cn(
-                    "h-1.5 rounded-full transition-all",
+                    "h-1.5  transition-all",
                     i === step ? "w-6 bg-primary" : "w-1.5 bg-muted-foreground/30",
                   )}
                   aria-hidden

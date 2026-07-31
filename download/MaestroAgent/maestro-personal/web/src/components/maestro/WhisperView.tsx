@@ -85,7 +85,7 @@ function WhisperCard({
       animate={config.animate}
       exit={{ opacity: 0, y: -10 }}
       transition={{ duration: config.duration, ease: [0.16, 1, 0.3, 1] }}
-      className={cn('relative w-full overflow-hidden rounded-2xl', config.bgClass, config.minHeight)}
+      className={cn('relative w-full overflow-hidden ', config.bgClass, config.minHeight)}
     >
       <div className={cn('p-5', config.padding)}>
         {/* Header row */}
@@ -116,17 +116,17 @@ function WhisperCard({
           <div className="mt-4">
             <div className="flex items-center justify-between mb-1.5">
               <span className="text-xs text-gray-500">Likelihood of slipping</span>
-              <span className="text-sm font-medium text-red-600 tabular-nums">
+              <span className="text-sm font-medium  tabular-nums">
                 {whisper.probability}%
               </span>
             </div>
             {/* Tufte: sparkline-style bar, thin */}
-            <div className="h-1 bg-red-50 rounded-full overflow-hidden">
+            <div className="h-1   overflow-hidden">
               <motion.div
                 initial={{ width: 0 }}
                 animate={{ width: `${whisper.probability}%` }}
                 transition={{ duration: 0.8, ease: 'easeOut', delay: 0.2 }}
-                className="h-full rounded-full"
+                className="h-full "
                 style={{ background: '#DC2626' }}
               />
             </div>
@@ -198,7 +198,7 @@ function getWhisperConfig(type: WhisperType) {
         minHeight: 'min-h-[35vh]',
         padding: 'p-6',
         titleSize: 'text-lg',
-        iconColor: 'text-red-500',
+        iconColor: '',
         icon: <AlertTriangle className="h-5 w-5" />,
         actionClass: 'bg-red-600 text-white hover:bg-red-700',
         initial: { opacity: 0, y: 30 },
@@ -207,13 +207,13 @@ function getWhisperConfig(type: WhisperType) {
       }
     case 'preparation':
       return {
-        bgClass: 'bg-blue-50/80',
+        bgClass: '/80',
         minHeight: 'min-h-[25vh]',
         padding: 'p-5',
         titleSize: 'text-base',
         iconColor: 'text-blue-500',
         icon: <Calendar className="h-5 w-5" />,
-        actionClass: 'bg-blue-600 text-white hover:bg-blue-700',
+        actionClass: ' text-white hover:bg-blue-700',
         initial: { opacity: 0, x: 30 },
         animate: { opacity: 1, x: 0 },
         duration: 0.25,

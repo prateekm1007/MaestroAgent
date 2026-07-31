@@ -44,9 +44,9 @@ export function DemoBanner() {
   if (!show) return null;
 
   return (
-    <div className="rounded-md border border-amber-500/40 bg-amber-50 dark:bg-amber-950/30 px-4 py-2 flex items-center gap-2">
-      <AlertCircle className="size-4 text-amber-600 dark:text-amber-400 shrink-0" />
-      <span className="text-xs text-amber-900 dark:text-amber-100 font-medium">
+    <div className=" border /40  dark:bg-amber-950/30 px-4 py-2 flex items-center gap-2">
+      <AlertCircle className="size-4  dark:text-amber-400 shrink-0" />
+      <span className="text-xs  dark:text-amber-100 font-medium">
         DEMO — sample data. This account shows synthetic fixtures for evaluation.
         Register a new account and connect your email to see your real commitments.
       </span>

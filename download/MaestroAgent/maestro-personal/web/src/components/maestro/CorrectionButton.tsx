@@ -101,7 +101,7 @@ export function CorrectionButton({ signalId, apiBase, token, onCorrected }: Corr
             initial={{ opacity: 0, y: -4 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -4 }}
-            className="absolute right-0 top-7 z-20 bg-white rounded-lg shadow-lg border border-gray-200 py-1 min-w-[180px]"
+            className="absolute right-0 top-7 z-20 bg-white   border border-gray-200 py-1 min-w-[180px]"
           >
             {!editing ? (
               ACTIONS.map((a) => (
@@ -135,7 +135,7 @@ export function CorrectionButton({ signalId, apiBase, token, onCorrected }: Corr
                   <button
                     onClick={() => submitCorrection('edit_text', editText)}
                     disabled={!editText.trim()}
-                    className="flex-1 px-2 py-1 text-xs bg-blue-500 text-white rounded hover:bg-blue-600 disabled:opacity-40 disabled:cursor-not-allowed"
+                    className="flex-1 px-2 py-1 text-xs 0 text-white rounded hover: disabled:opacity-40 disabled:cursor-not-allowed"
                   >
                     Save
                   </button>
@@ -149,7 +149,7 @@ export function CorrectionButton({ signalId, apiBase, token, onCorrected }: Corr
               </div>
             )}
             {errorMsg && (
-              <div className="px-3 py-1 text-xs text-red-500">{errorMsg}</div>
+              <div className="px-3 py-1 text-xs ">{errorMsg}</div>
             )}
           </motion.div>
         )}

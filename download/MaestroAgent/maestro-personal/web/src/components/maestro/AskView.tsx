@@ -54,7 +54,7 @@ export function AskView() {
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Ask about your commitments..."
-            className="w-full pl-11 pr-4 py-3.5 bg-white rounded-xl border border-gray-200 text-gray-900 placeholder:text-gray-400 focus:outline-none focus:border-gray-400 transition-colors text-sm"
+            className="w-full pl-11 pr-4 py-3.5 bg-white  border border-gray-200 text-gray-900 placeholder:text-gray-400 focus:outline-none focus:border-gray-400 transition-colors text-sm"
           />
         </form>
 
@@ -64,7 +64,7 @@ export function AskView() {
               <button
                 key={s}
                 onClick={() => { setQuery(s); handleAsk(s) }}
-                className="px-3 py-1.5 text-sm text-gray-500 bg-gray-50 hover:bg-gray-100 rounded-full transition-colors"
+                className="px-3 py-1.5 text-sm text-gray-500 bg-gray-50 hover:bg-gray-100  transition-colors"
               >
                 {s}
               </button>
@@ -80,7 +80,7 @@ export function AskView() {
         )}
 
         {error && (
-          <div className="mt-8 text-sm text-red-500">{error}</div>
+          <div className="mt-8 text-sm ">{error}</div>
         )}
 
         <AnimatePresence>
@@ -94,7 +94,7 @@ export function AskView() {
               {/* Direct answer */}
               <div className="mb-6">
                 <div className="flex items-center gap-2 mb-3">
-                  <div className="h-2.5 w-2.5 rounded-full" style={{ background: confColor }} />
+                  <div className="h-2.5 w-2.5 " style={{ background: confColor }} />
                   <span className="text-xs text-gray-400 tabular-nums">
                     {Math.round(confidence * 100)}% · {confLabel}
                   </span>
@@ -149,12 +149,12 @@ export function AskView() {
                 >
                   <div>
                     <div className="flex items-center gap-3 mb-4">
-                      <div className="flex-1 h-2 bg-gray-100 rounded-full overflow-hidden">
+                      <div className="flex-1 h-2 bg-gray-100  overflow-hidden">
                         <motion.div
                           initial={{ width: 0 }}
                           animate={{ width: `${confidence * 100}%` }}
                           transition={{ duration: 0.6, ease: 'easeOut' }}
-                          className="h-full rounded-full"
+                          className="h-full "
                           style={{ background: confColor }}
                         />
                       </div>

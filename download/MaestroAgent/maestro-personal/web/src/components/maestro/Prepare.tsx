@@ -131,7 +131,7 @@ function PrepareCard({ item }: { item: PrepareItem }) {
         {/* The three prep items */}
         <div className="space-y-3">
           {forgotten && (
-            <div className="flex items-start gap-2 rounded-md border border-amber-500/30 bg-amber-500/[0.06] p-2.5">
+            <div className="flex items-start gap-2  border  0/[0.06] p-2.5">
               <CalendarClock className="size-3.5 text-amber-500 mt-0.5 shrink-0" />
               <div className="flex-1 min-w-0">
                 <div className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">Forgotten commitment</div>
@@ -141,7 +141,7 @@ function PrepareCard({ item }: { item: PrepareItem }) {
           )}
 
           {openQ && (
-            <div className="flex items-start gap-2 rounded-md border border-sky-500/30 bg-sky-500/[0.06] p-2.5">
+            <div className="flex items-start gap-2  border border-sky-500/30 bg-sky-500/[0.06] p-2.5">
               <HelpCircle className="size-3.5 text-sky-500 mt-0.5 shrink-0" />
               <div className="flex-1 min-w-0">
                 <div className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">Open question</div>
@@ -151,7 +151,7 @@ function PrepareCard({ item }: { item: PrepareItem }) {
           )}
 
           {contradiction && (
-            <div className="flex items-start gap-2 rounded-md border border-rose-500/30 bg-rose-500/[0.06] p-2.5">
+            <div className="flex items-start gap-2  border border-rose-500/30 bg-rose-500/[0.06] p-2.5">
               <AlertTriangle className="size-3.5 text-rose-500 mt-0.5 shrink-0" />
               <div className="flex-1 min-w-0">
                 <div className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">Contradiction</div>
@@ -165,7 +165,7 @@ function PrepareCard({ item }: { item: PrepareItem }) {
               <div className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">Prep points</div>
               <ul className="space-y-1">
                 {prepPoints.map((p, i) => (
-                  <li key={i} className="text-xs text-foreground/80 rounded-md border border-border/60 bg-muted/20 p-2">
+                  <li key={i} className="text-xs text-foreground/80  border border-border/60 bg-muted/20 p-2">
                     {p}
                   </li>
                 ))}

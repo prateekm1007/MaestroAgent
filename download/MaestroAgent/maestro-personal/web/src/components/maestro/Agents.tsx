@@ -54,13 +54,13 @@ const AGENT_LABELS: Record<string, string> = {
 
 const PRIORITY_STYLES: Record<string, string> = {
   low: "border-sky-500/30 bg-sky-500/[0.08] text-sky-300",
-  medium: "border-amber-500/30 bg-amber-500/[0.08] text-amber-300",
+  medium: " 0/[0.08] text-amber-300",
   high: "border-rose-500/30 bg-rose-500/[0.08] text-rose-300",
 };
 
 const RISK_STYLES: Record<string, { ring: string; text: string; icon: typeof CheckCircle2 }> = {
-  low: { ring: "border-emerald-500/40", text: "text-emerald-300", icon: CheckCircle2 },
-  medium: { ring: "border-amber-500/40", text: "text-amber-300", icon: AlertTriangle },
+  low: { ring: "/40", text: "text-emerald-300", icon: CheckCircle2 },
+  medium: { ring: "/40", text: "text-amber-300", icon: AlertTriangle },
   high: { ring: "border-rose-500/40", text: "text-rose-300", icon: ShieldAlert },
 };
 
@@ -225,7 +225,7 @@ function SimulationResultCard({ result }: { result: SimulationResult }) {
   const recLabel = RECOMMENDATION_LABELS[result.recommendation] || result.recommendation;
 
   return (
-    <div className={cn("rounded-lg border p-4 space-y-3", style.ring)}>
+    <div className={cn(" border p-4 space-y-3", style.ring)}>
       <div className="flex items-start justify-between gap-3">
         <div className="flex items-center gap-2">
           <Icon className={cn("size-5", style.text)} />
@@ -250,7 +250,7 @@ function SimulationResultCard({ result }: { result: SimulationResult }) {
           </div>
           <ul className="space-y-1.5">
             {result.conflicts.map((c, i) => (
-              <li key={i} className="flex items-start gap-2 text-xs text-foreground/90 rounded-md border border-border/60 bg-muted/30 p-2">
+              <li key={i} className="flex items-start gap-2 text-xs text-foreground/90  border border-border/60 bg-muted/30 p-2">
                 <AlertTriangle className="size-3.5 text-amber-500 mt-0.5 shrink-0" />
                 <span>{c}</span>
               </li>
@@ -402,7 +402,7 @@ function InsightCard({ insight }: { insight: AgentInsight }) {
   const confidencePct = Math.round((insight.confidence || 0) * 100);
 
   return (
-    <div className="rounded-lg border border-border/60 bg-muted/20 p-3 space-y-2">
+    <div className=" border border-border/60 bg-muted/20 p-3 space-y-2">
       <div className="flex items-start justify-between gap-2">
         <div className="text-sm font-medium text-foreground">{insight.title}</div>
         <Badge variant="outline" className={cn("capitalize text-[10px]", style)}>

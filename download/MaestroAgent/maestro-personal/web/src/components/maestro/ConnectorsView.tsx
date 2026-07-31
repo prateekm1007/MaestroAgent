@@ -156,7 +156,7 @@ function ConnectorCard({
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.25, delay: index * 0.04, ease: [0.16, 1, 0.3, 1] }}
       className={cn(
-        'flex items-center gap-4 py-4 px-5 rounded-xl transition-colors',
+        'flex items-center gap-4 py-4 px-5  transition-colors',
         connected
           ? 'bg-white border border-gray-100'
           : 'bg-gray-50/50 hover:bg-gray-50 cursor-pointer',
@@ -164,7 +164,7 @@ function ConnectorCard({
     >
       {/* Icon — Bertin: visual variable for category */}
       <div className={cn(
-        'flex-shrink-0 flex items-center justify-center h-10 w-10 rounded-lg',
+        'flex-shrink-0 flex items-center justify-center h-10 w-10 ',
         connected ? 'bg-gray-900 text-white' : 'bg-gray-100 text-gray-500',
       )}>
         {connector.icon}
@@ -194,11 +194,11 @@ function ConnectorCard({
       {/* Action */}
       <div className="flex-shrink-0">
         {connected ? (
-          <button className="text-xs text-gray-400 hover:text-gray-600 transition-colors px-3 py-1.5 rounded-lg hover:bg-gray-50">
+          <button className="text-xs text-gray-400 hover:text-gray-600 transition-colors px-3 py-1.5  hover:bg-gray-50">
             Disconnect
           </button>
         ) : (
-          <button className="flex items-center gap-1 text-xs font-medium text-gray-600 hover:text-gray-900 transition-colors px-3 py-1.5 rounded-lg bg-white border border-gray-200 hover:border-gray-300">
+          <button className="flex items-center gap-1 text-xs font-medium text-gray-600 hover:text-gray-900 transition-colors px-3 py-1.5  bg-white border border-gray-200 hover:border-gray-300">
             <Plus className="h-3 w-3" />
             Connect
           </button>

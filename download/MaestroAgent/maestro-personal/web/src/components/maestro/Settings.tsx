@@ -237,7 +237,7 @@ export function Settings() {
         <div>
           <h2 className="text-xl font-semibold tracking-tight">Settings</h2>
         </div>
-        <Card className="border-emerald-500/30 bg-emerald-500/[0.04]">
+        <Card className=" /[0.04]">
           <CardContent className="pt-6 flex items-start gap-3">
             <CheckCircle2 className="size-5 text-emerald-400 mt-0.5" />
             <div className="space-y-1">
@@ -283,21 +283,21 @@ export function Settings() {
               {llm && (
                 <span
                   className={cn(
-                    "inline-flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-full border",
+                    "inline-flex items-center gap-1.5 text-xs px-2.5 py-1  border",
                     llm.active
-                      ? "border-emerald-500/30 bg-emerald-500/[0.08] text-emerald-300"
+                      ? " /[0.08] text-emerald-300"
                       : llm.configured
-                        ? "border-amber-500/30 bg-amber-500/[0.08] text-amber-300"
+                        ? " 0/[0.08] text-amber-300"
                         : "border-border/60 bg-muted/40 text-muted-foreground",
                   )}
                 >
                   <span
                     className={cn(
-                      "size-1.5 rounded-full",
+                      "size-1.5 ",
                       llm.active
-                        ? "bg-emerald-500"
+                        ? ""
                         : llm.configured
-                          ? "bg-amber-500"
+                          ? "0"
                           : "bg-zinc-500",
                     )}
                   />
@@ -389,7 +389,7 @@ export function Settings() {
                     calibration claim). P25: never show a number you cannot defend. */}
                 {calibration.brier_score !== null && calibration.brier_score !== undefined
                   && calibration.counts && calibration.counts.hits >= 3 ? (
-                  <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/[0.05] p-3">
+                  <div className=" border  /[0.05] p-3">
                     <div className="text-[11px] uppercase tracking-wider text-emerald-300/80 mb-1">
                       Brier score
                     </div>
@@ -401,7 +401,7 @@ export function Settings() {
                     </div>
                   </div>
                 ) : (
-                  <div className="rounded-lg border border-border/60 bg-muted/20 p-3">
+                  <div className=" border border-border/60 bg-muted/20 p-3">
                     <div className="text-[11px] uppercase tracking-wider text-muted-foreground/70 mb-1">
                       Status
                     </div>
@@ -545,7 +545,7 @@ export function Settings() {
                         className={cn(
                           "text-xs font-semibold",
                           trend.direction === "improving" ? "text-emerald-500"
-                            : trend.direction === "declining" ? "text-red-500"
+                            : trend.direction === "declining" ? ""
                             : "text-muted-foreground"
                         )}
                       >
@@ -657,9 +657,9 @@ export function Settings() {
                   type="button"
                   onClick={() => toggleNotifPref(key)}
                   className={cn(
-                    "w-full flex items-center justify-between gap-2 text-sm px-3 py-2 rounded-md border transition-colors",
+                    "w-full flex items-center justify-between gap-2 text-sm px-3 py-2  border transition-colors",
                     notifPrefs[key]
-                      ? "border-emerald-500/30 bg-emerald-500/[0.08] text-foreground"
+                      ? " /[0.08] text-foreground"
                       : "border-border/60 bg-muted/20 text-muted-foreground"
                   )}
                 >
@@ -731,7 +731,7 @@ export function Settings() {
                 default and must be explicitly enabled.
               </p>
               {Object.entries(consentDefaults).map(([provider, scopes]) => (
-                <div key={provider} className="rounded-lg border border-border/60 bg-muted/20 p-3">
+                <div key={provider} className=" border border-border/60 bg-muted/20 p-3">
                   <div className="text-sm font-medium capitalize mb-2">{provider}</div>
                   <div className="flex flex-wrap gap-3">
                     {Object.entries(scopes).map(([scope, defaultEnabled]) => {
@@ -750,9 +750,9 @@ export function Settings() {
                             await maestroApi.setConsentSetting(provider, scope, next);
                           }}
                           className={cn(
-                            "inline-flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-md border transition-colors",
+                            "inline-flex items-center gap-1.5 text-xs px-2.5 py-1  border transition-colors",
                             current
-                              ? "border-emerald-500/30 bg-emerald-500/[0.08] text-emerald-300"
+                              ? " /[0.08] text-emerald-300"
                               : "border-border/60 bg-muted/40 text-muted-foreground",
                           )}
                         >
@@ -799,7 +799,7 @@ export function Settings() {
               {retention.policy && (
                 <div className="space-y-1.5">
                   <div className="text-[11px] uppercase tracking-wider text-muted-foreground">TTLs by category</div>
-                  <div className="rounded-md border border-border/60 bg-muted/20 divide-y divide-border/40">
+                  <div className=" border border-border/60 bg-muted/20 divide-y divide-border/40">
                     {Object.entries(retention.policy).map(([k, v]) => (
                       <div key={k} className="flex items-center justify-between px-3 py-2">
                         <span className="text-xs text-muted-foreground capitalize">{k.replace(/_/g, " ")}</span>
@@ -873,7 +873,7 @@ function Stat({
   accent?: "emerald" | "rose";
 }) {
   return (
-    <div className="rounded-md border border-border/60 bg-muted/20 p-2">
+    <div className=" border border-border/60 bg-muted/20 p-2">
       <div className="text-[10px] uppercase tracking-wider text-muted-foreground/70">
         {label}
       </div>
@@ -894,9 +894,9 @@ function Stat({
 function SkeletonRow() {
   return (
     <div className="space-y-2">
-      <div className="h-3 w-1/2 bg-muted/60 rounded animate-pulse" />
-      <div className="h-3 w-2/3 bg-muted/40 rounded animate-pulse" />
-      <div className="h-3 w-1/3 bg-muted/40 rounded animate-pulse" />
+      <div className="h-3 w-1/2 bg-muted/60 rounded " />
+      <div className="h-3 w-2/3 bg-muted/40 rounded " />
+      <div className="h-3 w-1/3 bg-muted/40 rounded " />
     </div>
   );
 }

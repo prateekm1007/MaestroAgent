@@ -35,11 +35,11 @@ type InboxStatus = {
 };
 
 const CATEGORY_META: Record<string, { icon: string; label: string; color: string }> = {
-  new_commitment: { icon: "📋", label: "Commitment", color: "border-blue-500/30 bg-blue-500/[0.06]" },
-  completion: { icon: "✅", label: "Completion", color: "border-green-500/30 bg-green-500/[0.06]" },
-  cancellation: { icon: "❌", label: "Cancellation", color: "border-red-500/30 bg-red-500/[0.06]" },
+  new_commitment: { icon: "📋", label: "Commitment", color: "/30 0/[0.06]" },
+  completion: { icon: "✅", label: "Completion", color: "border-green-500/30 /[0.06]" },
+  cancellation: { icon: "❌", label: "Cancellation", color: "border-red-500/30 0/[0.06]" },
   fyi: { icon: "📰", label: "FYI / Newsletter", color: "border-gray-500/30 bg-gray-500/[0.06]" },
-  contradiction: { icon: "⚠️", label: "Contradiction", color: "border-amber-500/30 bg-amber-500/[0.06]" },
+  contradiction: { icon: "⚠️", label: "Contradiction", color: " 0/[0.06]" },
   ambiguous: { icon: "❓", label: "Ambiguous", color: "border-purple-500/30 bg-purple-500/[0.06]" },
 };
 
@@ -130,19 +130,19 @@ export function SyntheticInbox() {
       {/* Status bar */}
       {status && (
         <div className="flex flex-wrap gap-4 text-xs">
-          <span className="rounded-md border border-border/60 bg-muted/30 px-3 py-1.5">
+          <span className=" border border-border/60 bg-muted/30 px-3 py-1.5">
             <strong>{status.synthetic_emails_received}</strong> received
           </span>
-          <span className="rounded-md border border-border/60 bg-muted/30 px-3 py-1.5">
+          <span className=" border border-border/60 bg-muted/30 px-3 py-1.5">
             <strong>{status.commitments.total}</strong> commitments tracked
           </span>
-          <span className="rounded-md border border-green-500/30 bg-green-500/[0.06] px-3 py-1.5">
+          <span className=" border border-green-500/30 /[0.06] px-3 py-1.5">
             <strong>{status.commitments.completed}</strong> resolved
           </span>
-          <span className="rounded-md border border-blue-500/30 bg-blue-500/[0.06] px-3 py-1.5">
+          <span className=" border /30 0/[0.06] px-3 py-1.5">
             <strong>{status.commitments.active}</strong> active
           </span>
-          <span className="rounded-md border border-red-500/30 bg-red-500/[0.06] px-3 py-1.5">
+          <span className=" border border-red-500/30 0/[0.06] px-3 py-1.5">
             <strong>{status.commitments.cancelled}</strong> cancelled
           </span>
         </div>

@@ -120,9 +120,9 @@ export function Login({ onLoggedIn }: { onLoggedIn: (demo: boolean) => void }) {
         className="pointer-events-none absolute inset-0 overflow-hidden"
         aria-hidden
       >
-        <div className="absolute -top-40 left-1/2 -translate-x-1/2 h-80 w-[40rem] rounded-full bg-primary/15 blur-3xl" />
-        <div className="absolute bottom-0 right-0 h-72 w-72 rounded-full bg-primary/10 blur-3xl" />
-        <div className="absolute top-1/3 left-0 h-64 w-64 rounded-full bg-amber-200/30 blur-3xl" />
+        <div className="absolute -top-40 left-1/2 -translate-x-1/2 h-80 w-[40rem]  bg-primary/15 " />
+        <div className="absolute bottom-0 right-0 h-72 w-72  bg-primary/10 " />
+        <div className="absolute top-1/3 left-0 h-64 w-64  bg-amber-200/30 " />
       </div>
 
       <div className="relative w-full max-w-sm space-y-8">
@@ -232,12 +232,12 @@ export function Login({ onLoggedIn }: { onLoggedIn: (demo: boolean) => void }) {
               <div className="flex items-center gap-2 text-muted-foreground">
                 <span
                   className={cn(
-                    "size-2 rounded-full",
+                    "size-2 ",
                     health === "checking"
-                      ? "bg-zinc-400 animate-pulse"
+                      ? "bg-zinc-400 "
                       : health === "live"
-                        ? "bg-emerald-500"
-                        : "bg-amber-500",
+                        ? ""
+                        : "0",
                   )}
                   aria-hidden
                 />
@@ -251,7 +251,7 @@ export function Login({ onLoggedIn }: { onLoggedIn: (demo: boolean) => void }) {
               </div>
               <div className="flex items-center gap-2 text-muted-foreground">
                 <span
-                  className={cn("size-2 rounded-full", llmDotColor(llm))}
+                  className={cn("size-2 ", llmDotColor(llm))}
                   aria-hidden
                 />
                 <span>
@@ -266,14 +266,14 @@ export function Login({ onLoggedIn }: { onLoggedIn: (demo: boolean) => void }) {
 
             {/* Demo notice */}
             {health === "demo" && (
-              <div className="rounded-lg border border-amber-400/50 bg-amber-50 p-3 flex gap-2">
-                <TriangleAlert className="size-4 shrink-0 text-amber-600 mt-0.5" />
-                <div className="text-xs text-amber-900 space-y-1">
+              <div className=" border   p-3 flex gap-2">
+                <TriangleAlert className="size-4 shrink-0  mt-0.5" />
+                <div className="text-xs  space-y-1">
                   <p className="font-medium">Demo mode</p>
                   <p className="text-amber-800">
                     The Maestro API is not reachable from this sandbox. Log in
                     with the password{" "}
-                    <code className="px-1 py-0.5 rounded bg-amber-200 text-amber-900 font-mono">
+                    <code className="px-1 py-0.5 rounded bg-amber-200  font-mono">
                       demo
                     </code>{" "}
                     to explore the full UI with sample data.
@@ -283,8 +283,8 @@ export function Login({ onLoggedIn }: { onLoggedIn: (demo: boolean) => void }) {
             )}
 
             {health === "live" && (
-              <div className="rounded-lg border border-emerald-500/40 bg-emerald-50 p-3 flex gap-2">
-                <ShieldCheck className="size-4 shrink-0 text-emerald-600 mt-0.5" />
+              <div className=" border /40 bg-emerald-50 p-3 flex gap-2">
+                <ShieldCheck className="size-4 shrink-0  mt-0.5" />
                 <div className="text-xs text-emerald-900 space-y-1">
                   <p className="font-medium">Live API connected</p>
                   <p className="text-emerald-800">
@@ -308,7 +308,7 @@ export function Login({ onLoggedIn }: { onLoggedIn: (demo: boolean) => void }) {
 
 function MaestroMark() {
   return (
-    <div className="relative size-16 rounded-full bg-primary flex items-center justify-center shadow-lg shadow-primary/30">
+    <div className="relative size-16  bg-primary flex items-center justify-center  shadow-primary/30">
       <Zap className="size-8 text-primary-foreground" fill="currentColor" />
     </div>
   );
