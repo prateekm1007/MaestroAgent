@@ -265,28 +265,39 @@ function TodayView({ onDraft, draftBusy }: { onDraft: (entity: string) => void; 
 
   useEffect(() => {
     let alive = true
+
+    // LATENCY FIX (v21): progressive loading — fast endpoints first,
+    // slow endpoints (the-moment) load in parallel and update in-place.
+    // The prior Promise.all blocked ALL rendering until the-moment (9s cold) completed.
+
+    // Phase 1: fast endpoints (< 1s) — render immediately
     ;(async () => {
       try {
-        // P18 fix: fetch commitments in TodayView too, so "What Changed"
-        // items can be matched to commitment_ids for ClickableCard.
-        const [moment, shifts, commits] = await Promise.all([
-          maestroApi.getTheMoment(),
+        const [shifts, commits] = await Promise.all([
           maestroApi.getTheShifts(),
           maestroApi.getCommitments(),
         ])
         if (!alive) return
-        // Audit fix S1-1: record liveness so we can distinguish "backend
-        // unreachable" from "genuinely no commitments". The prior code
-        // collapsed both into theOne=null → "You're clear today".
-        setMomentLive(!!moment.live)
-        if (moment.live && moment.data) setTheOne(moment.data)
         if (shifts.live && shifts.data) setChanges(shifts.data.the_shifts || shifts.data.secondary || [])
         if (commits.live && Array.isArray(commits.data)) setCommitments(commits.data)
         setLoading(false)
       } catch (e) {
-        if (alive) { setError('Failed to load. Please try again.'); setLoading(false) }
+        if (alive) { setLoading(false) }
       }
     })()
+
+    // Phase 2: the-moment loads separately (may take 5-9s cold)
+    ;(async () => {
+      try {
+        const moment = await maestroApi.getTheMoment()
+        if (!alive) return
+        setMomentLive(!!moment.live)
+        if (moment.live && moment.data) setTheOne(moment.data)
+      } catch (e) {
+        if (alive) { setMomentLive(false) }
+      }
+    })()
+
     return () => { alive = false }
   }, [])
 

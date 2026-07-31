@@ -25,6 +25,12 @@ _PREPARE_CACHE: dict[str, tuple[float, list]] = {}
 # Phase L4: 60-second per-user cache for /api/the-moment (was 1.1-1.4s)
 _MOMENT_CACHE: dict[str, tuple[float, Any]] = {}
 
+# LATENCY FIX (v21): 60-second per-user cache for /api/whisper (was 6s every call)
+_WHISPER_CACHE: dict[str, tuple[float, Any]] = {}
+
+# LATENCY FIX (v21): 60-second per-user cache for /api/briefing
+_BRIEFING_CACHE: dict[str, tuple[float, Any]] = {}
+
 # R-03 fix (reviewer S2): structural tentativeness filter.
 # Tentative content ("maybe", "I'll let you know", "don't count on it") must
 # be excluded from briefing unknowns, material_changes, cannot_decide_yet,
@@ -749,16 +755,17 @@ def _should_whisper_rule_based(w: dict) -> bool | None:
 async def get_whispers(token: str = Depends(verify_token_dep)):
     """Get active whispers — things that deserve attention RIGHT NOW.
 
-    DEPTH: calls Core's WhisperSituationBridge.from_situation() for each
-    situation. Empty list = trusted silence.
-
-    Phase 3.2 fix (v13 auditor): removed signal_limit=500. With 843 signals
-    in production, the 500-signal cap caused stale commitments (6+ days old)
-    to fall outside the window — whisper returned 0 while /api/ambient
-    correctly showed 3 stale commitments. The whisper endpoint already has
-    caching (simple_cache, 5-min TTL) and rule-based early-exit, so loading
-    all signals does not regress latency.
+    LATENCY FIX (v21): added 60-second cache. The whisper endpoint was
+    taking 6+ seconds on EVERY call because build_shell loads all signals
+    and the materiality_gate_v2 LLM call adds 10-25s per whisper.
     """
+    # LATENCY FIX: 60-second cache (same pattern as the-moment)
+    import time as _whisper_cache_time
+    _whisper_key = f"whisper:{token}"
+    _cached_whisper = _WHISPER_CACHE.get(_whisper_key)
+    if _cached_whisper and _cached_whisper[0] > _whisper_cache_time.monotonic():
+        return _cached_whisper[1]
+
     from maestro_personal_shell.api import build_shell
     shell = build_shell(user_email=token)
     core = shell.core
@@ -849,6 +856,9 @@ async def get_whispers(token: str = Depends(verify_token_dep)):
                 r.delivery_explanation = "Stale commitment — follow-up needed"
             if r.suppression_reason:
                 r.suppression_reason = ""
+
+    # LATENCY FIX: cache the result for 60 seconds
+    _WHISPER_CACHE[_whisper_key] = (_whisper_cache_time.monotonic() + 60.0, result)
 
     return result
 

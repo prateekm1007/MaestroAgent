@@ -296,30 +296,43 @@ export function Dashboard({
 
   useEffect(() => {
     let alive = true;
+
+    // LATENCY FIX (v21): progressive loading — fast endpoints first,
+    // slow endpoints (the-moment, briefing, whisper) load in parallel.
+
+    // Phase 1: fast endpoints (< 1s) — render immediately
     (async () => {
       setLoading(true);
-      const [m, s, b, w, sn, esc, dh, cal] = await Promise.all([
-        maestroApi.getTheMoment(),
+      const [s, sn, esc, dh, cal] = await Promise.all([
         maestroApi.getTheShifts(),
-        maestroApi.getBriefing(),
-        maestroApi.getWhispers(),
         maestroApi.getSmartNotifications({ limit: 5 }),
         maestroApi.getEscalations(),
         maestroApi.getDealHealth(),
         maestroApi.getCalendarAwareness(48),
       ]);
       if (!alive) return;
-      setMoment(m.data);
       setShifts(s.data);
-      setBriefing(b.data);
-      setWhispers(Array.isArray(w.data) ? w.data : []);
       setSmartNotifs(sn.data?.notifications ?? []);
       setEscalations(esc.data?.escalations ?? []);
       setDealHealth(dh.data?.deals ?? []);
       setUpcomingMeetings(cal.data?.meetings ?? []);
       setLoading(false);
     })();
-    // Issue 13-E: auto-refresh whispers every 60s
+
+    // Phase 2: slow endpoints — update in-place when they arrive
+    (async () => {
+      const m = await maestroApi.getTheMoment();
+      if (alive) setMoment(m.data);
+    })();
+    (async () => {
+      const b = await maestroApi.getBriefing();
+      if (alive) setBriefing(b.data);
+    })();
+    (async () => {
+      const w = await maestroApi.getWhispers();
+      if (alive) setWhispers(Array.isArray(w.data) ? w.data : []);
+    })();
+
     const interval = setInterval(async () => {
       const w = await maestroApi.getWhispers();
       if (alive) setWhispers(Array.isArray(w.data) ? w.data : []);
