@@ -1293,15 +1293,17 @@ Write the email body now. Start with "Hi {entity},". Use ACTUAL newlines."""
             draft_id = f"draft-{_secrets.token_urlsafe(12)}"
             now_iso = datetime.now(timezone.utc).isoformat()
             evidence_json = _json.dumps(evidence_refs or [])
+            # Q3 fix: extract recipient_email
+            recipient_email_val = req.recipient if "@" in req.recipient else ""
             try:
                 from maestro_personal_shell.db_util import get_db_conn as _get_conn
                 pconn = _get_conn()
                 pconn.execute(
                     "INSERT INTO drafts "
-                    "(draft_id, user_email, provider, recipient, subject, body, "
+                    "(draft_id, user_email, provider, recipient, recipient_email, subject, body, "
                     "commitment_ref, evidence_refs, status, created_at) "
-                    "VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?)",
-                    (draft_id, token, req.provider, req.recipient, subject,
+                    "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?)",
+                    (draft_id, token, req.provider, req.recipient, recipient_email_val, subject,
                      final_text, commitment_text, evidence_json, now_iso),
                 )
                 pconn.commit()

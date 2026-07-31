@@ -304,6 +304,7 @@ class ConnectorStore:
                     user_email TEXT NOT NULL,
                     provider TEXT NOT NULL,
                     recipient TEXT NOT NULL,
+                    recipient_email TEXT DEFAULT '',
                     subject TEXT DEFAULT '',
                     body TEXT NOT NULL,
                     commitment_ref TEXT DEFAULT '',
@@ -314,6 +315,12 @@ class ConnectorStore:
                     sent_message_id TEXT DEFAULT ''
                 )
             """)
+            # Q3 fix: add recipient_email column if it doesn't exist (ALTER TABLE
+            # for existing databases that were created before this column)
+            try:
+                conn.execute("ALTER TABLE drafts ADD COLUMN recipient_email TEXT DEFAULT ''")
+            except Exception:
+                pass  # Column already exists
             conn.execute("""
                 CREATE TABLE IF NOT EXISTS connector_audit (
                     audit_id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -952,14 +959,17 @@ class ConnectorStore:
         now = datetime.now(timezone.utc).isoformat()
         evidence_json = json.dumps(evidence_refs or [])
 
+        # Q3 fix: extract recipient_email if recipient looks like an email
+        recipient_email = recipient if "@" in recipient else ""
+
         try:
             conn = get_db_conn(self.db_path)
             conn.execute(
                 "INSERT INTO drafts "
-                "(draft_id, user_email, provider, recipient, subject, body, "
+                "(draft_id, user_email, provider, recipient, recipient_email, subject, body, "
                 "commitment_ref, evidence_refs, status, created_at) "
-                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?)",
-                (draft_id, user_email, provider, recipient, subject, body,
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?)",
+                (draft_id, user_email, provider, recipient, recipient_email, subject, body,
                  commitment_ref, evidence_json, now),
             )
             conn.execute(
@@ -977,6 +987,7 @@ class ConnectorStore:
             "draft_id": draft_id,
             "provider": provider,
             "recipient": recipient,
+            "recipient_email": recipient_email,
             "subject": subject,
             "body": body,
             "commitment_ref": commitment_ref,
@@ -991,7 +1002,7 @@ class ConnectorStore:
             conn = get_db_conn(self.db_path)
             if status:
                 rows = conn.execute(
-                    "SELECT draft_id, provider, recipient, subject, body, "
+                    "SELECT draft_id, provider, recipient, recipient_email, subject, body, "
                     "commitment_ref, evidence_refs, status, created_at, resolved_at "
                     "FROM drafts WHERE user_email = ? AND status = ? "
                     "ORDER BY created_at DESC",
@@ -999,7 +1010,7 @@ class ConnectorStore:
                 ).fetchall()
             else:
                 rows = conn.execute(
-                    "SELECT draft_id, provider, recipient, subject, body, "
+                    "SELECT draft_id, provider, recipient, recipient_email, subject, body, "
                     "commitment_ref, evidence_refs, status, created_at, resolved_at "
                     "FROM drafts WHERE user_email = ? "
                     "ORDER BY created_at DESC",
@@ -1011,13 +1022,14 @@ class ConnectorStore:
                     "draft_id": r[0],
                     "provider": r[1],
                     "recipient": r[2],
-                    "subject": r[3],
-                    "body": r[4],
-                    "commitment_ref": r[5],
-                    "evidence_refs": json.loads(r[6] or "[]"),
-                    "status": r[7],
-                    "created_at": r[8],
-                    "resolved_at": r[9],
+                    "recipient_email": r[3] if len(r) > 3 else "",
+                    "subject": r[4],
+                    "body": r[5],
+                    "commitment_ref": r[6],
+                    "evidence_refs": json.loads(r[7] or "[]"),
+                    "status": r[8],
+                    "created_at": r[9],
+                    "resolved_at": r[10],
                 }
                 for r in rows
             ]
@@ -1030,7 +1042,7 @@ class ConnectorStore:
         try:
             conn = get_db_conn(self.db_path)
             row = conn.execute(
-                "SELECT draft_id, user_email, provider, recipient, subject, body, "
+                "SELECT draft_id, user_email, provider, recipient, recipient_email, subject, body, "
                 "commitment_ref, evidence_refs, status, created_at, resolved_at "
                 "FROM drafts WHERE draft_id = ?",
                 (draft_id,),
@@ -1043,13 +1055,14 @@ class ConnectorStore:
                 "user_email": row[1],
                 "provider": row[2],
                 "recipient": row[3],
-                "subject": row[4],
-                "body": row[5],
-                "commitment_ref": row[6],
-                "evidence_refs": json.loads(row[7] or "[]"),
-                "status": row[8],
-                "created_at": row[9],
-                "resolved_at": row[10],
+                "recipient_email": row[4] if len(row) > 4 else "",
+                "subject": row[5],
+                "body": row[6],
+                "commitment_ref": row[7],
+                "evidence_refs": json.loads(row[8] or "[]"),
+                "status": row[9],
+                "created_at": row[10],
+                "resolved_at": row[11] if len(row) > 11 else "",
             }
         except Exception as e:
             logger.warning(f"get_draft failed: {e}")
