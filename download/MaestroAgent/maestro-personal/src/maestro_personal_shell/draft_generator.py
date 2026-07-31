@@ -460,6 +460,21 @@ async def generate_email_draft(
                 detail="Commitment has no text to follow up on."
             )
 
+
+        # Q7 FIX: reject non-commitment signals before drafting
+        _meta = commitment.get('metadata', {}) or {}
+        if isinstance(_meta, str):
+            try:
+                import json as _json_meta
+                _meta = _json_meta.loads(_meta) if _meta else {}
+            except Exception:
+                _meta = {}
+        _commitment_type = _meta.get('commitment_type', '')
+        _is_commitment = _meta.get('is_commitment', True)
+        _NON_DRAFTABLE = {'cancelled','negation','third_party_report','not_a_commitment','question','tentative','joke','request','aspiration','proposal','superseded'}
+        if _commitment_type in _NON_DRAFTABLE or _is_commitment is False:
+            raise HTTPException(status_code=422, detail={'error':'non_draftable_signal','commitment_type':_commitment_type,'reason':f'This signal is {_commitment_type} — no follow-up needed.'})
+
         # Look up actual email address (P-DRAFT-EMAIL-ADDRESS fix)
         recipient_email = _get_recipient_email(commitment, commitment_id, user_email)
         if not recipient_email:
