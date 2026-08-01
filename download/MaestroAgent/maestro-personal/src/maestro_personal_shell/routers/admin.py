@@ -18,11 +18,13 @@ from __future__ import annotations
 
 import os
 import sqlite3
+import logging
 
 from fastapi import APIRouter, Header
 from fastapi.responses import JSONResponse
 
 router = APIRouter(tags=["admin"])
+logger = logging.getLogger(__name__)
 
 
 def _is_postgres_env() -> bool:

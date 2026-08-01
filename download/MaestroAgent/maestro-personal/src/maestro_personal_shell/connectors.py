@@ -1533,16 +1533,23 @@ class ConnectorDraftGenerator:
                         "text": sig_text,
                         "timestamp": sig_timestamp,
                     })
-                else:
-                    # Related signal — add as evidence (this includes
-                    # cancelled commitments — they're context, not the
-                    # primary draftable commitment)
+                elif not _non_draftable:
+                    # Related signal — add as evidence ONLY if it's not
+                    # non-draftable. The prior code added cancelled/question
+                    # signals as "context," but the auditor (Audit #25, Phase
+                    # 2b) found that citing "Please ignore the previous email"
+                    # in the evidence section is still harmful — the user
+                    # sees it in the draft and it looks like Maestro is
+                    # following up on a cancelled commitment.
                     if len(best_evidence) < 3:
                         best_evidence.append({
                             "entity": sig_entity,
                             "text": sig_text,
                             "timestamp": sig_timestamp,
                         })
+                # If _non_draftable is True, we SKIP it entirely — neither
+                # as primary commitment nor as evidence. Cancelled/question/
+                # tentative signals must not appear in the draft at all.
 
             except Exception as e:
                 logger.debug(f"Signal scan error: {e}")

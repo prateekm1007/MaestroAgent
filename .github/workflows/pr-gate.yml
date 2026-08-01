@@ -1,0 +1,79 @@
+name: PR Gate
+
+# PR Gate (Audit #25 — fixes the CI structural flaw):
+# The prior `pinned-regressions.yml` workflow tested PRODUCTION
+# (https://maestroagent-production.up.railway.app), not the PR's own code.
+# This meant:
+#   - A PR that introduces a regression → GREEN (tests hit production's old code)
+#   - A PR that fixes a regression → RED until production is updated first
+#
+# This workflow fixes that by spinning up the app IN-PROCESS via FastAPI's
+# TestClient against the PR's own checked-out code. The tests run against
+# the code IN THE PR, not against production.
+#
+# The production monitor (production_regression_cron.py) remains separate
+# and continues to test production on a schedule — that's the right design
+# for post-deploy monitoring.
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+jobs:
+  pr-gate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install dependencies
+        run: |
+          cd download/MaestroAgent/maestro-personal
+          pip install --no-cache-dir "." "pytest>=7.4.0" "pytest-asyncio>=0.23.0" "httpx>=0.25.0" "email-validator>=2.1.0"
+
+      - name: Run PR-gated regression tests (TestClient against PR's own code)
+        env:
+          # MAESTRO_TEST_MODE=1 disables rate limiting (api.py line 1104)
+          # MAESTRO_TEST_MODE=local is checked by the test file to ensure
+          # it's NOT hitting production
+          MAESTRO_TEST_MODE: "1"
+          MAESTRO_TEST_MODE_LOCAL: "local"
+          # Set a test database path so tests don't touch production data
+          MAESTRO_DATABASE_URL: sqlite:///tmp/test_pr_gate.db
+          OPENROUTER_API_KEY: dummy-key-for-tests
+        run: |
+          cd download/MaestroAgent/maestro-personal
+          python -m pytest tests/test_pr_gate.py -v --tb=short
+
+      - name: Verify Q7 filter unit tests (no production dependency)
+        run: |
+          cd download/MaestroAgent/maestro-personal
+          python -c "
+          import sys
+          sys.path.insert(0, 'src')
+          from maestro_personal_shell.draft_generator import _is_non_draftable, _NON_DRAFTABLE_TYPES
+          # P27: read assertions, not test names
+          assert len(_NON_DRAFTABLE_TYPES) == 11, f'Expected 11 non-draftable types, got {len(_NON_DRAFTABLE_TYPES)}'
+          # P28: test 3+ inputs
+          cases = [
+              ({'commitment_type': 'cancelled'}, True, 'cancelled'),
+              ({'commitment_type': 'question'}, True, 'question'),
+              ({'commitment_type': 'commitment_made', 'is_commitment': True}, False, ''),
+              ({'is_commitment': False}, True, 'not_a_commitment'),
+              ({}, False, ''),
+              (None, False, ''),
+          ]
+          for meta, expected_flag, expected_type in cases:
+              flag, ct = _is_non_draftable(meta)
+              assert flag == expected_flag, f'{meta!r}: expected flag={expected_flag}, got {flag}'
+              if expected_type:
+                  assert expected_type in ct, f'{meta!r}: expected type containing {expected_type!r}, got {ct!r}'
+          print('OK: 6 Q7 unit tests pass against PR code')
+          "
