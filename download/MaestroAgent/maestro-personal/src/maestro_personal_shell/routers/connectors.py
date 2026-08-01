@@ -1040,16 +1040,21 @@ async def create_draft(req: ConnectorDraftRequest, token: str = Depends(verify_t
     # body — there may be no metadata at all. This guard checks the TEXT
     # itself for cancellation phrases and rejects the draft with 422.
     # This is the last line of defense against drafting on cancellations.
-    try:
-        from maestro_personal_shell.draft_generator import assert_no_cancelled_as_commitment
-        assert_no_cancelled_as_commitment(
-            draft_data.get("body", ""),
-            draft_data.get("commitment_ref", "") or req.commitment_text or "",
-        )
-    except HTTPException:
-        raise  # Re-raise the 422
-    except Exception as _guard_err:
-        logger.debug(f"Q7 guard check (non-fatal): {_guard_err}")
+    #
+    # REGRESSION TEST (Audit #25, instruction 3): deliberately commented
+    # out to verify the PR gate catches the regression. The PR Gate
+    # workflow's test_cancelled_text_rejected_by_post_drafts test should
+    # FAIL because this guard no longer fires.
+    # try:
+    #     from maestro_personal_shell.draft_generator import assert_no_cancelled_as_commitment
+    #     assert_no_cancelled_as_commitment(
+    #         draft_data.get("body", ""),
+    #         draft_data.get("commitment_ref", "") or req.commitment_text or "",
+    #     )
+    # except HTTPException:
+    #     raise  # Re-raise the 422
+    # except Exception as _guard_err:
+    #     logger.debug(f"Q7 guard check (non-fatal): {_guard_err}")
 
     result = store.create_draft(
         user_email=token,
