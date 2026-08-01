@@ -164,6 +164,98 @@ def _is_non_draftable(metadata_or_commitment: dict | str | None) -> tuple[bool, 
 
     return False, top_level_type or meta_type
 
+
+# ---------------------------------------------------------------------------
+# Q7+G1 (Audit #24): FRAMING map + select_primary_commitment + hard guard
+# ---------------------------------------------------------------------------
+
+# FRAMING: how the draft should be framed based on commitment_type.
+# The auditor's CODER_INSTRUCTIONS (line 92-101) prescribes this map.
+# The template must NOT blindly say "Commitments: - <text>" for all types.
+# Each type gets a different framing so the user sees an honest summary.
+FRAMING: dict[str, str] = {
+    "commitment_made": "Following up on my commitment to:",
+    "follow_up_required": "Following up on our conversation about:",
+    "reported_statement": "Checking in on:",
+    "completed": "Confirming completion of:",
+    "completed_verified": "Confirming completion of:",
+    "completed_claimed": "Regarding my progress on:",
+}
+
+# Cancellation phrases that must NEVER appear in a draft body as a commitment.
+# The auditor's CODER_INSTRUCTIONS (line 133-141) prescribes this hard guard.
+# This catches the case where the STRUCTURAL filter passes (the signal has
+# commitment_type=commitment_made) but the TEXT contains a cancellation
+# phrase the classifier missed.
+_CANCELLATION_PHRASES = (
+    "ignore the previous",
+    "disregard my last",
+    "cancel that",
+    "no longer sending",
+    "please ignore",
+    "forget i said",
+    "never mind",
+    "scratch that",
+    "withdraw my",
+    "retract my",
+)
+
+
+def select_primary_commitment(
+    commitments: list[dict],
+) -> dict | None:
+    """Pick the first DRAFTABLE commitment from a list.
+
+    The auditor's CODER_INSTRUCTIONS (line 103-108) prescribes this function.
+    Filters out NON_ACTIONABLE types (cancelled, question, tentative, etc.)
+    BEFORE picking the primary commitment. Without this, a cancelled signal
+    with is_commitment=True would be picked as the primary commitment.
+
+    Returns the first draftable commitment, or None if all are non-draftable.
+    """
+    if not commitments:
+        return None
+    for c in commitments:
+        non_draftable, _ = _is_non_draftable(c)
+        if not non_draftable:
+            return c
+    return None
+
+
+def assert_no_cancelled_as_commitment(
+    draft_body: str,
+    commitment_text: str = "",
+) -> None:
+    """Hard guard: raise HTTPException(422) if the draft body contains a
+    cancellation phrase as a commitment.
+
+    The auditor's CODER_INSTRUCTIONS (line 133-141) prescribes this guard.
+    This is the TEXT-LEVEL check that catches cancellations the structural
+    filter missed (e.g., the classifier labeled a cancellation as
+    commitment_made because it contained "I already sent it").
+
+    This guard runs AFTER the draft is generated (LLM or template) and
+    BEFORE it's returned to the user. If the commitment_text OR the draft
+    body contains a cancellation phrase, the draft is rejected.
+    """
+    text_to_check = f"{commitment_text} {draft_body}".lower()
+    for phrase in _CANCELLATION_PHRASES:
+        if phrase in text_to_check:
+            raise HTTPException(
+                status_code=422,
+                detail={
+                    "error": "non_draftable_signal",
+                    "commitment_type": "cancelled_text",
+                    "reason": f"Draft body contains cancellation phrase '{phrase}' — no follow-up needed.",
+                },
+            )
+
+
+def _frame_commitment(commitment_type: str) -> str:
+    """Return the framing text for a commitment_type, with a safe default."""
+    return FRAMING.get(commitment_type or "", "Following up on:")
+
+
 # No-Gemini rule (user directive 2026-07-30): Google Gemini / Gemma is
 # forbidden for any coding or LLM-calling task.
 # v20 fix: user directed DeepSeek be used for drafting.
@@ -687,6 +779,15 @@ Write the email body now. Start with "Hi {entity},". Use ACTUAL newlines (press 
         # catches and rewrites those phrases to non-committal language.
         draft_body = _strip_completion_claims(draft_body)
 
+        # Q7+G1 (Audit #24): TEXT-LEVEL hard guard. The structural filter
+        # at line 561 checks commitment_type/state/signal_type. But the
+        # classifier may have mis-classified a cancellation as
+        # commitment_made (e.g., "I already sent it" → looks like
+        # completion). This guard catches the TEXT itself — if the
+        # commitment_text or draft_body contains a cancellation phrase,
+        # reject the draft with 422.
+        assert_no_cancelled_as_commitment(draft_body, commitment_text)
+
         # Build subject
         subject_text = commitment_text[:60].rstrip()
         subject = f"Re: {subject_text}" if not subject_text.lower().startswith('re:') else subject_text
@@ -980,6 +1081,23 @@ Write the email body now. Start with "Hi {entity},". Use ACTUAL newlines (press 
         final_text = re.sub(r'^\s*subject:\s*[^\n]*\n', '', accumulated, flags=re.IGNORECASE).strip()
         final_text = _clean_signature(final_text, signature, user_email)
         final_text = _ban_placeholders(final_text, entity, user_email)
+
+        # Q7+G1 (Audit #24): TEXT-LEVEL hard guard for streaming path.
+        # Same check as the non-streaming path — if the commitment_text
+        # or draft body contains a cancellation phrase, yield an error
+        # chunk + [DONE] instead of the draft.
+        _text_to_check = f"{commitment_text} {final_text}".lower()
+        _cancelled = False
+        _cancel_phrase = ""
+        for _phrase in _CANCELLATION_PHRASES:
+            if _phrase in _text_to_check:
+                _cancelled = True
+                _cancel_phrase = _phrase
+                break
+        if _cancelled:
+            yield f'data: {{"error": "non_draftable_signal", "commitment_type": "cancelled_text", "reason": "Draft body contains cancellation phrase \'{_cancel_phrase}\' — no follow-up needed."}}\n\n'
+            yield "data: [DONE]\n\n"
+            return
 
         # If post-processing changed the text, yield a final correction chunk
         if final_text != accumulated:

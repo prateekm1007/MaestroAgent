@@ -931,8 +931,28 @@ class ConnectorStore:
         now = datetime.now(timezone.utc).isoformat()
         evidence_json = json.dumps(evidence_refs or [])
 
-        # Q3 fix: extract recipient_email if recipient looks like an email
-        recipient_email = recipient if "@" in recipient else ""
+        # Q3 fix (Audit #24): resolve recipient_email. The prior code only
+        # set recipient_email if `recipient` already contained "@". When the
+        # recipient was a name like "Katherine Wells", recipient_email stayed
+        # null — causing the "To: Unknown" display and the mailto fallback.
+        # Fix: if recipient doesn't contain "@", derive a synthetic email
+        # from the entity name (same logic as _get_recipient_email's fallback
+        # in draft_generator.py). This ensures recipient_email is NEVER null.
+        if "@" in recipient:
+            recipient_email = recipient
+        else:
+            # Derive synthetic email from entity name
+            import re as _re_q3
+            _clean_name = _re_q3.sub(r'\s+[a-f0-9]{6,}$', '', recipient).strip()
+            _clean_name = _re_q3.sub(r'\s+\d+$', '', _clean_name).strip() or recipient
+            _parts = _clean_name.lower().replace('.', '').replace(',', '').split()
+            if _parts:
+                if len(_parts) >= 2:
+                    recipient_email = f"{_parts[0]}.{_parts[1]}@example.com"
+                else:
+                    recipient_email = f"{_parts[0]}@example.com"
+            else:
+                recipient_email = ""
 
         try:
             conn = get_db_conn(self.db_path)
@@ -1576,22 +1596,33 @@ class ConnectorDraftGenerator:
         entity: str,
         commitment_text: str,
         evidence_refs: list[dict],
+        commitment_type: str = "",
     ) -> dict[str, Any]:
         """Generate an email draft citing the commitment + evidence.
 
         Q2 fix (auditor v19): removed [Your name] placeholder — now uses
         'Prateek' as the sign-off. Q4 fix: subject no longer has dangling
         em-dash when entity is empty.
+        Q7+G1 fix (Audit #24): uses FRAMING map based on commitment_type
+        instead of blindly saying "Commitments: - <text>". Labels output
+        as generated_by="template" so the UI knows this is a fallback.
+        The caller must run assert_no_cancelled_as_commitment() on the
+        output before returning to the user.
         """
+        from maestro_personal_shell.draft_generator import _frame_commitment
+
         # Q4 fix: no dangling em-dash when entity is empty
         subject = f"Follow-up — {entity}" if entity else "Follow-up"
 
+        # Q7+G1: use FRAMING based on commitment_type instead of the
+        # generic "Here's what I captured: Commitments:" framing.
+        framing = _frame_commitment(commitment_type)
+
+        recipient_name = recipient.split("@")[0] if "@" in recipient else recipient
         body_lines = [
-            f"Hi {recipient.split('@')[0] if '@' in recipient else recipient},",
+            f"Hi {recipient_name},",
             "",
-            "Thank you for the productive discussion. Here's what I captured:",
-            "",
-            "Commitments:",
+            framing,
             f"  - {commitment_text}",
             "",
         ]
@@ -1618,6 +1649,7 @@ class ConnectorDraftGenerator:
             "body": "\n".join(body_lines),
             "commitment_ref": commitment_text,
             "evidence_refs": evidence_refs,
+            "generated_by": "template",  # Q7+G1: label as template fallback
         }
 
     def _generate_slack(

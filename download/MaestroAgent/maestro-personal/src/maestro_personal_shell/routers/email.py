@@ -141,7 +141,7 @@ async def generate_draft(
     try:
         # Import here to avoid circular imports
         from maestro_personal_shell.draft_generator import generate_email_draft
-        
+
         draft = await generate_email_draft(
             commitment_id=commitment_id,
             user_email=user_email,
@@ -149,7 +149,43 @@ async def generate_draft(
             length=request.length,
             context=request.context
         )
-        
+
+        # G3 fix (Audit #24): PERSIST the draft so GET /api/drafts/{id}
+        # returns 200 instead of 404. The prior code returned the draft
+        # object to the caller but never saved it to the drafts table.
+        # This made the draft invisible to /api/drafts/{id} and
+        # /api/drafts/{id}/resolve — the user couldn't approve or discard
+        # a draft they'd just generated.
+        try:
+            from maestro_personal_shell.connectors import ConnectorStore
+            store = ConnectorStore()
+            persist_result = store.create_draft(
+                user_email=user_email,
+                provider="gmail",
+                recipient=draft.to or "",
+                subject=draft.subject or "",
+                body=draft.body or "",
+                commitment_ref=commitment_id,
+                evidence_refs=[],
+            )
+            # G3 assert: verify the draft is readable immediately after
+            # persist (P21 — all-paths trigger rule). If the persist
+            # succeeded, overwrite the draft_id with the persisted one
+            # so the frontend can call /api/drafts/{id}/resolve.
+            if persist_result and "draft_id" in persist_result:
+                persisted_id = persist_result["draft_id"]
+                _verify = store.get_draft(persisted_id)
+                if not _verify:
+                    logger.error(
+                        f"G3 FATAL: draft {persisted_id} not readable "
+                        f"immediately after create_draft — persistence is broken"
+                    )
+                else:
+                    draft.draft_id = persisted_id
+                    logger.info(f"G3: draft persisted as {persisted_id}")
+        except Exception as _persist_err:
+            logger.error(f"G3 draft persistence failed (non-fatal): {_persist_err}")
+
         return draft
         
     except HTTPException:

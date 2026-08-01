@@ -536,6 +536,57 @@ def save_signal_to_db(signal: dict[str, Any], db_path: str | None = None, user_e
     except Exception as e:
         logger.debug("FTS indexing failed (non-fatal): %s", e)
 
+    # C4 fix (Audit #24): if the signal came in without classification
+    # (is_commitment is None — e.g., Slack ingest doesn't classify),
+    # run the rule-based classifier synchronously and UPDATE the signal's
+    # metadata in-place. Without this, 8+ signals have is_commitment=None
+    # and never appear in the commitments list.
+    _meta = signal.get("metadata", {}) or {}
+    if isinstance(_meta, str):
+        try:
+            import json as _json_c4
+            _meta = _json_c4.loads(_meta) if _meta else {}
+        except Exception:
+            _meta = {}
+    _needs_classify = (
+        _meta.get("is_commitment") is None
+        and _meta.get("commitment_type", "") in ("", "unclassified")
+    )
+    if _needs_classify:
+        try:
+            from maestro_personal_shell.commitment_classifier import _rule_based_classify
+            _result = _rule_based_classify(
+                text=signal.get("text", ""),
+                entity=signal.get("entity", ""),
+                sender_email=_meta.get("sender_email", ""),
+            )
+            # Update the metadata with the classification result
+            _meta.update({
+                "commitment_type": _result.get("commitment_type", "unclassified"),
+                "is_commitment": _result.get("is_commitment"),
+                "commitment_state": _result.get("state", "candidate"),
+                "commitment_confidence": _result.get("confidence", 0.0),
+                "classification_reasoning": _result.get("reasoning", ""),
+                "llm_powered": False,
+            })
+            # Persist the updated metadata back to the signals table
+            with get_write_lock():
+                _conn = get_db_conn(db_path)
+                _conn.execute(
+                    "UPDATE signals SET metadata = ? WHERE signal_id = ?",
+                    (json.dumps(_meta), signal["signal_id"]),
+                )
+                _conn.commit()
+                _conn.close()
+            logger.info(
+                "C4: classified signal %s as %s (is_commitment=%s)",
+                signal["signal_id"][:12],
+                _meta.get("commitment_type"),
+                _meta.get("is_commitment"),
+            )
+        except Exception as _c4_err:
+            logger.debug("C4 synchronous classify failed (non-fatal): %s", _c4_err)
+
     # P54 FIX: invalidate the _MOMENT_CACHE so the new signal appears
     # immediately on the Today page (was stale for up to 60s).
     try:

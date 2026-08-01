@@ -1034,6 +1034,23 @@ async def create_draft(req: ConnectorDraftRequest, token: str = Depends(verify_t
     except Exception as _clean_err:
         logger.debug(f"Post-processing draft body (non-fatal): {_clean_err}")
 
+    # Q7+G1 (Audit #24): TEXT-LEVEL hard guard. The structural filter
+    # catches signals with commitment_type=cancelled in metadata. But
+    # POST /api/drafts takes commitment_text directly from the request
+    # body — there may be no metadata at all. This guard checks the TEXT
+    # itself for cancellation phrases and rejects the draft with 422.
+    # This is the last line of defense against drafting on cancellations.
+    try:
+        from maestro_personal_shell.draft_generator import assert_no_cancelled_as_commitment
+        assert_no_cancelled_as_commitment(
+            draft_data.get("body", ""),
+            draft_data.get("commitment_ref", "") or req.commitment_text or "",
+        )
+    except HTTPException:
+        raise  # Re-raise the 422
+    except Exception as _guard_err:
+        logger.debug(f"Q7 guard check (non-fatal): {_guard_err}")
+
     result = store.create_draft(
         user_email=token,
         provider=draft_data["provider"],
@@ -1076,17 +1093,47 @@ async def create_auto_draft(req: ConnectorAutoDraftRequest, token: str = Depends
         raise HTTPException(status_code=404, detail=f"No active commitments found for '{req.recipient}'.")
 
     # Step 2: Return instant template (no LLM call — <50ms)
+    # Q7+G1: pass commitment_type to the template so FRAMING is applied.
+    # The derive step may have found a commitment_type in the signal metadata.
+    _derived_type = ""
+    try:
+        _c_meta = commitment.get("metadata", {}) or {}
+        if isinstance(_c_meta, str):
+            import json as _json_dt
+            _c_meta = _json_dt.loads(_c_meta) if _c_meta else {}
+        _derived_type = _c_meta.get("commitment_type", "") or commitment.get("commitment_type", "")
+    except Exception:
+        pass
+
     draft_data = gen._generate_email(
         recipient=req.recipient,
         entity=commitment.get("entity", req.recipient),
         commitment_text=commitment.get("text", ""),
         evidence_refs=evidence_refs,
+        commitment_type=_derived_type,
     )
     draft_data["derived"] = True
     draft_data["commitment_source"] = source_signal_id
     draft_data["evidence_count"] = len(evidence_refs)
     draft_data["template_only"] = True
     draft_data["stream_url"] = f"/api/drafts/auto/stream"
+
+    # Q7+G1 (Audit #24): TEXT-LEVEL hard guard on the template output.
+    # The derive step's structural filter catches signals with
+    # commitment_type=cancelled in metadata. But the classifier may have
+    # mis-classified the signal (e.g., "ignore the previous email" →
+    # commitment_made because it contains "I already sent it"). This
+    # guard catches the TEXT itself and rejects the draft with 422.
+    try:
+        from maestro_personal_shell.draft_generator import assert_no_cancelled_as_commitment
+        assert_no_cancelled_as_commitment(
+            draft_data.get("body", ""),
+            commitment.get("text", ""),
+        )
+    except HTTPException:
+        raise  # Re-raise the 422
+    except Exception as _guard_err:
+        logger.debug(f"Q7 guard on auto draft (non-fatal): {_guard_err}")
 
     # Persist the template draft so /api/drafts finds it
     result = store.create_draft(
