@@ -1,10 +1,29 @@
 name: Pinned Regression Suite
 
+# Production Monitor (Audit #25 — changed from PR gate to schedule-only):
+#
+# This workflow was the ORIGINAL CI gate, but it tested PRODUCTION
+# (https://maestroagent-production.up.railway.app), not the PR's own code.
+# This meant a PR that fixed a regression would FAIL (because production
+# still had the bug) and a PR that introduced a regression would PASS
+# (because production still had the working code).
+#
+# The new `pr-gate.yml` workflow is the real PR gate — it uses TestClient
+# to test the PR's own code. This workflow is now a PRODUCTION MONITOR
+# only — it runs on a schedule (hourly) to verify production is healthy.
+# It also runs on push to main (to catch a regression immediately after
+# deploy, before the next hourly check).
+#
+# It is NO LONGER a required status check (removed from branch protection
+# in Audit #25). It runs as an informational monitor — failures trigger
+# an alert but don't block PRs.
+
 on:
+  schedule:
+    - cron: '0 * * * *'  # hourly production monitor
   push:
-    branches: [main]
-  pull_request:
-    branches: [main]
+    branches: [main]  # run after deploy to catch regressions immediately
+  workflow_dispatch: {}  # allow manual trigger for debugging
 
 jobs:
   pinned-regressions:
